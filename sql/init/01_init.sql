@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS health_check (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    status VARCHAR(32) NOT NULL,
+    checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO health_check (status) VALUES ('ok')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
