@@ -1,19 +1,18 @@
+from pathlib import Path
+
 from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
 from app.db import check_db
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
+INDEX_FILE = Path(__file__).resolve().parent / "static" / "index.html"
 
 
 @app.get("/")
-def root() -> dict:
-    return {
-        "service": settings.app_name,
-        "environment": settings.app_env,
-        "status": "ok",
-    }
+def root() -> FileResponse:
+    return FileResponse(INDEX_FILE)
 
 
 @app.get("/health")

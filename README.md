@@ -6,7 +6,7 @@ Ubuntu Server 24.04에서 동작하는 FastAPI 테스트 애플리케이션입�
 
 - FastAPI 서버: `100.66.77.55:8000`
 - MariaDB 서버: `100.104.124.29:3306`
-- `GET /`: 애플리케이션 기본 응답
+- `GET /`: 3개 서비스의 상태를 보여주는 테스트 대시보드
 - `GET /api/health`: WAS 자체 상태(liveness)
 - `GET /health`: MariaDB 스키마와 데이터까지 확인(readiness)
 
