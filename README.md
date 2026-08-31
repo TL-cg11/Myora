@@ -1,37 +1,40 @@
 # luck-was
 
-Ubuntu 24.04 기반 FastAPI 백엔드 애플리케이션 저장소입니다.
+Ubuntu Server 24.04에서 동작하는 FastAPI 테스트 애플리케이션입니다. Nginx의 요청을 받고 별도 MariaDB 서버의 `health_check` 테이블을 조회합니다.
 
-## 역할
-- REST API를 제공합니다.
-- MariaDB 연결 상태를 확인할 수 있습니다.
-- NGINX에서 프록시할 기본 엔드포인트를 제공합니다.
+## 구성
 
-## 구조
-- `app/main.py`: FastAPI 엔트리포인트
-- `app/db.py`: MariaDB 연결 예제
-- `app/config.py`: 환경 변수 기반 설정
-- `scripts/install.sh`: 서버 설치 및 실행 준비
-- `scripts/run.sh`: 로컬 실행 스크립트
+- FastAPI 서버: `100.66.77.55:8000`
+- MariaDB 서버: `100.104.124.29:3306`
+- `GET /`: 애플리케이션 기본 응답
+- `GET /api/health`: WAS 자체 상태(liveness)
+- `GET /health`: MariaDB 스키마와 데이터까지 확인(readiness)
 
-## 설치
+## 설치 및 갱신
+
 ```bash
+git clone https://github.com/TL-cg11/luck-was.git ~/luck-was
 cd ~/luck-was
+cp .env.example .env
 bash scripts/install.sh
 ```
 
-## 로컬 테스트
+이미 clone한 서버에서는 다음과 같이 갱신합니다.
+
 ```bash
-bash scripts/run.sh
-curl http://127.0.0.1:8000/health
-curl http://127.0.0.1:8000/
+cd ~/luck-was
+git pull --ff-only
+bash scripts/install.sh
 ```
 
-## 연결 정보
-- 기본 포트: `8000`
-- DB 호스트: `127.0.0.1`
-- DB 이름: `luck_db`
+`scripts/install.sh`는 Python 가상환경과 의존성을 구성하고 `luck-was.service`를 설치해 부팅 시 자동 시작되게 합니다.
 
-## 참고
-- `.env.example` 파일을 복사해 `.env`를 구성하고 실제 정보를 입력하세요.
-- 배포 시에는 `systemd` 서비스 파일을 사용해 자동 시작을 구성하세요.
+## 확인
+
+```bash
+curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8000/health
+sudo systemctl status luck-was --no-pager
+```
+
+`.env.example`의 계정은 테스트 전용입니다. 운영 환경에서는 `.env`에 별도 비밀번호를 설정하고 MariaDB 사용자 비밀번호도 동일하게 변경하세요.
