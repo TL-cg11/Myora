@@ -4,5 +4,6 @@ CREATE TABLE IF NOT EXISTS health_check (
     checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO health_check (status) VALUES ('ok')
-ON DUPLICATE KEY UPDATE status = VALUES(status);
+INSERT INTO health_check (status)
+SELECT 'ok'
+WHERE NOT EXISTS (SELECT 1 FROM health_check WHERE status = 'ok');
