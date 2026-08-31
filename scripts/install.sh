@@ -1,24 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v mariadbd >/dev/null 2>&1; then
-  sudo apt-get update
-  sudo apt-get install -y mariadb-server mariadb-client
-fi
+cd "$(dirname "$0")/.."
+
+DB_NAME=${DB_NAME:-luck_db}
+DB_USER=${DB_USER:-luck_user}
+DB_PASSWORD=${DB_PASSWORD:-Luck1234!}
+WAS_HOST=${WAS_HOST:-100.66.77.55}
+
+sudo apt-get update
+sudo apt-get install -y mariadb-server mariadb-client
 
 sudo mkdir -p /etc/mysql/conf.d
-sudo cp mariadb.cnf /etc/mysql/conf.d/luck.cnf
+sudo install -m 0644 mariadb.cnf /etc/mysql/conf.d/luck.cnf
 
-sudo mysql -uroot <<'SQL'
-CREATE DATABASE IF NOT EXISTS luck_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'luck_user'@'127.0.0.1' IDENTIFIED BY 'Luck1234!';
-GRANT ALL PRIVILEGES ON luck_db.* TO 'luck_user'@'127.0.0.1';
+sudo systemctl enable mariadb
+sudo systemctl restart mariadb
+
+sudo mysql -uroot <<SQL
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'$WAS_HOST' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER '$DB_USER'@'$WAS_HOST' IDENTIFIED BY '$DB_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON \`$DB_NAME\`.* TO '$DB_USER'@'$WAS_HOST';
+CREATE USER IF NOT EXISTS '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER '$DB_USER'@'127.0.0.1' IDENTIFIED BY '$DB_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1';
 FLUSH PRIVILEGES;
 SQL
 
 if [ -f sql/init/01_init.sql ]; then
-  sudo mysql -uroot luck_db < sql/init/01_init.sql
+  sudo mysql -uroot "$DB_NAME" < sql/init/01_init.sql
 fi
 
-sudo systemctl enable --now mariadb
-sudo systemctl status mariadb --no-pager | head
+DB_PASSWORD="$DB_PASSWORD" DB_USER="$DB_USER" DB_NAME="$DB_NAME" bash scripts/test.sh

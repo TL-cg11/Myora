@@ -1,35 +1,43 @@
 # luck-mariadb
 
-Ubuntu 24.04 기반 MariaDB 서버 설정 저장소입니다.
+Ubuntu Server 24.04에서 동작하는 MariaDB 테스트 서버 구성입니다. FastAPI 서버 한 대에만 애플리케이션 계정 로그인을 허용하고 상태 확인용 테이블을 초기화합니다.
 
-## 역할
-- 데이터베이스 서버를 구동합니다.
-- 애플리케이션용 DB와 사용자를 생성합니다.
-- 초기 스키마를 적용합니다.
+## 구성
 
-## 구조
-- `mariadb.cnf`: 기본 MariaDB 설정
-- `sql/init/01_init.sql`: 초기 DB 및 사용자 생성 SQL
-- `scripts/install.sh`: MariaDB 설치 및 초기화
-- `scripts/test.sh`: 연결 확인
+- MariaDB 서버: `100.104.124.29:3306`
+- 허용된 WAS 주소: `100.66.77.55`
+- 데이터베이스: `luck_db`
+- 애플리케이션 사용자: `luck_user`
+- 초기 테이블: `health_check`
 
-## 설치
+## 설치 및 갱신
+
 ```bash
+git clone https://github.com/TL-cg11/luck-mariadb.git ~/luck-mariadb
 cd ~/luck-mariadb
 bash scripts/install.sh
 ```
 
-## 연결 테스트
+이미 clone한 서버에서는 다음과 같이 갱신합니다.
+
 ```bash
-bash scripts/test.sh
-mysql -u luck_user -p -h 127.0.0.1 luck_db
+cd ~/luck-mariadb
+git pull --ff-only
+bash scripts/install.sh
 ```
 
-## 기본 값
-- DB 이름: `luck_db`
-- 사용자: `luck_user`
-- 포트: `3306`
+필요하면 설치 시 값을 덮어쓸 수 있습니다.
 
-## 참고
-- 실제 운영 환경에서는 강한 비밀번호와 방화벽 규칙을 적용하세요.
-- `mariadb.cnf`에서 bind-address, character-set, log 설정을 상황에 맞게 조정하세요.
+```bash
+DB_PASSWORD='새-비밀번호' WAS_HOST='WAS-IP' bash scripts/install.sh
+```
+
+## 확인
+
+```bash
+bash scripts/test.sh
+sudo ss -ltnp | grep 3306
+sudo systemctl status mariadb --no-pager
+```
+
+`mariadb.cnf`는 원격 WAS 접속을 위해 TCP 리스닝을 활성화합니다. 데이터베이스 계정은 지정한 WAS 주소와 로컬호스트에서만 인증됩니다. 인터넷에 직접 포트를 공개하지 말고 Tailscale 또는 방화벽으로 접근 범위를 제한하세요.
