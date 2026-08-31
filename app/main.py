@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -20,8 +20,13 @@ def root() -> dict:
 def health() -> JSONResponse:
     db_status = check_db()
     if db_status["status"] == "ok":
-        return JSONResponse({"status": "ok", "database": db_status})
-    return JSONResponse({"status": "degraded", "database": db_status}, status_code=200)
+        return JSONResponse(
+            {"status": "ok", "service": settings.app_name, "database": db_status}
+        )
+    return JSONResponse(
+        {"status": "degraded", "service": settings.app_name, "database": db_status},
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 
 
 @app.get("/api/health")

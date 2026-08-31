@@ -15,7 +15,7 @@ class Settings:
     app_env: str = os.getenv("APP_ENV", "development")
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
-    db_host: str = os.getenv("DB_HOST", "127.0.0.1")
+    db_host: str = os.getenv("DB_HOST", "100.104.124.29")
     db_port: int = int(os.getenv("DB_PORT", "3306"))
     db_name: str = os.getenv("DB_NAME", "luck_db")
     db_user: str = os.getenv("DB_USER", "luck_user")
