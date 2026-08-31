@@ -11,8 +11,9 @@ WAS_HOST=${WAS_HOST:-100.66.77.55}
 sudo apt-get update
 sudo apt-get install -y mariadb-server mariadb-client
 
-sudo mkdir -p /etc/mysql/conf.d
-sudo install -m 0644 mariadb.cnf /etc/mysql/conf.d/luck.cnf
+sudo mkdir -p /etc/mysql/mariadb.conf.d
+sudo rm -f /etc/mysql/conf.d/luck.cnf
+sudo install -m 0644 mariadb.cnf /etc/mysql/mariadb.conf.d/99-luck.cnf
 
 sudo systemctl enable mariadb
 sudo systemctl restart mariadb
