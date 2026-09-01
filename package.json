@@ -1,1 +1,24 @@
-{"name":"myohan-unse","private":true,"version":"1.0.0","type":"module","scripts":{"dev":"vite","build":"vite build","preview":"vite preview"},"dependencies":{"@vitejs/plugin-react":"latest","vite":"latest","react":"latest","react-dom":"latest","react-router-dom":"latest"},"devDependencies":{}}
+{
+  "name": "myohan-unse",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "face:prepare": "node scripts/prepare-face-assets.mjs",
+    "postinstall": "npm run face:prepare",
+    "predev": "npm run face:prepare",
+    "dev": "vite",
+    "prebuild": "npm run face:prepare",
+    "build": "vite build",
+    "test": "node --test src/features/face-reading/__tests__/faceReadingRules.test.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
+    "@vitejs/plugin-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "vite": "latest"
+  }
+}
