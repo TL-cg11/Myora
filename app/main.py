@@ -28,4 +28,9 @@ def api_health() -> dict:
 
 
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+app.mount(
+    "/mediapipe",
+    StaticFiles(directory=DIST_DIR / "mediapipe"),
+    name="mediapipe",
+)
 app.include_router(pages_router)

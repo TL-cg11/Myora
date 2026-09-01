@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
+import { answerFaceFollowUp } from '../../features/face-reading/interpretation/faceFollowUp.js';
 import './fortune-experience.css';
 
 const tarotCards = [
@@ -21,13 +23,13 @@ const configs = {
     resultTitle: '카드가 전하는 오늘의 이야기',
   },
   face: {
-    title: '관상', kicker: '나의 인상 발견하기', intro: '사진과 나를 닮은 인상 키워드를 선택하면 매력 포인트를 알려드려요.',
+    title: '관상', kicker: '나의 인상 발견하기', intro: '정면 사진 속 얼굴의 균형을 살펴보고 전통 관상식으로 매력 포인트를 풀어드려요.',
     resultTitle: '당신에게 보이는 따뜻한 매력',
     result: '편안함 속에 또렷한 중심이 느껴지는 인상이에요. 처음에는 차분해 보이지만 가까워질수록 세심함과 유쾌함이 드러나는 타입으로 읽혀요.',
   },
 };
 
-function ChatPanel({ context }) {
+function ChatPanel({ context, faceReading }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
@@ -43,6 +45,11 @@ function ChatPanel({ context }) {
     setLoading(true);
 
     try {
+      if (faceReading) {
+        const answer = answerFaceFollowUp(faceReading, question);
+        setMessages((current) => [...current, { role: 'assistant', content: answer }]);
+        return;
+      }
       const response = await fetch(import.meta.env.VITE_CHAT_API_URL || '/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,7 +71,9 @@ function ChatPanel({ context }) {
     }
   }
 
-  const suggestions = ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
+  const suggestions = faceReading
+    ? ['얼굴형을 더 설명해줘', '나의 첫인상 포인트는?', '사진을 잘 찍는 방법은?']
+    : ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
 
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
     <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘미에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
@@ -102,38 +111,33 @@ function TarotInput({ onComplete }) {
   })}</div><button className="fortune-submit" disabled={selected.length !== 3} onClick={() => onComplete(selected.map((index) => tarotCards[index][0]).join(' · '))}>선택한 카드 해석하기 ({selected.length}/3) →</button></div>;
 }
 
-function FaceInput({ onComplete }) {
-  const fileRef = useRef(null);
-  const [fileName, setFileName] = useState('');
-  const [mood, setMood] = useState('차분한');
-  return <form className="fortune-form" onSubmit={(event) => { event.preventDefault(); onComplete(`사진 ${fileName}, 인상 키워드 ${mood}`); }}>
-    <button className="photo-upload" type="button" onClick={() => fileRef.current?.click()}><span>＋</span><b>{fileName || '정면 사진 선택하기'}</b><small>사진은 결과 생성 용도로만 사용해요.</small></button>
-    <input ref={fileRef} className="hidden-input" type="file" accept="image/*" required onChange={(event) => setFileName(event.target.files?.[0]?.name || '')}/>
-    <fieldset><legend>나와 가까운 첫인상</legend><div className="mood-options">{['차분한','밝은','신비로운','단단한'].map((item) => <button className={mood === item ? 'selected' : ''} type="button" key={item} onClick={() => setMood(item)}>{item}</button>)}</div></fieldset>
-    <button className="fortune-submit" type="submit" disabled={!fileName}>나의 매력 결과 보기 →</button>
-  </form>;
-}
-
 export default function FortuneExperience({ type, image }) {
   const config = configs[type];
   const [inputSummary, setInputSummary] = useState('');
-  const resultText = useMemo(() => type === 'tarot' && inputSummary
-    ? inputSummary.split(' · ').map((name) => tarotCards.find(([card]) => card === name)?.[1]).join(' ')
-    : config.result, [config.result, inputSummary, type]);
-  const context = `${config.title} 결과. 입력/선택: ${inputSummary}. 결과 제목: ${config.resultTitle}. 해석: ${resultText}`;
+  const resultText = useMemo(() => {
+    if (type === 'face' && typeof inputSummary === 'object') return inputSummary.result;
+    if (type === 'tarot' && inputSummary) return inputSummary.split(' · ').map((name) => tarotCards.find(([card]) => card === name)?.[1]).join(' ');
+    return config.result;
+  }, [config.result, inputSummary, type]);
+  const resultTitle = type === 'face' && typeof inputSummary === 'object' ? inputSummary.title : config.resultTitle;
+  const summaryText = typeof inputSummary === 'object' ? inputSummary.summary : inputSummary;
+  const resultKeywords = type === 'face' && typeof inputSummary === 'object'
+    ? inputSummary.keywords
+    : ['#오늘의흐름', '#나를위한조언', '#다정한운세'];
+  const context = `${config.title} 결과. 입력/선택: ${summaryText}. 결과 제목: ${resultTitle}. 해석: ${resultText}`;
 
   useEffect(() => {
     if (!inputSummary || !resultText) return;
     const history = JSON.parse(localStorage.getItem('myohan-fortune-history') || '[]');
-    const entry = { id: Date.now(), type, title: config.title, resultTitle: config.resultTitle, result: resultText, date: new Date().toISOString() };
+    const entry = { id: Date.now(), type, title: config.title, resultTitle, result: resultText, date: new Date().toISOString() };
     localStorage.setItem('myohan-fortune-history', JSON.stringify([entry, ...history].slice(0, 12)));
-  }, [config.resultTitle, config.title, inputSummary, resultText, type]);
+  }, [config.title, inputSummary, resultText, resultTitle, type]);
 
   return <main className="fortune-page">
     <section className="fortune-intro"><div><span>{config.kicker}</span><h1>{config.title}</h1><p>{config.intro}</p></div><img src={image} alt={`${config.title} 고양이 모미`}/></section>
     <section className="fortune-workspace">
-      {!inputSummary ? <div className="input-card"><div className="step-label">STEP 1 · 정보 선택</div>{type === 'saju' && <SajuInput onComplete={setInputSummary}/>} {type === 'tarot' && <TarotInput onComplete={setInputSummary}/>} {type === 'face' && <FaceInput onComplete={setInputSummary}/>}</div>
-      : <><article className="fortune-result"><div className="step-label">RESULT · 묘미의 해석</div><span className="result-symbol">☾</span><h2>{config.resultTitle}</h2><p>{resultText}</p><div className="result-keywords"><span>#오늘의흐름</span><span>#나를위한조언</span><span>#다정한운세</span></div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context}/></>}
+      {!inputSummary ? <div className="input-card"><div className="step-label">STEP 1 · 정보 선택</div>{type === 'saju' && <SajuInput onComplete={setInputSummary}/>} {type === 'tarot' && <TarotInput onComplete={setInputSummary}/>} {type === 'face' && <FaceReadingInput onComplete={setInputSummary}/>}</div>
+      : <><article className="fortune-result"><div className="step-label">RESULT · 묘미의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} faceReading={type === 'face' ? inputSummary : null}/></>}
     </section>
   </main>;
 }
