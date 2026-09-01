@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # luck-was
 
 Ubuntu Server 24.04에서 동작하는 FastAPI 테스트 애플리케이션입니다. Nginx의 요청을 받고 별도 MariaDB 서버의 `health_check` 테이블을 조회합니다.
@@ -38,3 +39,22 @@ sudo systemctl status luck-was --no-pager
 ```
 
 `.env.example`의 계정은 테스트 전용입니다. 운영 환경에서는 `.env`에 별도 비밀번호를 설정하고 MariaDB 사용자 비밀번호도 동일하게 변경하세요.
+=======
+# 묘한운세 프론트
+
+React + Vite로 만든 묘한운세 랜딩 페이지입니다.
+
+## 실행
+
+```bash
+npm install
+npm run dev
+```
+
+## 페이지
+
+- `/` 메인
+- `/saju` 사주
+- `/tarot` 타로
+- `/face` 관상
+>>>>>>> 364fe20 (symin - 묘한운세 웹사이트 초기 구현)
