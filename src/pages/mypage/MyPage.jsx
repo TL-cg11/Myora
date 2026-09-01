@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import './mypage.css';
 
 const typeMeta = {
   saju: { icon: '☯', path: '/saju', color: 'lilac' },

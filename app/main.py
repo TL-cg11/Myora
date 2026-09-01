@@ -1,18 +1,12 @@
-from pathlib import Path
-
 from fastapi import FastAPI, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db import check_db
+from app.routers.pages import DIST_DIR, router as pages_router
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
-INDEX_FILE = Path(__file__).resolve().parent / "static" / "index.html"
-
-
-@app.get("/")
-def root() -> FileResponse:
-    return FileResponse(INDEX_FILE)
 
 
 @app.get("/health")
@@ -31,3 +25,7 @@ def health() -> JSONResponse:
 @app.get("/api/health")
 def api_health() -> dict:
     return {"status": "ok", "service": settings.app_name}
+
+
+app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+app.include_router(pages_router)

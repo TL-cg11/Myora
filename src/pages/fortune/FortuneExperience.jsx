@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import './fortune-experience.css';
 
 const tarotCards = [
   ['달', '감춰진 마음을 천천히 들여다볼 때예요.'],
