@@ -27,5 +27,15 @@ class Settings:
     deepseek_face_model: str = os.getenv("DEEPSEEK_FACE_MODEL", "deepseek-v4-flash")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
+    # 타로 채팅용. 키가 없으면 LLM 을 호출하지 않고 규칙 기반 답변만 쓴다.
+    deepseek_tarot_api_key: str = os.getenv("DEEPSEEK_TAROT_API_KEY", "")
+    deepseek_tarot_model: str = os.getenv("DEEPSEEK_TAROT_MODEL", "deepseek-v4-flash")
+    # 사용자가 채팅 앞에서 기다리는 시간이라 넉넉하게 잡지 않는다.
+    llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "20"))
+
+    @property
+    def tarot_llm_enabled(self) -> bool:
+        return bool(self.deepseek_tarot_api_key)
+
 
 settings = Settings()

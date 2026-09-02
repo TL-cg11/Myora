@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
-import { createReading, listSpreads } from '../../lib/api.js';
+import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -142,6 +142,71 @@ function PickStep({ spread, picked, onPick, onSubmit, loading, error }) {
   );
 }
 
+
+function ChatPanel({ reading }) {
+  // 리딩을 만들 때 서버가 넣어둔 첫 인사가 messages 에 이미 있다.
+  const [messages, setMessages] = useState(reading.messages ?? [
+    { seq: 1, role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [source, setSource] = useState(null);
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, loading]);
+
+  async function send(text) {
+    const question = text.trim();
+    if (!question || loading) return;
+    setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: question }]);
+    setInput('');
+    setLoading(true);
+    try {
+      const result = await sendChatMessage(reading.id, question);
+      // 서버가 돌려준 전체 대화로 맞춰 두면 낙관적으로 넣은 말풍선과 어긋나지 않는다.
+      setMessages(result.messages);
+      setSource(result.source);
+    } catch (cause) {
+      setMessages((current) => [...current, { seq: `error-${current.length}`, role: 'assistant', content: cause.message, error: true }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const suggestions = ['이 카드가 왜 나왔을까?', '지금 조심할 점은?', '실천하면 좋은 행동은?'];
+
+  return (
+    <section className="result-chat" aria-label="타로 결과 채팅">
+      <div className="chat-heading">
+        <span className="chat-avatar">✦</span>
+        <div><b>묘미에게 더 물어보기</b><small>뽑은 카드를 기억하고 답변해요</small></div>
+        <i>{source === 'llm' ? 'AI' : source === 'rule' ? '카드 기반' : 'AI'}</i>
+      </div>
+      <div className="chat-messages" ref={listRef} aria-live="polite">
+        {messages.map((message) => (
+          <div key={message.seq} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>
+            {message.content}
+          </div>
+        ))}
+        {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}
+      </div>
+      <div className="chat-suggestions">
+        {suggestions.map((item) => (
+          <button key={item} type="button" disabled={loading} onClick={() => send(item)}>{item}</button>
+        ))}
+      </div>
+      <form className="chat-form" onSubmit={(event) => { event.preventDefault(); send(input); }}>
+        <input value={input} maxLength={1000} onChange={(event) => setInput(event.target.value)}
+               placeholder="결과에 관해 궁금한 점을 물어보세요" aria-label="채팅 질문"/>
+        <button type="submit" disabled={!input.trim() || loading}>보내기</button>
+      </form>
+      <p className="chat-notice">타로 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>
+    </section>
+  );
+}
+
 function ResultStep({ reading, onRestart }) {
   const topicLabel = TOPICS.find(([code]) => code === reading.topic)?.[1] ?? '오늘의 흐름';
 
@@ -180,6 +245,7 @@ function ResultStep({ reading, onRestart }) {
 
         <button type="button" onClick={onRestart}>다시 뽑기</button>
       </article>
+      <ChatPanel reading={reading} />
     </>
   );
 }
