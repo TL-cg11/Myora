@@ -29,8 +29,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1'
 FLUSH PRIVILEGES;
 SQL
 
-if [ -f sql/init/01_init.sql ]; then
-  sudo mysql -uroot "$DB_NAME" < sql/init/01_init.sql
-fi
+for sql_file in sql/init/*.sql; do
+  [ -f "$sql_file" ] || continue
+  echo "applying $sql_file"
+  sudo mysql -uroot "$DB_NAME" < "$sql_file"
+done
 
 DB_PASSWORD="$DB_PASSWORD" DB_USER="$DB_USER" DB_NAME="$DB_NAME" bash scripts/test.sh
