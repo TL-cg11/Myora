@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
-import { answerFaceFollowUp } from '../../features/face-reading/interpretation/faceFollowUp.js';
 import './fortune-experience.css';
 
 const tarotCards = [
@@ -29,7 +28,7 @@ const configs = {
   },
 };
 
-function ChatPanel({ context, faceReading }) {
+function ChatPanel({ context, fortuneType }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
@@ -45,18 +44,16 @@ function ChatPanel({ context, faceReading }) {
     setLoading(true);
 
     try {
-      if (faceReading) {
-        const answer = answerFaceFollowUp(faceReading, question);
-        setMessages((current) => [...current, { role: 'assistant', content: answer }]);
-        return;
-      }
-      const response = await fetch(import.meta.env.VITE_CHAT_API_URL || '/api/chat', {
+      const chatApiUrl = fortuneType === 'face'
+        ? (import.meta.env.VITE_FACE_CHAT_API_URL || '/api/face/chat')
+        : (import.meta.env.VITE_CHAT_API_URL || '/api/chat');
+      const response = await fetch(chatApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ context, messages: next }),
       });
-      if (!response.ok) throw new Error('AI 응답 서버에 연결할 수 없어요.');
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'AI 응답 서버에 연결할 수 없어요.');
       const answer = data.answer || data.message?.content || data.content;
       if (!answer) throw new Error('응답 형식을 확인해 주세요.');
       setMessages((current) => [...current, { role: 'assistant', content: answer }]);
@@ -71,7 +68,7 @@ function ChatPanel({ context, faceReading }) {
     }
   }
 
-  const suggestions = faceReading
+  const suggestions = fortuneType === 'face'
     ? ['얼굴형을 더 설명해줘', '나의 첫인상 포인트는?', '사진을 잘 찍는 방법은?']
     : ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
 
@@ -137,7 +134,7 @@ export default function FortuneExperience({ type, image }) {
     <section className="fortune-intro"><div><span>{config.kicker}</span><h1>{config.title}</h1><p>{config.intro}</p></div><img src={image} alt={`${config.title} 고양이 모미`}/></section>
     <section className="fortune-workspace">
       {!inputSummary ? <div className="input-card"><div className="step-label">STEP 1 · 정보 선택</div>{type === 'saju' && <SajuInput onComplete={setInputSummary}/>} {type === 'tarot' && <TarotInput onComplete={setInputSummary}/>} {type === 'face' && <FaceReadingInput onComplete={setInputSummary}/>}</div>
-      : <><article className="fortune-result"><div className="step-label">RESULT · 묘미의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} faceReading={type === 'face' ? inputSummary : null}/></>}
+      : <><article className="fortune-result"><div className="step-label">RESULT · 묘미의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} fortuneType={type}/></>}
     </section>
   </main>;
 }

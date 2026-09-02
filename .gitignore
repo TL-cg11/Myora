@@ -1,4 +1,5 @@
 .env
+.env.deepseek.face
 .venv/
 node_modules/
 __pycache__/

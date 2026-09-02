@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env.deepseek.face")
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,13 @@ class Settings:
     db_name: str = os.getenv("DB_NAME", "luck_db")
     db_user: str = os.getenv("DB_USER", "luck_user")
     db_password: str = os.getenv("DB_PASSWORD", "Luck1234!")
+    deepseek_face_api_key: str = os.getenv("DEEPSEEK_FACE_API_KEY", "")
+    deepseek_face_model: str = os.getenv(
+        "DEEPSEEK_FACE_MODEL", "deepseek-v4-flash"
+    )
+    deepseek_base_url: str = os.getenv(
+        "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+    )
 
 
 settings = Settings()

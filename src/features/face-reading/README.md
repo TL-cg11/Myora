@@ -1,6 +1,6 @@
 # 관상 기능
 
-외부 유료 API 없이 MediaPipe Face Landmarker를 브라우저에서 실행합니다. 선택하거나 촬영한 얼굴 사진 자체는 서버로 업로드하지 않으며, 결과 문장도 브라우저의 규칙 모듈에서 생성합니다.
+MediaPipe Face Landmarker를 브라우저에서 실행합니다. 선택하거나 촬영한 얼굴 사진 자체는 서버로 업로드하지 않으며, 결과 문장도 브라우저의 규칙 모듈에서 생성합니다. 결과 아래 후속 채팅만 텍스트 관상 결과와 대화 내용을 WAS를 통해 DeepSeek API에 전달합니다.
 
 ## 디렉터리
 
@@ -16,6 +16,17 @@
 npm install
 npm run dev
 ```
+
+관상용 DeepSeek 채팅 키는 `.env.deepseek.face.example`을 복사한 `.env.deepseek.face` 파일에 입력합니다. 실제 키 파일은 Git에서 제외되며 키가 브라우저 번들에 포함되지 않습니다.
+
+```dotenv
+DEEPSEEK_FACE_API_KEY=발급받은_관상용_API_키
+DEEPSEEK_FACE_MODEL=deepseek-v4-flash
+```
+
+키를 입력하거나 변경한 뒤에는 `sudo systemctl restart luck-was`로 WAS를 재시작합니다. `scripts/install.sh`로 설치하면 관상 키 파일이 없을 때 예제 파일을 복사하고 소유자만 읽고 쓸 수 있게 설정합니다.
+
+개발 환경에서는 `vite.config.js`가 `/api` 요청을 `http://127.0.0.1:8000`의 WAS로 전달합니다. 따라서 FastAPI와 `npm run dev`를 함께 실행하면 됩니다. 다른 WAS 주소를 사용할 때만 `VITE_FACE_CHAT_API_URL`에 전체 `/api/face/chat` 주소를 지정하세요.
 
 `postinstall`, `predev`, `prebuild` 단계에서 `scripts/prepare-face-assets.mjs`가 MediaPipe WASM 파일을 복사하고 공개 얼굴 랜드마크 모델을 내려받습니다. 생성 파일은 `public/mediapipe/`에 있고 Git에는 포함하지 않습니다.
 
