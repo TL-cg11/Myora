@@ -18,6 +18,11 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
+if [ ! -f .env.deepseek.face ]; then
+  cp .env.deepseek.face.example .env.deepseek.face
+fi
+chmod 600 .env.deepseek.face
+
 UNIT_FILE=$(mktemp)
 trap 'rm -f "$UNIT_FILE"' EXIT
 

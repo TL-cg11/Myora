@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db import check_db
+from app.routers.chat import router as chat_router
 from app.routers.pages import DIST_DIR, router as pages_router
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
@@ -27,6 +28,7 @@ def api_health() -> dict:
     return {"status": "ok", "service": settings.app_name}
 
 
+app.include_router(chat_router)
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 app.mount(
     "/mediapipe",

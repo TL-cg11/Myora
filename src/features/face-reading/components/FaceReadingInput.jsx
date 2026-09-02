@@ -31,7 +31,7 @@ export default function FaceReadingInput({ onComplete }) {
       const reading = await analyzeFaceImage(file, mood);
       onComplete({
         ...reading,
-        summary: `사진 ${file.name}, 인상 키워드 ${mood}`,
+        summary: `사용자가 고른 첫인상 키워드: ${mood}`,
       });
     } catch (analysisError) {
       setError(analysisError.message || '얼굴을 분석하지 못했어요. 다른 사진으로 다시 시도해 주세요.');
