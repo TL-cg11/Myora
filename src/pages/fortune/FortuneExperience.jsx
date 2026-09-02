@@ -29,22 +29,28 @@ const configs = {
 };
 
 function ChatPanel({ context, fortuneType }) {
+  const isFaceChat = fortuneType === 'face';
+  const questionLimit = isFaceChat ? 5 : Number.POSITIVE_INFINITY;
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [questionCount, setQuestionCount] = useState(0);
+  const remainingQuestions = Math.max(0, questionLimit - questionCount);
+  const limitReached = isFaceChat && remainingQuestions === 0;
 
   async function sendMessage(text) {
     const question = text.trim();
-    if (!question || loading) return;
+    if (!question || loading || limitReached) return;
     const next = [...messages, { role: 'user', content: question }];
     setMessages(next);
     setInput('');
     setLoading(true);
+    if (isFaceChat) setQuestionCount((current) => current + 1);
 
     try {
-      const chatApiUrl = fortuneType === 'face'
+      const chatApiUrl = isFaceChat
         ? (import.meta.env.VITE_FACE_CHAT_API_URL || '/api/face/chat')
         : (import.meta.env.VITE_CHAT_API_URL || '/api/chat');
       const response = await fetch(chatApiUrl, {
@@ -68,20 +74,23 @@ function ChatPanel({ context, fortuneType }) {
     }
   }
 
-  const suggestions = fortuneType === 'face'
+  const suggestions = isFaceChat
     ? ['얼굴형을 더 설명해줘', '나의 첫인상 포인트는?', '사진을 잘 찍는 방법은?']
     : ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
 
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
     <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘미에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
+    {isFaceChat && <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
+      {limitReached ? 'AI 질문 5회를 모두 사용했어요.' : `AI 질문은 최대 5회 가능해요 · 남은 질문 ${remainingQuestions}회`}
+    </p>}
     <div className="chat-messages" aria-live="polite">
       {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{message.content}</div>)}
       {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}
     </div>
-    <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" onClick={() => sendMessage(item)}>{item}</button>)}</div>
+    <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" disabled={loading || limitReached} onClick={() => sendMessage(item)}>{item}</button>)}</div>
     <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(input); }}>
-      <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="결과에 관해 궁금한 점을 물어보세요" aria-label="채팅 질문"/>
-      <button type="submit" disabled={!input.trim() || loading}>보내기</button>
+      <input value={input} disabled={limitReached} onChange={(event) => setInput(event.target.value)} placeholder={limitReached ? '질문 5회를 모두 사용했어요' : '결과에 관해 궁금한 점을 물어보세요'} aria-label="채팅 질문"/>
+      <button type="submit" disabled={!input.trim() || loading || limitReached}>보내기</button>
     </form>
     <p className="chat-notice">AI 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>
   </section>;
