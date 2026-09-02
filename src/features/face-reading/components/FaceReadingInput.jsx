@@ -4,6 +4,7 @@ import CameraCapture from './CameraCapture.jsx';
 
 export default function FaceReadingInput({ onComplete }) {
   const fileRef = useRef(null);
+  const cameraFileRef = useRef(null);
   const [file, setFile] = useState(null);
   const [mood, setMood] = useState('차분한');
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -52,7 +53,19 @@ export default function FaceReadingInput({ onComplete }) {
       selectFile(event.target.files?.[0]);
       event.target.value = '';
     }}/>
-    <CameraCapture open={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={selectFile}/>
+    <input ref={cameraFileRef} className="hidden-input" type="file" accept="image/*" capture="user" onChange={(event) => {
+      selectFile(event.target.files?.[0]);
+      event.target.value = '';
+    }}/>
+    <CameraCapture
+      open={cameraOpen}
+      onClose={() => setCameraOpen(false)}
+      onCapture={selectFile}
+      onFallbackCapture={() => {
+        setCameraOpen(false);
+        cameraFileRef.current?.click();
+      }}
+    />
     {error && <p className="face-error" role="alert">{error}</p>}
     <fieldset><legend>나와 가까운 첫인상</legend><div className="mood-options">{['차분한', '밝은', '신비로운', '단단한'].map((item) => <button className={mood === item ? 'selected' : ''} type="button" key={item} onClick={() => setMood(item)}>{item}</button>)}</div></fieldset>
     <button className="fortune-submit" type="submit" disabled={!file || loading}>{loading ? '얼굴의 인상을 살펴보고 있어요…' : '나의 관상 결과 보기 →'}</button>
