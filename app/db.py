@@ -1,5 +1,8 @@
+from collections.abc import Iterator
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, URL
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
 
@@ -21,6 +24,14 @@ engine: Engine = create_engine(
     connect_args={"connect_timeout": 3},
     future=True,
 )
+
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def get_session() -> Iterator[Session]:
+    """FastAPI 의존성. 요청 하나당 세션 하나."""
+    with SessionLocal() as session:
+        yield session
 
 
 def check_db() -> dict:
