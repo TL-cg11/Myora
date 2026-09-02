@@ -1,16 +1,25 @@
 # luck-nginx
 
-Ubuntu Server 24.04에서 외부 HTTP 요청을 받고 별도 FastAPI 서버로 전달하는 Nginx 구성입니다.
+Ubuntu Server 24.04에서 Tailscale HTTPS 요청을 받고 별도 FastAPI 서버로 전달하는 구성입니다. 브라우저가 신뢰하는 `*.ts.net` 인증서를 Tailscale Serve가 자동으로 관리합니다.
 
 ## 구성
 
-- Nginx 서버: `100.117.253.9:80`
+- HTTPS 진입점: `https://<nginx-MagicDNS-name>.ts.net:443`
+- Tailscale 서버: `100.117.253.9`
+- 로컬 Nginx 백엔드: `127.0.0.1:8080` (외부 접근 불가)
 - FastAPI 업스트림: `100.66.77.55:8000`
 - `GET /nginx-health`: Nginx 자체 상태 확인
 - `GET /health`: FastAPI와 MariaDB까지 포함한 전체 상태 확인
 - 그 밖의 요청: FastAPI로 프록시
 
 ## 설치 및 갱신
+
+먼저 Tailscale 관리자 콘솔의 [DNS 설정](https://login.tailscale.com/admin/dns)에서 다음 두 항목을 활성화해야 합니다.
+
+1. MagicDNS
+2. HTTPS Certificates
+
+인증서 도메인은 Certificate Transparency 공개 로그에 기록되므로 서버 이름에 민감한 정보를 사용하지 마세요.
 
 ```bash
 git clone https://github.com/TL-cg11/luck-nginx.git ~/luck-nginx
@@ -26,12 +35,22 @@ git pull --ff-only
 bash scripts/install.sh
 ```
 
+설치 스크립트는 다음 흐름을 자동으로 구성합니다.
+
+```text
+브라우저 HTTPS :443 → Tailscale Serve → Nginx 127.0.0.1:8080 → FastAPI
+```
+
+Tailscale Serve는 `--bg` 모드로 재부팅 후에도 유지되며 TLS 인증서를 자동으로 갱신합니다.
+
 ## 확인
 
 ```bash
-curl http://127.0.0.1/nginx-health
-curl http://127.0.0.1/health
-curl http://127.0.0.1/
+curl http://127.0.0.1:8080/nginx-health
+sudo tailscale serve status
+bash scripts/test.sh
 ```
 
-현재 구성은 Tailscale 사설 주소를 사용하는 테스트 환경용 HTTP 구성입니다. 인터넷에 공개할 때는 도메인, TLS 인증서, 방화벽 정책을 추가하세요.
+`tailscale serve status`에 표시되는 `https://<machine>.<tailnet>.ts.net` 주소로 접속해야 합니다. Tailscale IP를 사용한 `http://100.117.253.9` 접속은 더 이상 제공하지 않습니다.
+
+카메라는 HTTPS 주소에서만 정상적으로 권한을 요청합니다. 사이트 권한에서 카메라를 허용한 뒤 `/face` 페이지를 사용하세요.
