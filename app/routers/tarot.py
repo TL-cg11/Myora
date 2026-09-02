@@ -13,6 +13,7 @@ from app.models import ChatRole, TarotCard, TarotReading
 from app.schemas import (
     CardOut,
     ChatCreate,
+    ChatMessageOut,
     ChatOut,
     ReadingCardOut,
     ReadingCreate,
@@ -55,6 +56,10 @@ def _to_reading_out(reading: TarotReading) -> ReadingOut:
         interpretation_source=reading.interpretation_source,
         status=reading.status,
         created_at=reading.created_at,
+        messages=[
+            ChatMessageOut.model_validate(message)
+            for message in sorted(reading.messages, key=lambda m: m.seq)
+        ],
         cards=[
             ReadingCardOut(
                 position_no=entry.position_no,
@@ -155,13 +160,15 @@ def create_chat_message(
 ) -> ChatOut:
     reading = _load_reading(session, reading_id, guest_key)
 
+    # 질문을 먼저 넣어야 LLM 에 넘길 대화 기록의 마지막이 이번 질문이 된다.
     service.append_chat(session, reading, ChatRole.user, payload.message)
-    answer = service.answer_question(reading, payload.message)
+    answer, source = service.answer_question(reading, payload.message)
     service.append_chat(session, reading, ChatRole.assistant, answer)
     session.commit()
 
+    # source 는 리딩 요약이 아니라 이번 답변을 무엇으로 만들었는지를 가리킨다.
     return ChatOut(
         answer=answer,
-        source=reading.interpretation_source,
+        source=source,
         messages=sorted(reading.messages, key=lambda m: m.seq),
     )

@@ -47,6 +47,15 @@ class ReadingCardOut(BaseModel):
     meaning: str
 
 
+class ChatMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    seq: int
+    role: str
+    content: str
+    created_at: datetime
+
+
 class ReadingOut(BaseModel):
     id: int
     spread: SpreadOut
@@ -58,6 +67,7 @@ class ReadingOut(BaseModel):
     status: ReadingStatus
     created_at: datetime
     cards: list[ReadingCardOut]
+    messages: list[ChatMessageOut] = []
 
 
 class ReadingSummaryOut(BaseModel):
@@ -80,13 +90,6 @@ class ReadingCreate(BaseModel):
     guest_key: UUID
 
 
-class ChatMessageOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    seq: int
-    role: str
-    content: str
-    created_at: datetime
 
 
 class ChatCreate(BaseModel):
@@ -95,5 +98,6 @@ class ChatCreate(BaseModel):
 
 class ChatOut(BaseModel):
     answer: str
+    # 이번 답변을 무엇으로 만들었는지. 리딩 요약의 출처와는 별개다.
     source: InterpretationSource
     messages: list[ChatMessageOut]
