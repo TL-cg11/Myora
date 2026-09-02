@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getCameraSupport, requestUserCamera } from '../services/cameraAccess.js';
 
 function cameraErrorMessage(error) {
   if (error?.name === 'NotAllowedError') return '카메라 권한이 꺼져 있어요. 브라우저 설정에서 카메라를 허용해 주세요.';
@@ -7,7 +8,7 @@ function cameraErrorMessage(error) {
   return '카메라를 시작하지 못했어요. HTTPS 또는 localhost에서 접속했는지 확인해 주세요.';
 }
 
-export default function CameraCapture({ open, onCapture, onClose }) {
+export default function CameraCapture({ open, onCapture, onClose, onFallbackCapture }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [error, setError] = useState('');
@@ -20,12 +21,13 @@ export default function CameraCapture({ open, onCapture, onClose }) {
     setReady(false);
 
     async function startCamera() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError('이 브라우저에서는 카메라 촬영을 지원하지 않아요. 사진 첨부를 이용해 주세요.');
+      const support = getCameraSupport();
+      if (!support.supported) {
+        setError(support.message);
         return;
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await requestUserCamera({
           audio: false,
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
         });
@@ -81,7 +83,9 @@ export default function CameraCapture({ open, onCapture, onClose }) {
     {error && <p className="face-error" role="alert">{error}</p>}
     <div className="camera-actions">
       <button type="button" onClick={onClose}>닫기</button>
-      <button type="button" onClick={capture} disabled={!ready}>이 화면 촬영하기</button>
+      {ready
+        ? <button type="button" onClick={capture}>이 화면 촬영하기</button>
+        : <button type="button" onClick={onFallbackCapture}>기기 카메라 열기</button>}
     </div>
     <small>정면을 보고 얼굴 전체가 화면 안에 들어오게 해 주세요.</small>
   </div>;
