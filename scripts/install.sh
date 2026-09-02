@@ -14,4 +14,6 @@ sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 
-curl --fail --silent --show-error http://127.0.0.1/nginx-health
+curl --fail --silent --show-error http://127.0.0.1:8080/nginx-health
+bash scripts/configure-https.sh
+bash scripts/test.sh
