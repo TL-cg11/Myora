@@ -3,7 +3,7 @@ from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.config import settings
 from app.prompts import FACE_PERSONA
@@ -20,7 +20,14 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     context: str = Field(min_length=1, max_length=8_000)
-    messages: list[ChatMessage] = Field(min_length=1, max_length=20)
+    messages: list[ChatMessage] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def limit_user_questions(self):
+        question_count = sum(message.role == "user" for message in self.messages)
+        if question_count > 5:
+            raise ValueError("관상 AI 질문은 최대 5회까지 가능해요.")
+        return self
 
 
 class ChatResponse(BaseModel):

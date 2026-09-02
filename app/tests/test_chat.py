@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.routers import chat as chat_module
 from app.routers.chat import ChatMessage, ChatRequest, build_deepseek_messages
@@ -48,6 +49,15 @@ class ChatPromptTests(unittest.TestCase):
         self.assertIn("관상 해설가", messages[0]["content"])
         self.assertIn("관상 결과: 부드러운 인상", messages[0]["content"])
         self.assertEqual(messages[-1]["content"], "첫인상을 더 설명해줘")
+
+    def test_rejects_more_than_five_questions(self) -> None:
+        messages = [
+            ChatMessage(role="user", content=f"질문 {index}")
+            for index in range(1, 7)
+        ]
+        with self.assertRaisesRegex(ValidationError, "최대 5회"):
+            ChatRequest(context="관상 결과", messages=messages)
+
 
 class ChatEndpointTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_api_key_returns_service_unavailable(self) -> None:
