@@ -6,6 +6,7 @@ from app.config import settings
 from app.db import check_db
 from app.routers.chat import router as chat_router
 from app.routers.pages import DIST_DIR, router as pages_router
+from app.routers.saju import router as saju_router
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -36,3 +37,4 @@ app.mount(
     name="mediapipe",
 )
 app.include_router(pages_router)
+app.include_router(saju_router)
