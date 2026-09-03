@@ -208,6 +208,10 @@ class TarotChatMessage(Base):
     seq: Mapped[int] = mapped_column(SmallInteger)
     role: Mapped[ChatRole] = mapped_column(_enum(ChatRole, "chat_role"))
     content: Mapped[str] = mapped_column(Text)
+    # assistant 답변을 무엇으로 만들었는지. user/system 메시지는 NULL 이다.
+    source: Mapped[InterpretationSource | None] = mapped_column(
+        _enum(InterpretationSource, "interpretation_source"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     reading: Mapped[TarotReading] = relationship(back_populates="messages")

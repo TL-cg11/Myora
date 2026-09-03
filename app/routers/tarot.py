@@ -163,7 +163,7 @@ def create_chat_message(
     # 질문을 먼저 넣어야 LLM 에 넘길 대화 기록의 마지막이 이번 질문이 된다.
     service.append_chat(session, reading, ChatRole.user, payload.message)
     answer, source = service.answer_question(reading, payload.message)
-    service.append_chat(session, reading, ChatRole.assistant, answer)
+    service.append_chat(session, reading, ChatRole.assistant, answer, source=source)
     session.commit()
 
     # source 는 리딩 요약이 아니라 이번 답변을 무엇으로 만들었는지를 가리킨다.
