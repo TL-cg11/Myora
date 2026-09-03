@@ -29,6 +29,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON \`$DB_NAME\`.* TO '$DB_USER'@'127.0.0.1'
 FLUSH PRIVILEGES;
 SQL
 
+# sql/init 의 파일을 이름 순서대로 전부 적용한다. 타로 스키마와 기준 데이터가
+# 02~04 에 있어서 01 만 적용하면 앱이 뜨지 않는다. 모두 재실행 안전하다.
 for sql_file in sql/init/*.sql; do
   [ -f "$sql_file" ] || continue
   echo "applying $sql_file"
