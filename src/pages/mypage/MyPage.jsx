@@ -33,7 +33,7 @@ export default function MyPage() {
       <div className="profile-copy"><span>MY PAGE</span>{editing
         ? <form onSubmit={saveName}><input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} maxLength="16"/><button type="submit">저장</button><button type="button" onClick={() => setEditing(false)}>취소</button></form>
         : <h1>{name}님, 반가워요 <button type="button" onClick={() => { setDraft(name); setEditing(true); }}>수정</button></h1>}
-        <p>내가 만난 운세와 묘미의 이야기를 한곳에서 확인하세요.</p>
+        <p>내가 만난 운세와 묘라의 이야기를 한곳에서 확인하세요.</p>
       </div>
       <div className="profile-stats"><div><b>{history.length}</b><span>본 운세</span></div><div><b>{new Set(history.map((item) => item.type)).size}</b><span>이용 서비스</span></div></div>
     </section>
