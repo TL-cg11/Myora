@@ -66,11 +66,7 @@ function ChatPanel({ context, fortuneType }) {
     : ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
 
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
-<<<<<<< HEAD
     <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘라에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
-=======
-    <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘라에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
->>>>>>> 29c6561 (yb - 사주 페이지 편의성 및 묘라 컨셉)
     {isFaceChat && <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
       {limitReached ? 'AI 질문 5회를 모두 사용했어요.' : `AI 질문은 최대 5회 가능해요 · 남은 질문 ${remainingQuestions}회`}
     </p>}
