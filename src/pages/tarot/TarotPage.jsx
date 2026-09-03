@@ -181,7 +181,7 @@ function ChatPanel({ reading }) {
     <section className="result-chat" aria-label="타로 결과 채팅">
       <div className="chat-heading">
         <span className="chat-avatar">✦</span>
-        <div><b>묘미에게 더 물어보기</b><small>뽑은 카드를 기억하고 답변해요</small></div>
+        <div><b>묘라에게 더 물어보기</b><small>뽑은 카드를 기억하고 답변해요</small></div>
         <i>{source === 'llm' ? 'AI' : source === 'rule' ? '카드 기반' : 'AI'}</i>
       </div>
       <div className="chat-messages" ref={listRef} aria-live="polite">
@@ -213,7 +213,7 @@ function ResultStep({ reading, onRestart }) {
   return (
     <>
       <article className="fortune-result tarot-result">
-        <div className="step-label">RESULT · 묘미의 해석</div>
+        <div className="step-label">RESULT · 묘라의 해석</div>
         <span className="result-symbol">☾</span>
         <h2>{reading.summary_title}</h2>
         <p className="result-meta">
@@ -314,7 +314,7 @@ export default function TarotPage() {
           <h1>타로</h1>
           <p>질문을 마음속에 떠올리고 끌리는 카드를 골라보세요.</p>
         </div>
-        <img src={tarotCat} alt="타로 고양이 모미" />
+        <img src={tarotCat} alt="타로 고양이 묘라" />
       </section>
 
       <section className="fortune-workspace">
