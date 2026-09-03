@@ -53,7 +53,7 @@ export function createFaceReading(measurements, mood = '차분한') {
     `눈매 · ${eyeReading(measurements.eyeRatio)}`,
     `입매 · ${mouthReading(measurements.mouthRatio)}`,
     `전체 조화 · ${harmonyReading(measurements.symmetryScore)} ${moodLine}`,
-    '묘미의 한마디 · 지금 가진 인상은 하나로 단정하기보다 표정과 마음에 따라 여러 매력으로 달라질 수 있어요. 편안하게 웃을 때 드러나는 자연스러운 분위기를 가장 좋은 복으로 간직해 보세요.',
+    '묘라의 한마디 · 지금 가진 인상은 하나로 단정하기보다 표정과 마음에 따라 여러 매력으로 달라질 수 있어요. 편안하게 웃을 때 드러나는 자연스러운 분위기를 가장 좋은 복으로 간직해 보세요.',
     '※ 이 결과는 얼굴 비율을 전통 관상 표현에 연결한 재미용 콘텐츠예요. 외모로 실제 성격·능력·건강·미래를 판단할 수는 없어요.',
   ].join('\n\n');
 

@@ -66,7 +66,7 @@ function ChatPanel({ context, fortuneType }) {
     : ['연애운을 더 자세히 알려줘', '오늘 조심할 점은?', '실천하면 좋은 행동은?'];
 
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
-    <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘미에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
+    <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘라에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
     {isFaceChat && <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
       {limitReached ? 'AI 질문 5회를 모두 사용했어요.' : `AI 질문은 최대 5회 가능해요 · 남은 질문 ${remainingQuestions}회`}
     </p>}
@@ -118,10 +118,10 @@ export default function FortuneExperience({ type, image }) {
   }, [config.title, inputSummary, resultText, resultTitle, type]);
 
   return <main className="fortune-page">
-    <section className="fortune-intro"><div><span>{config.kicker}</span><h1>{config.title}</h1><p>{config.intro}</p></div><img src={image} alt={`${config.title} 고양이 모미`}/></section>
+    <section className="fortune-intro"><div><span>{config.kicker}</span><h1>{config.title}</h1><p>{config.intro}</p></div><img src={image} alt={`${config.title} 고양이 묘라`}/></section>
     <section className="fortune-workspace">
       {!inputSummary ? <div className="input-card"><div className="step-label">STEP 1 · 정보 선택</div>{type === 'saju' && <SajuInput onComplete={setInputSummary}/>} {type === 'face' && <FaceReadingInput onComplete={setInputSummary}/>}</div>
-      : <><article className="fortune-result"><div className="step-label">RESULT · 묘미의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} fortuneType={type}/></>}
+      : <><article className="fortune-result"><div className="step-label">RESULT · 묘라의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} fortuneType={type}/></>}
     </section>
   </main>;
 }
