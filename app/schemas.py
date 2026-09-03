@@ -53,6 +53,7 @@ class ChatMessageOut(BaseModel):
     seq: int
     role: str
     content: str
+    source: InterpretationSource | None = None
     created_at: datetime
 
 

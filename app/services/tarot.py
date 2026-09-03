@@ -152,6 +152,7 @@ def draw_reading(
             seq=1,
             role=ChatRole.assistant,
             content="결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!",
+            source=InterpretationSource.rule,
         )
     )
     session.commit()
@@ -250,11 +251,15 @@ def answer_question(
 
 
 def append_chat(
-    session: Session, reading: TarotReading, role: ChatRole, content: str
+    session: Session,
+    reading: TarotReading,
+    role: ChatRole,
+    content: str,
+    source: InterpretationSource | None = None,
 ) -> TarotChatMessage:
     next_seq = max((m.seq for m in reading.messages), default=0) + 1
     message = TarotChatMessage(
-        reading_id=reading.id, seq=next_seq, role=role, content=content
+        reading_id=reading.id, seq=next_seq, role=role, content=content, source=source
     )
     session.add(message)
     reading.messages.append(message)

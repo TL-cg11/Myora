@@ -5,3 +5,6 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 public/mediapipe/
+
+# 로컬 작업 기록 (커밋하지 않는다)
+WORKLOG.md
