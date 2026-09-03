@@ -1,5 +1,11 @@
+<<<<<<< HEAD
 .env
 .env.deepseek.face
+=======
+.env
+.env.deepseek.face
+.env.deepseek.saju
+>>>>>>> 6c9b999 (yb - 사주 챗봇 구현)
 .venv/
 node_modules/
 __pycache__/
