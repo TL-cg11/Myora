@@ -24,7 +24,7 @@ class Settings:
     deepseek_face_api_key: str = os.getenv("DEEPSEEK_FACE_API_KEY", "")
     deepseek_saju_api_key: str = os.getenv("DEEPSEEK_SAJU_API_KEY", "")
     deepseek_face_model: str = os.getenv("DEEPSEEK_FACE_MODEL", "deepseek-v4-flash")
-    deepseek_saju_model: str = os.getenv("DEEPSEEK_SAJU_MODEL", "deepseek-chat")
+    deepseek_saju_model: str = os.getenv("DEEPSEEK_SAJU_MODEL", "deepseek-v4-flash")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
     # 타로 채팅용. 키가 없으면 LLM 을 호출하지 않고 규칙 기반 답변만 쓴다.
