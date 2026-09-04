@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
 import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
+import { useChatLimit } from '../../lib/useChatLimit.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -16,10 +17,6 @@ const TOPICS = [
 // 뒷면으로 깔아 두는 장수. 실제로 어떤 카드가 나오는지는 서버가 정하므로
 // 이 숫자는 화면에서 고르는 재미를 위한 값일 뿐이다.
 const DECK_SIZE = 12;
-
-// 결과 화면 채팅에서 물어볼 수 있는 횟수. 관상과 같은 5회로 맞춘다.
-// 서버도 같은 값으로 막으므로(app/routers/tarot.py) 한쪽만 바꾸면 안 된다.
-const QUESTION_LIMIT = 5;
 
 /** 이미지가 아직 없으므로 CSS 카드면을 기본으로 쓰고,
  *  image_path 의 그림이 실제로 열릴 때만 그림으로 바꾼다. */
@@ -159,8 +156,9 @@ function ChatPanel({ reading }) {
 
   // 관상(FortuneExperience)은 별도 카운터를 두지만, 타로는 대화가 서버에 저장되고
   // 응답으로 전체가 돌아오므로 실제 메시지에서 센다. 새로고침해도 값이 어긋나지 않는다.
+  const questionLimit = useChatLimit();
   const usedQuestions = messages.filter((message) => message.role === 'user').length;
-  const remainingQuestions = Math.max(0, QUESTION_LIMIT - usedQuestions);
+  const remainingQuestions = Math.max(0, questionLimit - usedQuestions);
   const limitReached = remainingQuestions === 0;
 
   useEffect(() => {
@@ -196,8 +194,8 @@ function ChatPanel({ reading }) {
       </div>
       <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
         {limitReached
-          ? `AI 질문 ${QUESTION_LIMIT}회를 모두 사용했어요.`
-          : `AI 질문은 최대 ${QUESTION_LIMIT}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
+          ? `AI 질문 ${questionLimit}회를 모두 사용했어요.`
+          : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
       </p>
       <div className="chat-messages" ref={listRef} aria-live="polite">
         {messages.map((message) => (
@@ -215,7 +213,7 @@ function ChatPanel({ reading }) {
       <form className="chat-form" onSubmit={(event) => { event.preventDefault(); send(input); }}>
         <input value={input} maxLength={1000} disabled={limitReached}
                onChange={(event) => setInput(event.target.value)}
-               placeholder={limitReached ? `질문 ${QUESTION_LIMIT}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'}
+               placeholder={limitReached ? `질문 ${questionLimit}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'}
                aria-label="채팅 질문"/>
         <button type="submit" disabled={!input.trim() || loading || limitReached}>보내기</button>
       </form>

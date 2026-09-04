@@ -17,7 +17,8 @@ const configs = {
 
 function ChatPanel({ context, fortuneType }) {
   const isFaceChat = fortuneType === 'face';
-  const questionLimit = isFaceChat ? 5 : Number.POSITIVE_INFINITY;
+  const serverLimit = useChatLimit();
+  const questionLimit = isFaceChat ? serverLimit : Number.POSITIVE_INFINITY;
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
@@ -68,7 +69,7 @@ function ChatPanel({ context, fortuneType }) {
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
     <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘라에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
     {isFaceChat && <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
-      {limitReached ? 'AI 질문 5회를 모두 사용했어요.' : `AI 질문은 최대 5회 가능해요 · 남은 질문 ${remainingQuestions}회`}
+      {limitReached ? `AI 질문 ${questionLimit}회를 모두 사용했어요.` : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
     </p>}
     <div className="chat-messages" aria-live="polite">
       {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{message.content}</div>)}
@@ -76,7 +77,7 @@ function ChatPanel({ context, fortuneType }) {
     </div>
     <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" disabled={loading || limitReached} onClick={() => sendMessage(item)}>{item}</button>)}</div>
     <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(input); }}>
-      <input value={input} disabled={limitReached} onChange={(event) => setInput(event.target.value)} placeholder={limitReached ? '질문 5회를 모두 사용했어요' : '결과에 관해 궁금한 점을 물어보세요'} aria-label="채팅 질문"/>
+      <input value={input} disabled={limitReached} onChange={(event) => setInput(event.target.value)} placeholder={limitReached ? `질문 ${questionLimit}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'} aria-label="채팅 질문"/>
       <button type="submit" disabled={!input.trim() || loading || limitReached}>보내기</button>
     </form>
     <p className="chat-notice">AI 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>

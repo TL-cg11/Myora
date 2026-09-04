@@ -32,6 +32,16 @@ def api_health() -> dict:
     return {"status": "ok", "service": settings.app_name}
 
 
+@app.get("/api/config")
+def api_config() -> dict:
+    """화면이 서버와 같은 값을 쓰도록 내려준다.
+
+    채팅 질문 한도 같은 숫자를 프론트에 하드코딩하면 서버만 바꿨을 때
+    안내 문구와 실제 동작이 어긋난다. config.py 를 유일한 출처로 둔다.
+    """
+    return {"chat_question_limit": settings.chat_question_limit}
+
+
 app.include_router(chat_router)
 app.include_router(face_router)
 app.include_router(tarot_router)
