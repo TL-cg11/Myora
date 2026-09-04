@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
+import { storeFaceReading } from '../../../lib/api.js';
 import { analyzeFaceImage, validateImageFile } from '../services/analyzeFaceImage.js';
 import CameraCapture from './CameraCapture.jsx';
+
+const DETECTOR_VERSION = 'face-landmarker-float16-v1';
 
 export default function FaceReadingInput({ onComplete }) {
   const fileRef = useRef(null);
@@ -29,8 +32,19 @@ export default function FaceReadingInput({ onComplete }) {
     setError('');
     try {
       const reading = await analyzeFaceImage(file, mood);
+      const stored = await storeFaceReading({
+        mood,
+        result: reading.result,
+        measurements: reading.measurements,
+        detectorVersion: DETECTOR_VERSION,
+      });
       onComplete({
         ...reading,
+        id: stored.id,
+        title: stored.summary_title,
+        result: stored.summary_text,
+        createdAt: stored.created_at,
+        stored: 'server',
         summary: `사용자가 고른 첫인상 키워드: ${mood}`,
       });
     } catch (analysisError) {
@@ -69,6 +83,6 @@ export default function FaceReadingInput({ onComplete }) {
     {error && <p className="face-error" role="alert">{error}</p>}
     <fieldset><legend>나와 가까운 첫인상</legend><div className="mood-options">{['차분한', '밝은', '신비로운', '단단한'].map((item) => <button className={mood === item ? 'selected' : ''} type="button" key={item} onClick={() => setMood(item)}>{item}</button>)}</div></fieldset>
     <button className="fortune-submit" type="submit" disabled={!file || loading}>{loading ? '얼굴의 인상을 살펴보고 있어요…' : '나의 관상 결과 보기 →'}</button>
-    <p className="face-privacy-note">얼굴 사진은 브라우저 밖으로 전송되지 않아요. 결과는 재미와 참고용으로만 봐 주세요.</p>
+    <p className="face-privacy-note">사진 원본은 전송하지 않고 측정 비율과 관상 결과만 저장해요. 결과는 재미와 참고용으로만 봐 주세요.</p>
   </form>;
 }

@@ -112,6 +112,7 @@ export default function FortuneExperience({ type, image }) {
 
   useEffect(() => {
     if (!inputSummary || !resultText) return;
+    if (type === 'face' && inputSummary.stored === 'server') return;
     const history = JSON.parse(localStorage.getItem('myohan-fortune-history') || '[]');
     const entry = { id: Date.now(), type, title: config.title, resultTitle, result: resultText, date: new Date().toISOString() };
     localStorage.setItem('myohan-fortune-history', JSON.stringify([entry, ...history].slice(0, 12)));

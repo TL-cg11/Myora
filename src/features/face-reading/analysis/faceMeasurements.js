@@ -14,10 +14,6 @@ const LANDMARK = {
   noseTip: 1,
   mouthLeft: 61,
   mouthRight: 291,
-  leftBrow: 105,
-  rightBrow: 334,
-  leftEyeUpper: 159,
-  rightEyeUpper: 386,
 };
 
 const round = (value, digits = 3) => Number(value.toFixed(digits));
@@ -37,10 +33,12 @@ function midpoint(a, b) {
 }
 
 function classifyFaceShape({ aspectRatio, jawRatio, foreheadRatio }) {
-  if (foreheadRatio - jawRatio > 0.13 && jawRatio < 0.88) return '하트형';
-  if (jawRatio > 0.91 && aspectRatio < 1.43) return '각진형';
-  if (aspectRatio < 1.3 && jawRatio > 0.84) return '둥근형';
-  if (aspectRatio > 1.48) return '긴 타원형';
+  // MediaPipe 얼굴 윤곽의 실제 비율 범위에 맞춘 휴리스틱이다.
+  // 이전 기준(턱 0.91 초과 등)은 거의 충족되지 않아 대부분 균형형으로 분류됐다.
+  if (aspectRatio >= 1.43) return '긴 타원형';
+  if (aspectRatio <= 1.28 && jawRatio >= 0.72) return '둥근형';
+  if (foreheadRatio - jawRatio >= 0.08 && jawRatio < 0.82) return '하트형';
+  if (jawRatio >= 0.82 && aspectRatio <= 1.42) return '각진형';
   return '균형형';
 }
 
@@ -77,11 +75,6 @@ export function measureFace(landmarks, imageSize) {
     distance(p('leftEyeOuter'), p('leftEyeInner'))
     + distance(p('rightEyeInner'), p('rightEyeOuter'))
   ) / 2;
-  const browEyeDistance = (
-    distance(p('leftBrow'), p('leftEyeUpper'))
-    + distance(p('rightBrow'), p('rightEyeUpper'))
-  ) / 2;
-
   const xs = landmarks.map((point) => point.x);
   const ys = landmarks.map((point) => point.y);
   const coverage = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
@@ -95,7 +88,6 @@ export function measureFace(landmarks, imageSize) {
     foreheadRatio: templeWidth / faceWidth,
     eyeRatio: eyeWidth / faceWidth,
     mouthRatio: distance(p('mouthLeft'), p('mouthRight')) / faceWidth,
-    browEyeRatio: browEyeDistance / faceHeight,
     symmetryScore,
     noseOffset,
     rollDegrees,

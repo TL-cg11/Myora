@@ -47,10 +47,10 @@ async function readError(response) {
     : '요청을 처리하지 못했어요.';
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(basePath, path, { method = 'GET', body } = {}) {
   let response;
   try {
-    response = await fetch(`/api/tarot${path}`, {
+    response = await fetch(`${basePath}${path}`, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
@@ -62,10 +62,13 @@ async function request(path, { method = 'GET', body } = {}) {
   return response.json();
 }
 
-export const listSpreads = () => request('/spreads');
+const tarotRequest = (path, options) => request('/api/tarot', path, options);
+const faceRequest = (path, options) => request('/api/face', path, options);
+
+export const listSpreads = () => tarotRequest('/spreads');
 
 export const createReading = ({ spreadCode, topic, question }) =>
-  request('/readings', {
+  tarotRequest('/readings', {
     method: 'POST',
     body: {
       spread_code: spreadCode,
@@ -76,13 +79,38 @@ export const createReading = ({ spreadCode, topic, question }) =>
   });
 
 export const getReading = (readingId) =>
-  request(`/readings/${readingId}?guest_key=${getGuestKey()}`);
+  tarotRequest(`/readings/${readingId}?guest_key=${getGuestKey()}`);
 
 export const listReadings = (limit = 12) =>
-  request(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+  tarotRequest(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);
 
 export const sendChatMessage = (readingId, message) =>
-  request(`/readings/${readingId}/chat?guest_key=${getGuestKey()}`, {
+  tarotRequest(`/readings/${readingId}/chat?guest_key=${getGuestKey()}`, {
     method: 'POST',
     body: { message },
   });
+
+export const storeFaceReading = ({ mood, result, measurements, detectorVersion }) =>
+  faceRequest('/readings', {
+    method: 'POST',
+    body: {
+      guest_key: getGuestKey(),
+      mood,
+      detector_version: detectorVersion,
+      summary_text: result,
+      measurements: {
+        aspect_ratio: measurements.aspectRatio,
+        jaw_ratio: measurements.jawRatio,
+        forehead_ratio: measurements.foreheadRatio,
+        eye_ratio: measurements.eyeRatio,
+        mouth_ratio: measurements.mouthRatio,
+        symmetry_score: measurements.symmetryScore,
+        coverage: measurements.coverage,
+        roll_degrees: measurements.rollDegrees,
+        nose_offset: measurements.noseOffset,
+      },
+    },
+  });
+
+export const listFaceReadings = (limit = 12) =>
+  faceRequest(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);

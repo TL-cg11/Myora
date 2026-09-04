@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -102,3 +103,41 @@ class ChatOut(BaseModel):
     # 이번 답변을 무엇으로 만들었는지. 리딩 요약의 출처와는 별개다.
     source: InterpretationSource
     messages: list[ChatMessageOut]
+
+
+FaceMood = Literal["차분한", "밝은", "신비로운", "단단한"]
+
+
+class FaceMeasurementsIn(BaseModel):
+    """브라우저에서 계산한 비율만 받는다. 사진·랜드마크 필드는 허용하지 않는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    aspect_ratio: float = Field(gt=0.5, lt=2.5)
+    jaw_ratio: float = Field(gt=0, lt=1.5)
+    forehead_ratio: float = Field(gt=0, lt=1.5)
+    eye_ratio: float = Field(gt=0, lt=1)
+    mouth_ratio: float = Field(gt=0, lt=1)
+    symmetry_score: float = Field(ge=0, le=1)
+    coverage: float | None = Field(default=None, ge=0, le=1)
+    roll_degrees: float | None = Field(default=None, ge=0, lt=180)
+    nose_offset: float | None = Field(default=None, ge=0, le=1)
+
+
+class FaceReadingCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    guest_key: UUID
+    mood: FaceMood
+    detector_version: str = Field(min_length=1, max_length=32)
+    summary_text: str = Field(min_length=1, max_length=8_000)
+    measurements: FaceMeasurementsIn
+
+
+class FaceReadingOut(BaseModel):
+    id: int
+    shape_code: str
+    summary_title: str
+    summary_text: str
+    mood: str | None
+    created_at: datetime
