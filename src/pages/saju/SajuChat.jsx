@@ -2,6 +2,17 @@ import { useState } from 'react';
 
 const suggestions = ['오늘의 흐름을 설명해줘', '내 사주에서 강점은 뭐야?', '앞으로 어떤 점을 조심할까?'];
 
+function getErrorMessage(detail) {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => typeof item?.msg === 'string' ? item.msg : '')
+      .filter(Boolean);
+    if (messages.length) return messages.join(' ');
+  }
+  return 'AI 응답을 받지 못했습니다.';
+}
+
 export default function SajuChat({ result }) {
   const [messages, setMessages] = useState([{ role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' }]);
   const [question, setQuestion] = useState('');
@@ -16,7 +27,7 @@ export default function SajuChat({ result }) {
     try {
       const response = await fetch('/api/saju/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: JSON.stringify(result), messages: next }) });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'AI 응답을 받지 못했습니다.');
+      if (!response.ok) throw new Error(getErrorMessage(data.detail));
       setMessages((current) => [...current, { role: 'assistant', content: data.answer }]);
     } catch (error) { setMessages((current) => [...current, { role: 'assistant', content: error.message, error: true }]); }
     finally { setLoading(false); }
