@@ -1,9 +1,10 @@
 -- 세 기능이 공유하는 리딩 뼈대와 대화
--- 적용: sudo mysql -uroot luck_db < sql/design/06_reading.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/07_reading.sql
 --
--- 이 파일은 sql/init/ 이 아니라 sql/design/ 에 있다. install.sh 는 sql/init/*.sql 만
--- 적용하므로 이 폴더의 SQL 은 자동으로 실행되지 않는다. 사주·관상 저장을 실제로
--- 하기로 정한 뒤 손으로 적용한다. 배경은 docs/schema-design.html 참고.
+-- 스키마만 미리 만들어 둔다. 사주/관상이 아직 이 테이블에 아무것도 쓰지 않고,
+-- 타로는 기존 tarot_reading 을 그대로 계속 쓴다(마이그레이션은 아직 안 한다).
+-- 빈 테이블이라 모양이 안 맞으면 ALTER TABLE 로 바로 고치면 된다. 배경은
+-- docs/schema-design.html 참고.
 --
 -- 사주/관상/타로의 결과는 모두 reading 행 하나로 시작하고, 기능 고유 정보는
 -- saju_reading / face_reading / tarot_reading 이 같은 PK 로 1:1 로 물고 간다.

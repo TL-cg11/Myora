@@ -1,9 +1,9 @@
 -- 관상 인상 유형 5종
--- 적용: sudo mysql -uroot luck_db < sql/design/09_face_seed.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/10_face_seed.sql
 --
--- 이 파일은 sql/init/ 이 아니라 sql/design/ 에 있다. install.sh 는 sql/init/*.sql 만
--- 적용하므로 이 폴더의 SQL 은 자동으로 실행되지 않는다. 사주·관상 저장을 실제로
--- 하기로 정한 뒤 손으로 적용한다. 배경은 docs/schema-design.html 참고.
+-- 09_face.sql 이 만든 face_shape 에 넣는 기준 데이터라 그 뒤에 적용되어야 한다.
+-- 관상 판정은 지금 브라우저(MediaPipe)에서 이뤄지고 서버는 이 표를 읽지 않는다.
+-- 판정을 서버로 옮길 때 문구를 코드가 아니라 여기서 관리하려고 미리 넣어 둔다.
 -- 문구의 원본은 src/features/face-reading/interpretation/faceReadingRules.js 의
 -- shapeReadings 다. code 는 classifyFaceShape() 가 돌려주는 값과 정확히 같아야 한다.
 -- 재실행해도 안전하도록 code 기준 UPSERT 한다.

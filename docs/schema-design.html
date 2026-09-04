@@ -185,7 +185,7 @@ ul.open b{color:var(--ink)}
   <div class="meta">
     <span><b>대상</b> luck_db · MariaDB 11 · utf8mb4</span>
     <span><b>기준</b> origin/main + 타로 1차 구현</span>
-    <span><b>상태</b> 목표 구조 · 지금 적용 대상 아님</span>
+    <span><b>상태</b> 스키마는 적용됨(sql/init/07~10) · 이관은 보류</span>
   </div>
 </header>
 
@@ -229,6 +229,11 @@ ul.open b{color:var(--ink)}
 <section>
   <h2><span class="num">전제</span>지금 적용할 설계는 아닙니다</h2>
   <p class="lede">이 문서는 목표 구조를 그린 것이지, 오늘 실행할 작업 지시가 아닙니다. 언제 값을 하는지 먼저 짚고 넘어갑니다.</p>
+
+  <div class="gate" style="margin-bottom:22px">
+    <p class="verdict">업데이트 — 스키마는 미리 승격했고(<code>sql/init/07~10</code>), 이관만 보류 중입니다.</p>
+    <p><code>reading</code>, <code>chat_message</code>, <code>saju_chart</code>, <code>saju_reading</code>, <code>face_shape</code>, <code>face_reading</code> 테이블은 이제 실제로 존재합니다. 로그인·저장 기능을 만들 때 맞춰볼 테이블이 미리 있는 편이 낫고, 전부 빈 테이블이라 <code>ALTER TABLE</code>로 고치는 비용이 거의 없어서 먼저 만들었습니다. 아래 논의는 <strong>기존 타로 데이터를 이 구조로 옮기는 이관</strong>에 대한 것이고, 그 결론은 그대로입니다 — 스키마가 있다고 이관까지 할 이유는 없습니다. 지금 앱 코드는 사주·관상 어느 쪽도 이 테이블에 쓰지 않고, 타로도 기존 <code>tarot_reading</code>을 그대로 씁니다.</p>
+  </div>
 
   <div class="gate">
     <p class="verdict">공통 <code>reading</code> 뼈대는 <u>사주나 관상 중 하나라도 결과를 저장하기 시작할 때</u> 값을 합니다.</p>
@@ -694,7 +699,7 @@ safeMood                                   <span class="c">// 사용자가 고�
   </ol>
 
   <p style="margin-top:24px"><strong>이관 스크립트는 <code>sql/init/</code>에 두면 안 됩니다.</strong> <code>install.sh</code>가 그 폴더의 SQL을 매번 전부 실행하는데, 이관은 한 번만 돌아야 합니다. <code>sql/migrate/</code>에 두고 손으로 실행하며, 이관과 롤백 양쪽 모두 <code>tarot_reading_old</code> 존재 여부로 상태를 확인하는 가드가 있어야 두 번 돌려도 안전합니다.</p>
-  <p><strong>앱 계정에는 DDL 권한이 없습니다.</strong> 1·3·5단계는 DB 서버에서 root로 실행해야 하고, 파일은 <code>luck-mariadb/sql/design/</code>에 두었습니다. <code>sql/init/</code>가 아닌 이유는 <code>install.sh</code>가 그 폴더의 SQL을 매번 전부 적용하기 때문입니다 — 아직 적용할 단계가 아닙니다.</p>
+  <p><strong>앱 계정에는 DDL 권한이 없습니다.</strong> 1·3·5단계는 DB 서버에서 root로 실행해야 합니다. 스키마 파일은 이제 <code>sql/init/07~10</code>에 있어 <code>install.sh</code>가 자동으로 적용합니다. 이관·롤백 스크립트만 <code>sql/migrate/</code>에 따로 두어 손으로 실행합니다 — 이관은 한 번만 돌아야 하기 때문입니다.</p>
 </section>
 
 <section>
