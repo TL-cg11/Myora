@@ -155,6 +155,7 @@ class FacePersistenceTests(unittest.TestCase):
         self.assertEqual(reading.service, "face")
         self.assertEqual(reading.status, "interpreted")
         self.assertEqual(reading.summary_title, f"{shape.title} · 밝은 분위기")
+        self.assertIn(f"가장 먼저 보이는 건 {shape.title}이에요", reading.summary_text)
         self.assertIn("DB 설명: proportion/balanced", reading.summary_text)
         self.assertNotIn("측정 비율에 따라 만든 관상 결과예요.", reading.summary_text)
         self.assertEqual(selected_shape.code, "균형형")

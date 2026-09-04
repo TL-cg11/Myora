@@ -95,10 +95,9 @@ def compose_face_reading(
         selected[category] = row
 
     title = f"{shape.title} · {mood} 분위기"
-    first_impression = shape.title.removesuffix(" 인상")
     result = "\n\n".join(
         [
-            f"사진에서 가장 먼저 보이는 건 {first_impression}이에요.",
+            f"사진에서 가장 먼저 보이는 건 {shape.title}이에요.",
             f"얼굴형 · {shape.summary}",
             f"비율 포인트 · {selected['proportion'].description} {selected['contour'].description}",
             f"눈매 · {selected['eye'].description}",
