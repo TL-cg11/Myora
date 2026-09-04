@@ -1,12 +1,12 @@
 -- 회원 계정과 생년월일 프로필
--- 적용: sudo mysql -uroot luck_db < sql/design/05_account.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/06_account.sql
 --
--- 이 파일은 sql/init/ 이 아니라 sql/design/ 에 있다. install.sh 는 sql/init/*.sql 만
--- 적용하므로 이 폴더의 SQL 은 자동으로 실행되지 않는다. 사주·관상 저장을 실제로
--- 하기로 정한 뒤 손으로 적용한다. 배경은 docs/schema-design.html 참고.
+-- 스키마만 미리 만들어 둔다. 아직 로그인 기능이 없어 이 테이블에 행이 쌓이지
+-- 않는다. 로그인 페이지를 만들 때 맞춰볼 실제 테이블이 있는 편이 낫고, 빈
+-- 테이블이라 컬럼이 안 맞으면 ALTER TABLE 로 바로 고치면 된다.
 --
--- 로그인이 아직 없어도 만들어 둔다. reading.user_id 가 이 테이블을 참조하므로
--- 06_reading.sql 보다 먼저 적용되어야 한다(파일명 순서가 그 순서다).
+-- 07_reading.sql 의 reading.user_id 가 app_user 를 FK 로 참조하므로 이 파일이
+-- 먼저 적용되어야 한다(파일명 번호 순서가 그 순서다).
 
 CREATE TABLE IF NOT EXISTS app_user (
     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

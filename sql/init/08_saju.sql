@@ -1,9 +1,9 @@
 -- 사주 계산 결과와 리딩 상세
--- 적용: sudo mysql -uroot luck_db < sql/design/07_saju.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/08_saju.sql
 --
--- 이 파일은 sql/init/ 이 아니라 sql/design/ 에 있다. install.sh 는 sql/init/*.sql 만
--- 적용하므로 이 폴더의 SQL 은 자동으로 실행되지 않는다. 사주·관상 저장을 실제로
--- 하기로 정한 뒤 손으로 적용한다. 배경은 docs/schema-design.html 참고.
+-- 스키마만 미리 만들어 둔다. app/routers/saju.py 는 아직 이 테이블에 쓰지 않고
+-- 계산 결과를 그 자리에서 응답으로 돌려주고 끝낸다. 저장을 붙일 때 이 테이블을
+-- 그대로 쓰면 된다.
 --
 -- 사주는 같은 생년월일시/성별이면 언제 계산해도 결과가 같다. 그래서 리딩마다
 -- 복사하지 않고 saju_chart 에 한 번 계산해 두고 참조한다.

@@ -1,9 +1,9 @@
 -- 관상 인상 유형과 리딩 상세
--- 적용: sudo mysql -uroot luck_db < sql/design/08_face.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/09_face.sql
 --
--- 이 파일은 sql/init/ 이 아니라 sql/design/ 에 있다. install.sh 는 sql/init/*.sql 만
--- 적용하므로 이 폴더의 SQL 은 자동으로 실행되지 않는다. 사주·관상 저장을 실제로
--- 하기로 정한 뒤 손으로 적용한다. 배경은 docs/schema-design.html 참고.
+-- 스키마만 미리 만들어 둔다. 관상 판정은 지금 브라우저(MediaPipe)에서 이뤄지고
+-- 서버에는 아무것도 보내지 않는다. 판정을 서버로 옮기고 결과를 저장하기로
+-- 정하면 이 테이블을 그대로 쓰면 된다.
 --
 -- 사진과 랜드마크 좌표는 저장하지 않는다. 결과 문구를 다시 만드는 데 필요한 것은
 -- 비율 여섯 개와 사용자가 고른 mood 뿐이다(faceReadingRules.js createFaceReading).

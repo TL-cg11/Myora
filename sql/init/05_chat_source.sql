@@ -1,5 +1,5 @@
 -- 채팅 답변의 출처를 남긴다.
--- 적용: sudo mysql -uroot luck_db < sql/init/10_chat_source.sql
+-- 적용: sudo mysql -uroot luck_db < sql/init/05_chat_source.sql
 --
 -- DeepSeek 이 붙었지만 어떤 답변이 LLM 이고 어떤 게 규칙 기반 폴백인지 저장하지
 -- 않아서, 나중에 답변 품질을 되짚을 방법이 없다. 이 한 칼럼이 그걸 메운다.

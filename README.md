@@ -52,6 +52,12 @@ sudo systemctl status mariadb --no-pager
 | `02_tarot.sql` | 타로 테이블 6개 |
 | `03_tarot_seed.sql` | 스프레드 3종 + 메이저 아르카나 22장 |
 | `04_tarot_meaning_seed.sql` | 주제별 해석 176행 (22장 x 4주제 x 2방향) |
+| `05_chat_source.sql` | `tarot_chat_message.source` — 답변이 규칙 기반인지 LLM인지 |
+| `06_account.sql` | `app_user`, `birth_profile` — 회원 계정과 생년월일 프로필 (로그인은 아직 없음) |
+| `07_reading.sql` | `reading`, `chat_message` — 사주/관상/타로가 공유할 리딩 뼈대 (앱은 아직 안 씀) |
+| `08_saju.sql` | `saju_chart`, `saju_reading` — 사주 계산 결과 저장용 (앱은 아직 안 씀) |
+| `09_face.sql` | `face_shape`, `face_reading` — 관상 인상 유형과 리딩 상세 (앱은 아직 안 씀) |
+| `10_face_seed.sql` | 관상 인상 유형 5종 |
 
 ### 테이블
 
@@ -64,12 +70,18 @@ sudo systemctl status mariadb --no-pager
 
 ### 회원 연결
 
-`tarot_reading.user_id`는 `users` 테이블이 아직 없어 FK 없이 nullable로 두었습니다. 비회원은 클라이언트가 보관하는 UUID를 `guest_key`에 넣으며, 둘 중 하나는 반드시 있어야 합니다(`ck_tarot_reading_owner`). 인증 담당이 `users`를 만든 뒤 FK를 추가하면 됩니다.
+`app_user`는 이제 있지만(`06_account.sql`), `tarot_reading.user_id`는 아직 그것을 참조하지 않습니다. 지금 인증이 없어서 `user_id`가 실제로 채워질 일이 없고, 채워지지 않는 FK를 미리 걸어봐야 의미가 없기 때문입니다. 비회원은 클라이언트가 보관하는 UUID를 `guest_key`에 넣으며, `user_id`/`guest_key` 중 하나는 반드시 있어야 합니다(`ck_tarot_reading_owner`). 로그인을 실제로 붙일 때 아래처럼 FK를 추가하면 됩니다.
 
 ```sql
 ALTER TABLE tarot_reading
-  ADD CONSTRAINT fk_tarot_reading_user FOREIGN KEY (user_id) REFERENCES users (id);
+  ADD CONSTRAINT fk_tarot_reading_user FOREIGN KEY (user_id) REFERENCES app_user (id);
 ```
+
+### 사주 / 관상 / 리딩 공용 스키마
+
+`07_reading.sql`, `08_saju.sql`, `09_face.sql`, `10_face_seed.sql`은 아직 어떤 앱 코드도 쓰지 않는 스키마입니다. 사주·관상은 지금 결과를 그 자리에서 계산해 응답으로 돌려주고 저장하지 않습니다(`app/routers/saju.py`, `app/routers/chat.py`). 화면과 API 가 실제로 저장을 시작하기 전까지는 빈 테이블로 남습니다.
+
+미리 만들어 둔 이유는 두 가지입니다. 로그인이나 사주/관상 저장 기능을 만들 때 맞춰볼 실제 테이블이 있는 편이 낫고, 빈 테이블이라 나중에 컬럼이 안 맞아도 `ALTER TABLE`로 고치는 비용이 거의 없습니다. 기존 타로 데이터를 이 구조로 옮기는 작업은 `sql/migrate/`에 별도로 있고, 저장 기능이 실제로 만들어질 때 판단합니다. 설계 배경과 테이블별 근거는 `docs/schema-design.html` 참고하세요.
 
 ### 마이너 아르카나
 

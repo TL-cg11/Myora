@@ -4,7 +4,8 @@
 -- 이관은 한 번만 실행되어야 하기 때문이다.
 --
 -- 실행:  sudo mysql -uroot luck_db < sql/migrate/2026-09-03_tarot_to_reading.sql
--- 선행:  sql/design/05_account.sql, 06_reading.sql 이 먼저 적용되어 있어야 한다.
+-- 선행:  sql/init/06_account.sql, 07_reading.sql 이 먼저 적용되어 있어야 한다(이제 둘 다
+--        기본 적용 대상이라 보통은 이미 있다).
 --
 -- ⚠ 이 스크립트는 원자적이지 않다. MariaDB 는 DDL(RENAME/CREATE/ALTER)에서 암묵적
 --   커밋을 일으켜 트랜잭션으로 묶어도 롤백되지 않는다. 중간에 실패하면
@@ -21,7 +22,7 @@ BEGIN
     SELECT '이미 이관됐습니다(tarot_reading_old 존재). 아무것도 하지 않았습니다.' AS status;
   ELSEIF NOT EXISTS (SELECT 1 FROM information_schema.TABLES
                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reading') THEN
-    SELECT 'reading 테이블이 없습니다. sql/design/06_reading.sql 을 먼저 적용하세요.' AS status;
+    SELECT 'reading 테이블이 없습니다. sql/init/07_reading.sql 을 먼저 적용하세요.' AS status;
   ELSE
     -- 1) 옛 테이블을 밀어둔다. 이름만 바꾸는 것이라 데이터는 그대로다.
     RENAME TABLE tarot_reading      TO tarot_reading_old;
