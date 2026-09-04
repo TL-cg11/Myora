@@ -1,9 +1,8 @@
 -- 관상 인상 유형과 리딩 상세
 -- 적용: sudo mysql -uroot luck_db < sql/init/09_face.sql
 --
--- 스키마만 미리 만들어 둔다. 관상 판정은 지금 브라우저(MediaPipe)에서 이뤄지고
--- 서버에는 아무것도 보내지 않는다. 판정을 서버로 옮기고 결과를 저장하기로
--- 정하면 이 테이블을 그대로 쓰면 된다.
+-- MediaPipe 측정은 브라우저에서 이뤄지고 서버에는 아래 숫자만 전송한다.
+-- 서버는 비율로 얼굴형과 세부 해석 코드를 다시 판정한 뒤 결과를 저장한다.
 --
 -- 사진과 랜드마크 좌표는 저장하지 않는다. 결과 문구를 다시 만드는 데 필요한 것은
 -- 비율 여섯 개와 사용자가 고른 mood 뿐이다(faceReadingRules.js createFaceReading).
@@ -22,7 +21,7 @@ CREATE TABLE IF NOT EXISTS face_shape (
 CREATE TABLE IF NOT EXISTS face_reading (
     reading_id       BIGINT UNSIGNED NOT NULL PRIMARY KEY,
     shape_id         SMALLINT UNSIGNED NULL,
-    -- 판정 경계값(eyeRatio >= 0.205, jawRatio > 0.91)과 정확히 비교하려고
+    -- 판정 경계값(eyeRatio >= 0.2, jawRatio >= 0.82)과 정확히 비교하려고
     -- FLOAT 이 아니라 DECIMAL 을 쓴다. 모든 비율이 얼굴 폭 대비라 1 근처에 모인다.
     aspect_ratio     DECIMAL(5,4) NOT NULL COMMENT '얼굴 세로/가로',
     jaw_ratio        DECIMAL(5,4) NOT NULL,

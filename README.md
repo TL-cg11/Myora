@@ -58,6 +58,7 @@ sudo systemctl status mariadb --no-pager
 | `08_saju.sql` | `saju_chart`, `saju_reading` — 사주 계산 결과 저장용 (앱은 아직 안 씀) |
 | `09_face.sql` | `face_shape`, `face_reading` — 관상 인상 유형과 리딩 상세 (앱은 아직 안 씀) |
 | `10_face_seed.sql` | 관상 인상 유형 5종 |
+| `11_face_interpretation.sql` | 비율·눈매·입매·조화·분위기별 관상 세부 해석 20종 |
 
 ### 테이블
 
@@ -79,7 +80,7 @@ ALTER TABLE tarot_reading
 
 ### 사주 / 관상 / 리딩 공용 스키마
 
-`07_reading.sql`, `08_saju.sql`, `09_face.sql`, `10_face_seed.sql`은 아직 어떤 앱 코드도 쓰지 않는 스키마입니다. 사주·관상은 지금 결과를 그 자리에서 계산해 응답으로 돌려주고 저장하지 않습니다(`app/routers/saju.py`, `app/routers/chat.py`). 화면과 API 가 실제로 저장을 시작하기 전까지는 빈 테이블로 남습니다.
+관상 기능은 `reading`, `face_reading`, `face_shape`, `face_interpretation`을 사용합니다. 사진과 랜드마크 원본은 저장하지 않고 측정 비율과 선택한 분위기만 저장하며, 서버가 기준 데이터에서 해당 문구를 골라 결과를 만듭니다. 사주는 현재 결과를 그 자리에서 계산해 응답으로 돌려주며 아직 공용 리딩 테이블에 저장하지 않습니다.
 
 미리 만들어 둔 이유는 두 가지입니다. 로그인이나 사주/관상 저장 기능을 만들 때 맞춰볼 실제 테이블이 있는 편이 낫고, 빈 테이블이라 나중에 컬럼이 안 맞아도 `ALTER TABLE`로 고치는 비용이 거의 없습니다. 기존 타로 데이터를 이 구조로 옮기는 작업은 `sql/migrate/`에 별도로 있고, 저장 기능이 실제로 만들어질 때 판단합니다. 설계 배경과 테이블별 근거는 `docs/schema-design.html` 참고하세요.
 
