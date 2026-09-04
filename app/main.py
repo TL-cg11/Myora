@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.db import check_db
 from app.routers.chat import router as chat_router
+from app.routers.face import router as face_router
 from app.routers.pages import DIST_DIR, router as pages_router
 from app.routers.saju import router as saju_router
 from app.routers.saju_chat import router as saju_chat_router
@@ -32,6 +33,7 @@ def api_health() -> dict:
 
 
 app.include_router(chat_router)
+app.include_router(face_router)
 app.include_router(tarot_router)
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 app.mount(

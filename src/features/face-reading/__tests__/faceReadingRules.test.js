@@ -6,6 +6,9 @@ import { createFaceReading } from '../interpretation/faceReadingRules.js';
 
 const baseMeasurements = {
   faceShape: '균형형',
+  aspectRatio: 1.39,
+  jawRatio: 0.87,
+  foreheadRatio: 0.88,
   eyeRatio: 0.185,
   mouthRatio: 0.35,
   symmetryScore: 0.95,
@@ -16,12 +19,36 @@ test('관상 해석은 제목, 본문, 키워드를 만든다', () => {
   assert.match(reading.title, /인상/);
   assert.match(reading.result, /얼굴형/);
   assert.match(reading.result, /재미용 콘텐츠/);
-  assert.deepEqual(reading.keywords, ['#균형있는인상', '#밝은매력', '#나만의인상']);
+  assert.match(reading.title, /밝은 분위기/);
+  assert.deepEqual(reading.keywords, ['#균형있는인상', '#밝은분위기', '#안정적인조화']);
 });
 
 test('허용되지 않은 인상 키워드는 안전한 기본값으로 바꾼다', () => {
   const reading = createFaceReading(baseMeasurements, '모르는 값');
-  assert.ok(reading.keywords.includes('#차분한매력'));
+  assert.ok(reading.keywords.includes('#차분한분위기'));
+});
+
+test('같은 얼굴형이어도 세부 비율과 분위기에 따라 결과가 달라진다', () => {
+  const calm = createFaceReading({
+    ...baseMeasurements,
+    aspectRatio: 1.32,
+    eyeRatio: 0.17,
+    mouthRatio: 0.31,
+    symmetryScore: 0.9,
+  }, '차분한');
+  const bright = createFaceReading({
+    ...baseMeasurements,
+    aspectRatio: 1.46,
+    eyeRatio: 0.21,
+    mouthRatio: 0.39,
+    symmetryScore: 0.98,
+  }, '밝은');
+
+  assert.notEqual(calm.title, bright.title);
+  assert.notEqual(calm.result, bright.result);
+  assert.notDeepEqual(calm.keywords, bright.keywords);
+  assert.match(calm.result, /세로와 가로 폭의 차이가 크지 않아/);
+  assert.match(bright.result, /세로 흐름이 비교적 길게/);
 });
 
 test('모든 얼굴형 규칙이 단정적인 실제 성격 판단을 피한다', () => {
@@ -48,13 +75,11 @@ test('랜드마크 비율을 픽셀 기준으로 계산하고 촬영 각도를 �
   set(33, 0.35, 0.42); set(133, 0.45, 0.42);
   set(362, 0.55, 0.42); set(263, 0.65, 0.42);
   set(1, 0.5, 0.52); set(61, 0.42, 0.62); set(291, 0.58, 0.62);
-  set(105, 0.4, 0.36); set(334, 0.6, 0.36);
-  set(159, 0.4, 0.41); set(386, 0.6, 0.41);
-
   const measured = measureFace(landmarks, { width: 1000, height: 1000 });
   assert.equal(measured.faceShape, '긴 타원형');
   assert.equal(measured.aspectRatio, 1.5);
   assert.equal(measured.eyeRatio, 0.25);
+  assert.equal('browEyeRatio' in measured, false);
   assert.deepEqual(validateFacePose(measured), []);
   assert.match(validateFacePose({ ...measured, noseOffset: 0.2 })[0], /정면/);
 });

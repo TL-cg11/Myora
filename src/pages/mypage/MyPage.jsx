@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listReadings } from '../../lib/api.js';
+import { listFaceReadings, listReadings as listTarotReadings } from '../../lib/api.js';
 import './mypage.css';
 
 const typeMeta = {
@@ -36,6 +36,18 @@ function fromServer(reading) {
   };
 }
 
+function fromFaceServer(reading) {
+  return {
+    id: `face-${reading.id}`,
+    type: 'face',
+    title: `관상 · ${reading.mood || '첫인상'}`,
+    resultTitle: reading.summary_title,
+    result: reading.summary_text,
+    date: reading.created_at,
+    stored: 'server',
+  };
+}
+
 export default function MyPage() {
   const [name, setName] = useState(() => localStorage.getItem('myohan-profile-name') || '묘한 손님');
   const [editing, setEditing] = useState(false);
@@ -47,9 +59,18 @@ export default function MyPage() {
 
   useEffect(() => {
     let alive = true;
-    listReadings()
-      .then((items) => alive && setServer(items.map(fromServer)))
-      .catch((cause) => alive && setError(cause.message))
+    Promise.allSettled([listTarotReadings(), listFaceReadings()])
+      .then(([tarotResult, faceResult]) => {
+        if (!alive) return;
+        const tarot = tarotResult.status === 'fulfilled' ? tarotResult.value.map(fromServer) : [];
+        const face = faceResult.status === 'fulfilled' ? faceResult.value.map(fromFaceServer) : [];
+        setServer([...tarot, ...face]);
+        const failures = [tarotResult, faceResult]
+          .filter((result) => result.status === 'rejected')
+          .map((result) => result.reason?.message)
+          .filter(Boolean);
+        setError(failures.join(' '));
+      })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
@@ -103,7 +124,7 @@ export default function MyPage() {
                   <Link to={meta.path}>다시 보기 →</Link>
                 </article>;
               })}</div>
-              {error && <p className="history-notice warn">타로 기록을 불러오지 못했어요. {error}</p>}
+              {error && <p className="history-notice warn">일부 서버 기록을 불러오지 못했어요. {error}</p>}
               </>
             : <div className="empty-history"><span>☾</span><h3>아직 만난 운세가 없어요</h3><p>{error || '오늘의 마음과 가장 가까운 방법으로 첫 이야기를 만나보세요.'}</p><Link to="/tarot">운세 보러 가기 →</Link></div>}
       </div>
@@ -111,7 +132,7 @@ export default function MyPage() {
       <aside className="mypage-side">
         <section><span>QUICK MENU</span><h2>새로운 운세 보기</h2><nav><Link to="/saju"><b>☯</b><div>사주 운세<small>오늘의 흐름 살펴보기</small></div><i>›</i></Link><Link to="/tarot"><b>✦</b><div>타로<small>마음의 카드 고르기</small></div><i>›</i></Link><Link to="/face"><b>☾</b><div>관상<small>나의 인상 발견하기</small></div><i>›</i></Link></nav></section>
         <section className="mypage-settings"><span>SETTINGS</span><h2>이용 설정</h2><label><div>운세 알림<small>오늘의 한마디를 알려드려요</small></div><input type="checkbox"/><i/></label><label><div>채팅 기록 저장<small>이 기기에 대화를 보관해요</small></div><input type="checkbox" defaultChecked/><i/></label>
-          <p>타로 기록은 서버에 저장되지만, 그 기록을 여는 열쇠는 이 브라우저에만 있어요. 브라우저 데이터를 지우거나 다른 기기에서 접속하면 이전 기록을 찾을 수 없어요.</p>
+          <p>타로와 관상 기록은 서버에 저장되지만, 그 기록을 여는 열쇠는 이 브라우저에만 있어요. 브라우저 데이터를 지우거나 다른 기기에서 접속하면 이전 기록을 찾을 수 없어요.</p>
         </section>
       </aside>
     </section>
