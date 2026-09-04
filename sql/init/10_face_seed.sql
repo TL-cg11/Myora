@@ -2,10 +2,8 @@
 -- 적용: sudo mysql -uroot luck_db < sql/init/10_face_seed.sql
 --
 -- 09_face.sql 이 만든 face_shape 에 넣는 기준 데이터라 그 뒤에 적용되어야 한다.
--- 관상 판정은 지금 브라우저(MediaPipe)에서 이뤄지고 서버는 이 표를 읽지 않는다.
--- 판정을 서버로 옮길 때 문구를 코드가 아니라 여기서 관리하려고 미리 넣어 둔다.
--- 문구의 원본은 src/features/face-reading/interpretation/faceReadingRules.js 의
--- shapeReadings 다. code 는 classifyFaceShape() 가 돌려주는 값과 정확히 같아야 한다.
+-- 브라우저와 서버가 같은 기준으로 얼굴형을 판정하며 서버는 이 표의 문구를 읽는다.
+-- code 는 양쪽 classifyFaceShape()가 돌려주는 값과 정확히 같아야 한다.
 -- 재실행해도 안전하도록 code 기준 UPSERT 한다.
 
 INSERT INTO face_shape (code, title, keyword, summary) VALUES
