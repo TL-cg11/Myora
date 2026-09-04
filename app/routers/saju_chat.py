@@ -14,6 +14,7 @@ async def saju_chat(request: ChatRequest) -> ChatResponse:
     payload = {
         "model": settings.deepseek_saju_model,
         "messages": [{"role": "system", "content": f"{SAJU_PERSONA}\n\n[사주 결과]\n{request.context}"}, *(message.model_dump() for message in request.messages)],
+        "thinking": {"type": "disabled"},
         "max_tokens": 700,
         "stream": False,
     }
@@ -22,6 +23,8 @@ async def saju_chat(request: ChatRequest) -> ChatResponse:
             response = await client.post(f"{settings.deepseek_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {settings.deepseek_saju_api_key}"}, json=payload)
             response.raise_for_status()
             answer = response.json()["choices"][0]["message"]["content"].strip()
+            if not answer:
+                raise ValueError("DeepSeek returned an empty answer")
     except (httpx.HTTPError, KeyError, IndexError, TypeError, AttributeError, ValueError) as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="사주 AI 응답을 가져오지 못했습니다.") from error
     return ChatResponse(answer=answer)
