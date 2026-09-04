@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.routers import chat as chat_module
+from app.config import settings
 from app.routers.chat import ChatMessage, ChatRequest, build_deepseek_messages
 
 
@@ -51,17 +52,19 @@ class ChatPromptTests(unittest.TestCase):
         self.assertEqual(messages[-1]["content"], "첫인상을 더 설명해줘")
 
     def test_rejects_more_than_five_questions(self) -> None:
+        limit = settings.chat_question_limit
         messages = [
             ChatMessage(role="user", content=f"질문 {index}")
-            for index in range(1, 7)
+            for index in range(1, limit + 2)
         ]
-        with self.assertRaisesRegex(ValidationError, "최대 5회"):
+        with self.assertRaisesRegex(ValidationError, f"최대 {limit}회"):
             ChatRequest(context="관상 결과", messages=messages)
 
 
 class ChatEndpointTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_api_key_returns_service_unavailable(self) -> None:
         fake_settings = SimpleNamespace(
+            chat_question_limit=settings.chat_question_limit,
             deepseek_face_api_key="",
             deepseek_face_model="deepseek-v4-flash",
         )
@@ -73,6 +76,7 @@ class ChatEndpointTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_chat_calls_deepseek_without_exposing_key(self) -> None:
         fake_settings = SimpleNamespace(
+            chat_question_limit=settings.chat_question_limit,
             deepseek_face_api_key="secret-key",
             deepseek_face_model="deepseek-v4-flash",
             deepseek_base_url="https://api.deepseek.com/",

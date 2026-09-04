@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import settings
 from app.db import get_session
 from app.models import ChatRole, TarotCard, TarotReading
 from app.schemas import (
@@ -26,10 +27,6 @@ from app.services import tarot as service
 router = APIRouter(prefix="/api/tarot", tags=["tarot"])
 
 HISTORY_LIMIT = 12
-
-# 결과 화면 채팅에서 물어볼 수 있는 횟수. 관상(app/routers/chat.py)과 같은 5회다.
-# 화면의 src/pages/tarot/TarotPage.jsx QUESTION_LIMIT 과 같은 값을 써야 한다.
-QUESTION_LIMIT = 5
 
 
 def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotReading:
@@ -167,10 +164,10 @@ def create_chat_message(
     # 화면에서도 막지만 서버가 실제 기준이다. 대화가 DB 에 있으므로 저장된 질문을
     # 세면 되고, 새로고침하거나 API 를 직접 호출해도 같은 한도가 적용된다.
     asked = sum(1 for message in reading.messages if message.role is ChatRole.user)
-    if asked >= QUESTION_LIMIT:
+    if asked >= settings.chat_question_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"AI 질문 {QUESTION_LIMIT}회를 모두 사용했어요.",
+            detail=f"AI 질문 {settings.chat_question_limit}회를 모두 사용했어요.",
         )
 
     # 질문을 먼저 넣어야 LLM 에 넘길 대화 기록의 마지막이 이번 질문이 된다.

@@ -25,8 +25,10 @@ class ChatRequest(BaseModel):
     @model_validator(mode="after")
     def limit_user_questions(self):
         question_count = sum(message.role == "user" for message in self.messages)
-        if question_count > 5:
-            raise ValueError("관상 AI 질문은 최대 5회까지 가능해요.")
+        if question_count > settings.chat_question_limit:
+            raise ValueError(
+                f"관상 AI 질문은 최대 {settings.chat_question_limit}회까지 가능해요."
+            )
         return self
 
 
