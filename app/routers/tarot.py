@@ -27,6 +27,10 @@ router = APIRouter(prefix="/api/tarot", tags=["tarot"])
 
 HISTORY_LIMIT = 12
 
+# 결과 화면 채팅에서 물어볼 수 있는 횟수. 관상(app/routers/chat.py)과 같은 5회다.
+# 화면의 src/pages/tarot/TarotPage.jsx QUESTION_LIMIT 과 같은 값을 써야 한다.
+QUESTION_LIMIT = 5
+
 
 def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotReading:
     """guest_key가 맞는 리딩만 내준다. 없거나 남의 것이면 똑같이 404."""
@@ -159,6 +163,15 @@ def create_chat_message(
     session: Session = Depends(get_session),
 ) -> ChatOut:
     reading = _load_reading(session, reading_id, guest_key)
+
+    # 화면에서도 막지만 서버가 실제 기준이다. 대화가 DB 에 있으므로 저장된 질문을
+    # 세면 되고, 새로고침하거나 API 를 직접 호출해도 같은 한도가 적용된다.
+    asked = sum(1 for message in reading.messages if message.role is ChatRole.user)
+    if asked >= QUESTION_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"AI 질문 {QUESTION_LIMIT}회를 모두 사용했어요.",
+        )
 
     # 질문을 먼저 넣어야 LLM 에 넘길 대화 기록의 마지막이 이번 질문이 된다.
     service.append_chat(session, reading, ChatRole.user, payload.message)
