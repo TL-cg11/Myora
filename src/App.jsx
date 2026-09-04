@@ -6,7 +6,7 @@ import FacePage from './pages/face/FacePage.jsx';
 import MyPage from './pages/mypage/MyPage.jsx';
 
 function Header() {
-  const nav = [['홈','/'],['운세','/saju'],['타로','/tarot'],['관상','/face']];
+  const nav = [['홈','/'],['사주','/saju'],['타로','/tarot'],['관상','/face']];
   return <header className="header"><div className="nav-wrap"><Link className="brand" to="/"><span className="paw">✿</span><span>묘한운세</span><small>묘라가 전해주는<br/>당신의 운명 이야기</small></Link><nav>{nav.map(([label,path])=><NavLink key={path} end={path === '/'} to={path}>{label}</NavLink>)}</nav><NavLink className="header-cta" to="/mypage">마이페이지</NavLink></div></header>;
 }
 
