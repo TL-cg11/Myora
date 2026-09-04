@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 load_dotenv(BASE_DIR / ".env.deepseek.face")
 load_dotenv(BASE_DIR / ".env.deepseek.saju")
+load_dotenv(BASE_DIR / ".env.deepseek.tarot")
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,7 @@
 .env
 .env.deepseek.face
 .env.deepseek.saju
+.env.deepseek.tarot
 .venv/
 node_modules/
 __pycache__/
