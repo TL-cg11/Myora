@@ -247,21 +247,75 @@ erDiagram
 | 컬럼 | 타입 | 설명 |
 | --- | --- | --- |
 | `id` | `BIGINT UNSIGNED` PK | |
-| `birth_date` | `DATE` | |
-| `birth_time` | `TIME` NULL | |
-| `time_unknown` | `TINYINT(1)` = 0 | |
-| `gender` | `ENUM('female','male','unknown')` | |
+| `birth_date` | `DATE` | 생년월일 |
+| `birth_time` | `TIME` NULL | 태어난 시각 |
+| `time_unknown` | `TINYINT(1)` = 0 | 시각을 모르는지 여부 |
+| `gender` | `ENUM('female','male','unknown')` | 대운(大運) 방향이 성별에 따라 달라져 계산에 필요 |
 | `engine_version` | `VARCHAR(32)` | `korean-saju` 버전 |
-| `pillar_year` / `pillar_month` / `pillar_day` | `CHAR(2)` | 갑자 두 글자 |
-| `pillar_hour` | `CHAR(2)` NULL | 시각을 모르면 NULL |
-| `jeonggyeok` / `yongsin` | `VARCHAR(40)` NULL | |
-| `sinsal` | `JSON` NULL | 개수가 유동적이라 JSON. 조회가 필요해지면 별도 테이블로 펴면 됨 |
+| `pillar_year` / `pillar_month` / `pillar_day` | `CHAR(2)` | 년주 / 월주 / 일주 |
+| `pillar_hour` | `CHAR(2)` NULL | 시주. 시각을 모르면 NULL |
+| `jeonggyeok` | `VARCHAR(40)` NULL | 정격(定格). 사주 전체의 성격 유형 |
+| `yongsin` | `VARCHAR(40)` NULL | 용신(用神). 이 사주에 필요한 오행 |
+| `sinsal` | `JSON` NULL | 신살(神殺). 개수가 유동적이라 JSON. 조회가 필요해지면 별도 테이블로 펴면 됨 |
 
 **유니크**: `(birth_date, birth_time, time_unknown, gender, engine_version)`
 
-> `engine_version`을 유니크 키에 넣은 이유는 `korean-saju`가 올라가 계산이 달라져도 **과거 리딩이 그때 보여준 결과를 그대로 유지**하기 위해서입니다. 새 버전은 새 행이 됩니다.
->
-> 네 기둥을 한 문자열이 아니라 **기둥별로 쪼갠 이유**는 "월주가 무엇인 사람" 같은 조회가 나중에 반드시 나오기 때문입니다.
+### 네 기둥(`pillar_*`)이 무엇인가
+
+사주(四**柱**)는 말 그대로 **기둥 네 개**입니다. 각 기둥이 **글자 두 개**로 되어 있어 4 × 2 = **여덟 글자(팔자)** 가 됩니다.
+
+1998-04-12 09:30 출생의 실제 계산 결과:
+
+```
+戊寅(무인)   丙辰(병진)   己丑(기축)   戊辰(무진)
+  년주         월주         일주         시주
+   ↓            ↓            ↓            ↓
+pillar_year  pillar_month  pillar_day  pillar_hour
+```
+
+각 기둥의 두 글자는 이렇게 나뉩니다.
+
+```
+戊 寅
+│  └── 지지(地支) — 12개: 자축인묘진사오미신유술해 (띠 동물)
+└───── 천간(天干) — 10개: 갑을병정무기경신임계
+```
+
+10 × 12 조합 중 짝이 맞는 것만 쓰여 **60가지**가 나옵니다(육십갑자 — "환갑"의 그 60). 어떤 기둥이든 **반드시 정확히 두 글자**라서 `CHAR(2)`로 잡았습니다.
+
+### 왜 한 문자열이 아니라 네 컬럼인가
+
+`korean-saju`의 `str(saju)`는 `"戊寅(무인) 丙辰(병진) 己丑(기축) 戊辰(무진)"` 문자열 하나를 뱉습니다. 그대로 저장할 수도 있었지만 쪼갰습니다. 이런 조회가 반드시 나오기 때문입니다.
+
+```sql
+-- 일주가 己丑인 사람 (사주에서 일주 = 본인을 뜻해 가장 많이 쓰입니다)
+SELECT * FROM saju_chart WHERE pillar_day = '己丑';
+
+-- 월주별 분포
+SELECT pillar_month, COUNT(*) FROM saju_chart GROUP BY pillar_month;
+```
+
+문자열 한 덩어리면 조회할 때마다 파싱해야 하고 인덱스도 못 탑니다.
+
+### ⚠️ `pillar_month`는 달력의 월이 아닙니다
+
+위 예시는 **4월** 12일생인데 월주가 `丙辰`입니다. 사주의 "월"은 달력이 아니라 **절기(節氣)** 로 나뉘기 때문입니다 — 입춘·경칩·청명 등 24절기가 경계입니다. 2월생이어도 입춘 전이면 아직 작년 1월로 칩니다.
+
+`app/routers/saju.py`에서 `load_bundled_data()[1]`로 `solar_terms`(절기표)를 불러오는 게 이 계산 때문입니다.
+
+### `time_unknown`이 따로 있는 이유
+
+`birth_time`이 `NULL`인 것과 "자정에 태어남"은 다릅니다. 지금 코드는 시각을 모르면 정오로 대체해 계산하는데(`payload.birth_time or time(12, 0)`), 그러면 저장된 값만으로는 "정오 출생"인지 "몰라서 정오로 때운 것"인지 구분할 수 없습니다. 그래서 **모른다는 사실 자체**를 별도로 남깁니다.
+
+시각을 모르면 `pillar_hour`는 `NULL`이 됩니다. 나머지 세 기둥만으로도 사주는 봅니다.
+
+### 유니크 키에 `engine_version`이 들어간 이유
+
+`korean-saju`가 올라가 계산 방식이 바뀌어도 **과거 리딩이 그때 보여준 결과를 그대로 유지**하기 위해서입니다. 새 버전은 같은 생년월일이어도 새 행이 됩니다.
+
+### 아직 안 된 일
+
+`/api/saju/readings`는 지금 `str(saju)` 문자열 하나를 돌려줍니다. 이 테이블에 저장하려면 **그 문자열을 네 기둥으로 쪼개는 파싱 코드**가 필요합니다. 사주 저장 기능을 만들 때 그것이 첫 단계입니다.
 
 ## `saju_reading`
 
