@@ -10,6 +10,7 @@ from app.routers.pages import DIST_DIR, router as pages_router
 from app.routers.saju import router as saju_router
 from app.routers.saju_chat import router as saju_chat_router
 from app.routers.tarot import router as tarot_router
+from app.routers.tarot_chat import router as tarot_chat_router
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -45,6 +46,7 @@ def api_config() -> dict:
 app.include_router(chat_router)
 app.include_router(face_router)
 app.include_router(tarot_router)
+app.include_router(tarot_chat_router)
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 app.mount(
     "/mediapipe",

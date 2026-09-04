@@ -5,7 +5,7 @@ import { useChatLimit } from '../../lib/useChatLimit.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
-// app/services/tarot.py 의 _TOPIC_LABEL 과 같은 순서/문구를 쓴다.
+// app/routers/tarot.py 의 _TOPIC_LABEL 과 같은 순서/문구를 쓴다.
 const TOPICS = [
   ['general', '오늘의 흐름'],
   ['love', '연애운'],

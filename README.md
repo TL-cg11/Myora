@@ -81,4 +81,4 @@ LLM_TIMEOUT=20
 `DEEPSEEK_BASE_URL` 은 관상 채팅과 공용입니다.
 
 리딩 요약은 LLM 을 쓰지 않습니다. 카드를 뽑는 순간에 외부 API 를 기다리게 하지
-않으려는 것이고, 바꾸려면 `app/services/tarot.py` 의 주석을 보세요.
+않으려는 것이고, 바꾸려면 `app/routers/tarot.py` 의 주석을 보세요.
