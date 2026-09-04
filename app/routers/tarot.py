@@ -1,32 +1,136 @@
-"""타로 API."""
+"""타로 카드·스프레드·리딩 API."""
 
 from __future__ import annotations
 
+import secrets
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
 from app.db import get_session
-from app.models import ChatRole, TarotCard, TarotReading
+from app.models import (
+    ChatRole,
+    InterpretationSource,
+    Orientation,
+    ReadingStatus,
+    TarotCard,
+    TarotChatMessage,
+    TarotReading,
+    TarotReadingCard,
+    TarotSpread,
+    Topic,
+)
 from app.schemas import (
     CardOut,
-    ChatCreate,
     ChatMessageOut,
-    ChatOut,
     ReadingCardOut,
     ReadingCreate,
     ReadingOut,
     ReadingSummaryOut,
     SpreadOut,
 )
-from app.services import tarot as service
-
 router = APIRouter(prefix="/api/tarot", tags=["tarot"])
 
 HISTORY_LIMIT = 12
+REVERSED_RATE = 0.5
+_rng = secrets.SystemRandom()
+
+_TOPIC_LABEL = {
+    Topic.general: "오늘의 흐름",
+    Topic.love: "연애운",
+    Topic.career: "직업운",
+    Topic.money: "금전운",
+    Topic.health: "건강운",
+}
+
+
+def get_spread(session: Session, code: str) -> TarotSpread | None:
+    return session.scalar(
+        select(TarotSpread)
+        .options(selectinload(TarotSpread.positions))
+        .where(TarotSpread.code == code, TarotSpread.is_active.is_(True))
+    )
+
+
+def get_spreads(session: Session) -> list[TarotSpread]:
+    return list(
+        session.scalars(
+            select(TarotSpread)
+            .options(selectinload(TarotSpread.positions))
+            .where(TarotSpread.is_active.is_(True))
+            .order_by(TarotSpread.sort_order)
+        )
+    )
+
+
+def compose_interpretation(reading: TarotReading) -> tuple[str, str]:
+    """뽑힌 카드의 자리별 해석을 이어 붙여 요약을 만든다."""
+    labels = {position.position_no: position.label_ko for position in reading.spread.positions}
+    lines = []
+    for entry in reading.cards:
+        label = labels.get(entry.position_no, f"{entry.position_no}번째")
+        direction = "역방향" if entry.orientation is Orientation.reversed else "정방향"
+        meaning = entry.card.meaning(entry.orientation, reading.topic)
+        lines.append(f"{label}의 {entry.card.name_ko}({direction})은 {meaning}")
+
+    return f"카드가 전하는 {_TOPIC_LABEL[reading.topic]} 이야기", " ".join(lines)
+
+
+def draw_reading(
+    session: Session,
+    *,
+    spread: TarotSpread,
+    guest_key: str,
+    topic: Topic,
+    question: str | None,
+) -> TarotReading:
+    """서버에서 카드를 뽑고 규칙 기반 요약과 첫 인사를 저장한다."""
+    deck = list(session.scalars(select(TarotCard).where(TarotCard.is_active.is_(True))))
+    if len(deck) < spread.card_count:
+        raise ValueError(
+            f"카드가 부족해요. 필요 {spread.card_count}장, 사용 가능 {len(deck)}장"
+        )
+
+    reading = TarotReading(
+        guest_key=guest_key,
+        spread_id=spread.id,
+        topic=topic,
+        question=question,
+        status=ReadingStatus.drawn,
+    )
+    session.add(reading)
+    session.flush()
+
+    for position, card in enumerate(_rng.sample(deck, spread.card_count), start=1):
+        reading.cards.append(
+            TarotReadingCard(
+                position_no=position,
+                card_id=card.id,
+                orientation=(
+                    Orientation.reversed
+                    if _rng.random() < REVERSED_RATE
+                    else Orientation.upright
+                ),
+            )
+        )
+    session.flush()
+
+    reading.summary_title, reading.summary_text = compose_interpretation(reading)
+    reading.interpretation_source = InterpretationSource.rule
+    reading.status = ReadingStatus.interpreted
+    session.add(
+        TarotChatMessage(
+            reading_id=reading.id,
+            seq=1,
+            role=ChatRole.assistant,
+            content="결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!",
+            source=InterpretationSource.rule,
+        )
+    )
+    session.commit()
+    return reading
 
 
 def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotReading:
@@ -86,7 +190,7 @@ def _to_reading_out(reading: TarotReading) -> ReadingOut:
 
 @router.get("/spreads", response_model=list[SpreadOut])
 def list_spreads(session: Session = Depends(get_session)) -> list[SpreadOut]:
-    return [SpreadOut.model_validate(item) for item in service.list_spreads(session)]
+    return [SpreadOut.model_validate(item) for item in get_spreads(session)]
 
 
 @router.get("/cards", response_model=list[CardOut])
@@ -101,12 +205,12 @@ def list_cards(session: Session = Depends(get_session)) -> list[CardOut]:
 def create_reading(
     payload: ReadingCreate, session: Session = Depends(get_session)
 ) -> ReadingOut:
-    spread = service.get_spread(session, payload.spread_code)
+    spread = get_spread(session, payload.spread_code)
     if spread is None:
         raise HTTPException(status_code=404, detail="스프레드를 찾을 수 없어요.")
 
     try:
-        reading = service.draw_reading(
+        reading = draw_reading(
             session,
             spread=spread,
             guest_key=str(payload.guest_key),
@@ -150,35 +254,3 @@ def get_reading(
     reading_id: int, guest_key: UUID, session: Session = Depends(get_session)
 ) -> ReadingOut:
     return _to_reading_out(_load_reading(session, reading_id, guest_key))
-
-
-@router.post("/readings/{reading_id}/chat", response_model=ChatOut)
-def create_chat_message(
-    reading_id: int,
-    guest_key: UUID,
-    payload: ChatCreate,
-    session: Session = Depends(get_session),
-) -> ChatOut:
-    reading = _load_reading(session, reading_id, guest_key)
-
-    # 화면에서도 막지만 서버가 실제 기준이다. 대화가 DB 에 있으므로 저장된 질문을
-    # 세면 되고, 새로고침하거나 API 를 직접 호출해도 같은 한도가 적용된다.
-    asked = sum(1 for message in reading.messages if message.role is ChatRole.user)
-    if asked >= settings.chat_question_limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"AI 질문 {settings.chat_question_limit}회를 모두 사용했어요.",
-        )
-
-    # 질문을 먼저 넣어야 LLM 에 넘길 대화 기록의 마지막이 이번 질문이 된다.
-    service.append_chat(session, reading, ChatRole.user, payload.message)
-    answer, source = service.answer_question(reading, payload.message)
-    service.append_chat(session, reading, ChatRole.assistant, answer, source=source)
-    session.commit()
-
-    # source 는 리딩 요약이 아니라 이번 답변을 무엇으로 만들었는지를 가리킨다.
-    return ChatOut(
-        answer=answer,
-        source=source,
-        messages=sorted(reading.messages, key=lambda m: m.seq),
-    )

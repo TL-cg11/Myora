@@ -9,7 +9,7 @@ const typeMeta = {
   face: { icon: '☾', path: '/face', color: 'blue' },
 };
 
-// app/services/tarot.py 의 _TOPIC_LABEL 과 같은 문구.
+// app/routers/tarot.py 의 _TOPIC_LABEL 과 같은 문구.
 const TOPIC_LABEL = {
   general: '오늘의 흐름', love: '연애운', career: '직업운', money: '금전운', health: '건강운',
 };
