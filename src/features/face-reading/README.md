@@ -1,13 +1,13 @@
 # 관상 기능
 
-MediaPipe Face Landmarker를 브라우저에서 실행합니다. 선택하거나 촬영한 얼굴 사진과 468개 랜드마크 좌표는 서버로 업로드하지 않습니다. 브라우저에서 만든 측정 비율과 결과 문장만 `/api/face/readings`를 통해 `reading`, `face_reading` 테이블에 저장합니다. 결과 아래 후속 채팅은 텍스트 관상 결과와 대화 내용만 WAS를 통해 DeepSeek API에 전달합니다.
+MediaPipe Face Landmarker를 브라우저에서 실행합니다. 선택하거나 촬영한 얼굴 사진과 468개 랜드마크 좌표는 서버로 업로드하지 않습니다. 브라우저에서 만든 측정 비율만 `/api/face/readings`로 보내며, 서버가 DB의 해석 문구를 골라 결과를 만들고 `reading`, `face_reading`에 저장합니다. 결과 아래 후속 채팅은 텍스트 관상 결과와 대화 내용만 WAS를 통해 DeepSeek API에 전달합니다.
 
 ## 디렉터리
 
 - `components/`: 사진 첨부, 카메라 권한/촬영, 입력 상태
 - `services/`: 이미지 검증, 로컬 얼굴 모델 실행
 - `analysis/`: 얼굴 랜드마크 비율 계산과 정면 촬영 검증
-- `interpretation/`: 관상 결과 및 후속 설명 문장 규칙
+- `interpretation/`: 서버 저장 실패 전 로컬 분석 결과와 후속 설명 문장 규칙
 - `__tests__/`: 해석 문장 안전장치 테스트
 
 ## DB 저장
@@ -15,6 +15,7 @@ MediaPipe Face Landmarker를 브라우저에서 실행합니다. 선택하거나
 - `reading`: 비회원 키, 결과 제목·본문, 생성 시각
 - `face_reading`: 얼굴 비율 6개, 분위기, 검출기 버전, 촬영 품질 수치
 - `face_shape`: 활성화된 얼굴형 코드와 기준 문구
+- `face_interpretation`: 비율·윤곽·눈매·입매·조화·분위기별 세부 문구 20개
 
 비회원 키는 브라우저에서 만든 UUID를 사용합니다. 사진 원본과 랜드마크 좌표는 요청 스키마에서 허용하지 않으며, 새 관상 기록은 마이페이지에서 다시 확인할 수 있습니다.
 
