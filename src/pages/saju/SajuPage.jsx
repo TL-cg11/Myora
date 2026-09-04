@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SajuChat from './SajuChat.jsx';
+import { getGuestKey } from '../../lib/api.js';
 
 export default function SajuPage() {
   const [form, setForm] = useState({ name: '', birth_date: '', birth_time: '', gender: '' });
@@ -39,7 +40,7 @@ export default function SajuPage() {
     if (year < 1800 || year > 2100 || actualDate.getUTCFullYear() !== year || actualDate.getUTCMonth() !== month - 1 || actualDate.getUTCDate() !== day) { setError('생년월일은 1800~2100년, 올바른 월·일 범위로 입력해 주세요.'); return; }
     setLoading(true); setError(''); setResult(null);
     try {
-      const response = await fetch('/api/saju/readings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name.trim() || null, birth_date: form.birth_date, birth_time: form.birth_time || null, gender: form.gender || null }) });
+      const response = await fetch('/api/saju/readings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name.trim() || null, birth_date: form.birth_date, birth_time: form.birth_time || null, gender: form.gender || null, guest_key: getGuestKey() }) });
       const data = await response.json(); if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '생년월일을 1800~2100년 사이로 입력해 주세요.'); setResult(data.reading);
     } catch (caught) { setError(caught.message); } finally { setLoading(false); }
   }
