@@ -251,6 +251,21 @@ class FaceShape(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class FaceInterpretation(Base):
+    """측정 구간별 관상 설명 기준 데이터."""
+
+    __tablename__ = "face_interpretation"
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    category: Mapped[str] = mapped_column(String(24))
+    code: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(500))
+    keyword: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    sort_order: Mapped[int] = mapped_column(SmallInteger, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class FaceReading(Base):
     """사진과 랜드마크 원본을 제외한 관상 측정값."""
 

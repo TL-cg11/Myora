@@ -34,7 +34,6 @@ export default function FaceReadingInput({ onComplete }) {
       const reading = await analyzeFaceImage(file, mood);
       const stored = await storeFaceReading({
         mood,
-        result: reading.result,
         measurements: reading.measurements,
         detectorVersion: DETECTOR_VERSION,
       });
@@ -43,6 +42,7 @@ export default function FaceReadingInput({ onComplete }) {
         id: stored.id,
         title: stored.summary_title,
         result: stored.summary_text,
+        keywords: stored.keywords,
         createdAt: stored.created_at,
         stored: 'server',
         summary: `사용자가 고른 첫인상 키워드: ${mood}`,

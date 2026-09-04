@@ -130,7 +130,8 @@ class FaceReadingCreate(BaseModel):
     guest_key: UUID
     mood: FaceMood
     detector_version: str = Field(min_length=1, max_length=32)
-    summary_text: str = Field(min_length=1, max_length=8_000)
+    # 구버전 브라우저와의 호환용으로만 받으며 서버는 이 값을 사용하지 않는다.
+    summary_text: str | None = Field(default=None, max_length=8_000)
     measurements: FaceMeasurementsIn
 
 
@@ -141,3 +142,4 @@ class FaceReadingOut(BaseModel):
     summary_text: str
     mood: str | None
     created_at: datetime
+    keywords: list[str] = Field(default_factory=list)

@@ -90,14 +90,13 @@ export const sendChatMessage = (readingId, message) =>
     body: { message },
   });
 
-export const storeFaceReading = ({ mood, result, measurements, detectorVersion }) =>
+export const storeFaceReading = ({ mood, measurements, detectorVersion }) =>
   faceRequest('/readings', {
     method: 'POST',
     body: {
       guest_key: getGuestKey(),
       mood,
       detector_version: detectorVersion,
-      summary_text: result,
       measurements: {
         aspect_ratio: measurements.aspectRatio,
         jaw_ratio: measurements.jawRatio,

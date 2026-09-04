@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 def _to_out(
-    reading: Reading, detail: FaceReading | None, shape: FaceShape
+    reading: Reading,
+    detail: FaceReading | None,
+    shape: FaceShape,
+    keywords: list[str] | None = None,
 ) -> FaceReadingOut:
     return FaceReadingOut(
         id=reading.id,
@@ -29,6 +32,7 @@ def _to_out(
         summary_text=reading.summary_text or "",
         mood=detail.mood if detail is not None else None,
         created_at=reading.created_at,
+        keywords=keywords or [shape.keyword],
     )
 
 
@@ -39,7 +43,7 @@ def create_face_reading(
     payload: FaceReadingCreate, session: Session = Depends(get_session)
 ) -> FaceReadingOut:
     try:
-        reading, shape = service.save_face_reading(session, payload)
+        reading, shape, keywords = service.save_face_reading(session, payload)
     except ValueError as exc:
         session.rollback()
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -51,7 +55,7 @@ def create_face_reading(
             detail="관상 결과를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
         ) from exc
 
-    return _to_out(reading, None, shape).model_copy(update={"mood": payload.mood})
+    return _to_out(reading, None, shape, keywords).model_copy(update={"mood": payload.mood})
 
 
 @router.get("/readings", response_model=list[FaceReadingOut])
