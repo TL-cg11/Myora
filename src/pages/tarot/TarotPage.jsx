@@ -17,6 +17,10 @@ const TOPICS = [
 // 이 숫자는 화면에서 고르는 재미를 위한 값일 뿐이다.
 const DECK_SIZE = 12;
 
+// 결과 화면 채팅에서 물어볼 수 있는 횟수. 관상과 같은 5회로 맞춘다.
+// 서버도 같은 값으로 막으므로(app/routers/tarot.py) 한쪽만 바꾸면 안 된다.
+const QUESTION_LIMIT = 5;
+
 /** 이미지가 아직 없으므로 CSS 카드면을 기본으로 쓰고,
  *  image_path 의 그림이 실제로 열릴 때만 그림으로 바꾼다. */
 function CardFace({ card, orientation }) {
@@ -153,13 +157,19 @@ function ChatPanel({ reading }) {
   const [source, setSource] = useState(null);
   const listRef = useRef(null);
 
+  // 관상(FortuneExperience)은 별도 카운터를 두지만, 타로는 대화가 서버에 저장되고
+  // 응답으로 전체가 돌아오므로 실제 메시지에서 센다. 새로고침해도 값이 어긋나지 않는다.
+  const usedQuestions = messages.filter((message) => message.role === 'user').length;
+  const remainingQuestions = Math.max(0, QUESTION_LIMIT - usedQuestions);
+  const limitReached = remainingQuestions === 0;
+
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
   async function send(text) {
     const question = text.trim();
-    if (!question || loading) return;
+    if (!question || loading || limitReached) return;
     setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: question }]);
     setInput('');
     setLoading(true);
@@ -184,6 +194,11 @@ function ChatPanel({ reading }) {
         <div><b>묘라에게 더 물어보기</b><small>뽑은 카드를 기억하고 답변해요</small></div>
         <i>{source === 'llm' ? 'AI' : source === 'rule' ? '카드 기반' : 'AI'}</i>
       </div>
+      <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
+        {limitReached
+          ? `AI 질문 ${QUESTION_LIMIT}회를 모두 사용했어요.`
+          : `AI 질문은 최대 ${QUESTION_LIMIT}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
+      </p>
       <div className="chat-messages" ref={listRef} aria-live="polite">
         {messages.map((message) => (
           <div key={message.seq} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>
@@ -194,13 +209,15 @@ function ChatPanel({ reading }) {
       </div>
       <div className="chat-suggestions">
         {suggestions.map((item) => (
-          <button key={item} type="button" disabled={loading} onClick={() => send(item)}>{item}</button>
+          <button key={item} type="button" disabled={loading || limitReached} onClick={() => send(item)}>{item}</button>
         ))}
       </div>
       <form className="chat-form" onSubmit={(event) => { event.preventDefault(); send(input); }}>
-        <input value={input} maxLength={1000} onChange={(event) => setInput(event.target.value)}
-               placeholder="결과에 관해 궁금한 점을 물어보세요" aria-label="채팅 질문"/>
-        <button type="submit" disabled={!input.trim() || loading}>보내기</button>
+        <input value={input} maxLength={1000} disabled={limitReached}
+               onChange={(event) => setInput(event.target.value)}
+               placeholder={limitReached ? `질문 ${QUESTION_LIMIT}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'}
+               aria-label="채팅 질문"/>
+        <button type="submit" disabled={!input.trim() || loading || limitReached}>보내기</button>
       </form>
       <p className="chat-notice">타로 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>
     </section>
