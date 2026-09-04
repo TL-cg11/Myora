@@ -7,13 +7,14 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Date,
     Enum,
     ForeignKey,
     Integer,
@@ -21,6 +22,8 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    Time,
+    JSON,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -238,6 +241,37 @@ class Reading(Base):
     status: Mapped[str] = mapped_column(String(12), default="created")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SajuChart(Base):
+    __tablename__ = "saju_chart"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    birth_date: Mapped[date] = mapped_column(Date)
+    birth_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    time_unknown: Mapped[bool] = mapped_column(Boolean, default=False)
+    gender: Mapped[str] = mapped_column(String(10))
+    engine_version: Mapped[str] = mapped_column(String(32))
+    pillar_year: Mapped[str] = mapped_column(String(2))
+    pillar_month: Mapped[str] = mapped_column(String(2))
+    pillar_day: Mapped[str] = mapped_column(String(2))
+    pillar_hour: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    jeonggyeok: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    yongsin: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    sinsal: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SajuReading(Base):
+    __tablename__ = "saju_reading"
+
+    reading_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("reading.id", ondelete="CASCADE"), primary_key=True
+    )
+    chart_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("saju_chart.id"))
+    birth_profile_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    topic: Mapped[str] = mapped_column(String(10), default="general")
+    question: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class FaceShape(Base):
