@@ -57,7 +57,71 @@ npm run dev
 - `/tarot` 타로
 - `/face` 관상
 
-## 타로
+## 사주 한자 뜻 사전
+
+사주 계산 결과의 한자를 키로 `saju_term`에서 한글 이름과 뜻을 조회해 표시합니다.
+요청 처리 중 코드나 라이브러리에서 해석 문구를 생성하지 않으며, 매 요청 DB를 조회합니다.
+DB에서 `name_ko` 또는 `meaning_ko`를 수정하면 다음 사주 결과에 바로 반영됩니다.
+기존 사주 계산·원국 저장·POST 응답 필드와 채팅 연결은 유지하고,
+`reading.interpretation`에 DB에서 조회한 뜻만 추가했습니다.
+
+사전은 현재 `korean-saju 0.3.0` 계산 결과에 필요한 **142개 항목**을 담습니다.
+천간 10개, 지지 12개, 60갑자 60개, 오행 5개, 정격 11개, 신살 29개,
+용신 도출 방식 7개, 기본 용어 8개입니다. 모든 생년월일 조합을 미리 저장하는 방식이 아니라,
+계산 결과를 구성하는 글자와 용어의 뜻을 저장합니다.
+
+`app/data/saju_terms.json`은 초기 데이터 원본입니다. 천간·지지·신살은 설치된 엔진의
+한국어 설명을 기준으로, 나머지는 한글 용어 설명으로 구성했습니다.
+실행 중 응답의 이름과 뜻은 이 파일이 아닌 DB에서 읽습니다.
+분류와 한자를 함께 조회하므로 같은 한글 음을 가진 `辛`과 `申`도 구별됩니다.
+필요한 항목이 DB에 없으면 503 오류를 반환하고 결과 저장을 취소합니다.
+
+### MariaDB 초기 데이터 적용
+
+기존 사주 테이블(06~08번 SQL)이 있는 DB에서, `luck-mariadb` 디렉터리 기준:
+
+```bash
+sudo mysql -uroot luck_db < sql/init/12_saju_dictionary.sql
+sudo mysql -uroot luck_db < sql/init/13_saju_dictionary_seed.sql
+```
+
+새 DB는 기존 설치 스크립트가 `sql/init/*.sql`을 순서대로 적용합니다.
+기존 테이블은 변경하지 않고 사전 테이블만 추가합니다.
+초기 데이터를 재적용해도 관리자가 수정한 뜻은 덮어쓰지 않고 누락 행만 추가합니다.
+수정 예시:
+
+```sql
+SELECT category, hanja, name_ko, meaning_ko FROM saju_term ORDER BY category, id;
+UPDATE saju_term SET meaning_ko = '큰 나무를 뜻하며 성장과 시작을 상징합니다.'
+WHERE category = 'stem' AND hanja = '甲';
+```
+
+JSON 원본을 수정한 경우 `.venv/Scripts/python scripts/export-saju-dictionary.py`로
+MariaDB 초기 SQL을 다시 생성합니다. 기존 DB 문구 수정은 위 UPDATE처럼 별도로 적용합니다.
+
+### Windows 로컬 테스트
+
+`luck-was`의 기존 가상환경과 npm 의존성이 설치되어 있는 상태에서:
+
+```powershell
+npm run build
+powershell -ExecutionPolicy Bypass -File scripts/run-local.ps1
+```
+
+[사주 페이지](http://127.0.0.1:8000/saju)에서 테스트합니다. 로컬 DB는
+`.local/saju-dictionary.db`이며, 처음 실행할 때 사전 142개 행이 실제로 저장됩니다.
+재실행해도 수정한 사전 문구는 유지됩니다. `-Port 8001`로 포트를 바꿀 수 있습니다.
+로컬 SQLite에는 사주 관련 테이블만 생성하므로 타로·관상 DB 기능 전체 테스트는
+기존 MariaDB 환경을 사용하세요. 기존 `.env` 및 기본 MariaDB 연결은 그대로입니다.
+
+이전에 추가했던 결과 스냅샷 컬럼과 최근 기록 UI/API는 제거했습니다.
+이전 로컬 `.local/luck.db`는 데이터 보호를 위해 그대로 보관하며 새 구현에서는 사용하지 않습니다.
+한글 뜻 조회에는 AI 키가 필요 없고 기존 추가 질문 채팅에는 사주용 API 키가 필요합니다.
+
+검증: `.venv/Scripts/python -m unittest discover -s app/tests`, `npm test`, `npm run build`.
+DB 문구 수정 반영, 초기화 재실행 보존, 사전 전체 항목, 누락 시 롤백, 기존 응답·저장을 확인합니다.
+
+## 타로 기능
 
 카드 뽑기와 해석은 서버가 정합니다. 화면에서 카드를 고르더라도 어떤 카드가 나왔는지는
 서버가 결정해야 결과를 조작할 수 없습니다. 리딩 조회는 `guest_key` 가 일치할 때만 됩니다.
