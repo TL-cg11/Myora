@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SajuChat from './SajuChat.jsx';
 import { getGuestKey } from '../../lib/api.js';
+import SajuMeaning from './SajuMeaning.jsx';
 
 export default function SajuPage() {
   const [form, setForm] = useState({ name: '', birth_date: '', birth_time: '', gender: '' });
@@ -73,7 +74,12 @@ export default function SajuPage() {
           <button className="fortune-submit" disabled={loading}>{loading ? '계산 중...' : '사주 결과 보기'}</button>
         </form>
         {error && <p role="alert">{error}</p>}
-        {result && <><article className="fortune-result"><h2>사주 계산 결과</h2><p><strong>사주 원국:</strong> {result.pillars}</p><p><strong>정격:</strong> {result.jeonggyeok}</p><p><strong>용신:</strong> {result.yongsin}</p><p><strong>신살:</strong> {result.sinsal?.join(', ') || '없음'}</p></article><SajuChat result={result} /></>}
+        {result && <><article className="fortune-result"><h2>사주 계산 결과</h2>
+          {result.interpretation ? <SajuMeaning interpretation={result.interpretation} /> : <>
+            <p><strong>사주 원국:</strong> {result.pillars}</p><p><strong>정격:</strong> {result.jeonggyeok}</p>
+            <p><strong>용신:</strong> {result.yongsin}</p><p><strong>신살:</strong> {result.sinsal?.join(', ') || '없음'}</p>
+          </>}
+        </article><SajuChat result={result} /></>}
       </section>
     </main>
   );

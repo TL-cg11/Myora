@@ -14,6 +14,7 @@ load_dotenv(BASE_DIR / ".env.deepseek.tarot")
 
 @dataclass(frozen=True)
 class Settings:
+    database_url: str = os.getenv("DATABASE_URL", "")
     app_name: str = os.getenv("APP_NAME", "luck-was")
     app_env: str = os.getenv("APP_ENV", "development")
     host: str = os.getenv("HOST", "0.0.0.0")

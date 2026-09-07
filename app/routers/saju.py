@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import Reading, SajuChart, SajuReading
+from app.services.saju_dictionary import MissingSajuTerm, lookup_saju_meanings
 
 router = APIRouter(prefix="/api/saju", tags=["saju"])
 
@@ -47,6 +48,7 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
     time_unknown = payload.birth_time is None
 
     try:
+        interpretation = lookup_saju_meanings(session, saju, analysis)
         chart = session.scalar(
             select(SajuChart).where(
                 SajuChart.birth_date == payload.birth_date,
@@ -86,11 +88,14 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
         session.flush()
         session.add(SajuReading(reading_id=reading.id, chart_id=chart.id))
         session.commit()
+    except MissingSajuTerm as exc:
+        session.rollback()
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         session.rollback()
         raise HTTPException(
             status_code=503,
-            detail="Saju database tables are not ready. Apply the saju schema first.",
+            detail="사주 DB에 연결할 수 없거나 테이블이 준비되지 않았습니다. 기존 사주 스키마와 사전 SQL(12, 13번)을 확인해 주세요.",
         ) from exc
 
     return {
@@ -103,5 +108,6 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
             "jeonggyeok": str(analysis.jeonggyeok),
             "yongsin": str(analysis.yongsin),
             "sinsal": [str(item) for item in analysis.sinsal],
+            "interpretation": interpretation,
         },
     }

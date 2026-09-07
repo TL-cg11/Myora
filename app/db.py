@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import settings
 
 
-DATABASE_URL = URL.create(
+DATABASE_URL = settings.database_url or URL.create(
     drivername="mysql+pymysql",
     username=settings.db_user,
     password=settings.db_password,
@@ -21,7 +21,7 @@ engine: Engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
-    connect_args={"connect_timeout": 3},
+    connect_args={"check_same_thread": False} if str(DATABASE_URL).startswith("sqlite:") else {"connect_timeout": 3},
     future=True,
 )
 
@@ -37,6 +37,9 @@ def get_session() -> Iterator[Session]:
 def check_db() -> dict:
     try:
         with engine.connect() as conn:
+            if engine.dialect.name == "sqlite":
+                count = conn.execute(text("SELECT COUNT(*) FROM saju_term")).scalar_one()
+                return {"status": "ok" if count else "error", "result": "local sqlite", "dictionary_entries": count}
             row = conn.execute(
                 text(
                     "SELECT status, checked_at "

@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     JSON,
     func,
 )
@@ -272,6 +273,19 @@ class SajuReading(Base):
     birth_profile_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     topic: Mapped[str] = mapped_column(String(10), default="general")
     question: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class SajuTerm(Base):
+    """사주 계산값(분류 + 한자)으로 조회하는 한글 뜻 사전."""
+
+    __tablename__ = "saju_term"
+    __table_args__ = (UniqueConstraint("category", "hanja", name="uk_saju_term"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category: Mapped[str] = mapped_column(String(24))
+    hanja: Mapped[str] = mapped_column(String(16))
+    name_ko: Mapped[str] = mapped_column(String(40))
+    meaning_ko: Mapped[str] = mapped_column(Text)
 
 
 class FaceShape(Base):

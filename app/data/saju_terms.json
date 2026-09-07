@@ -1,0 +1,854 @@
+[
+  {
+    "category": "branch",
+    "hanja": "丑",
+    "name_ko": "축",
+    "meaning_ko": "소 — 한겨울 새벽 흙. 인내·묵묵함·근면."
+  },
+  {
+    "category": "branch",
+    "hanja": "亥",
+    "name_ko": "해",
+    "meaning_ko": "돼지 — 초겨울 물. 풍요·깊이·여유."
+  },
+  {
+    "category": "branch",
+    "hanja": "午",
+    "name_ko": "오",
+    "meaning_ko": "말 — 한여름 불. 활동·명예·열정."
+  },
+  {
+    "category": "branch",
+    "hanja": "卯",
+    "name_ko": "묘",
+    "meaning_ko": "토끼 — 한봄의 풀. 섬세함·평화·예술감."
+  },
+  {
+    "category": "branch",
+    "hanja": "子",
+    "name_ko": "자",
+    "meaning_ko": "쥐 — 한겨울 깊은 밤의 물. 지혜·은밀함·번식력."
+  },
+  {
+    "category": "branch",
+    "hanja": "寅",
+    "name_ko": "인",
+    "meaning_ko": "호랑이 — 이른 봄 큰 나무. 진취·도약·리더십."
+  },
+  {
+    "category": "branch",
+    "hanja": "巳",
+    "name_ko": "사",
+    "meaning_ko": "뱀 — 초여름 불. 지혜·직관·이지적."
+  },
+  {
+    "category": "branch",
+    "hanja": "戌",
+    "name_ko": "술",
+    "meaning_ko": "개 — 가을 끝 흙. 충직·보호·신의."
+  },
+  {
+    "category": "branch",
+    "hanja": "未",
+    "name_ko": "미",
+    "meaning_ko": "양 — 여름 끝 흙. 따뜻함·정·섬세."
+  },
+  {
+    "category": "branch",
+    "hanja": "申",
+    "name_ko": "신",
+    "meaning_ko": "원숭이 — 초가을 금. 영민함·활동·재치."
+  },
+  {
+    "category": "branch",
+    "hanja": "辰",
+    "name_ko": "진",
+    "meaning_ko": "용 — 봄 끝의 흙(저수지). 변화·잠재력·신비."
+  },
+  {
+    "category": "branch",
+    "hanja": "酉",
+    "name_ko": "유",
+    "meaning_ko": "닭 — 한가을 금. 정확·단정·결실."
+  },
+  {
+    "category": "concept",
+    "hanja": "年柱",
+    "name_ko": "연주",
+    "meaning_ko": "태어난 해의 천간과 지지입니다. 전통적으로 초기 환경과 뿌리를 살펴보는 자리입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "日干",
+    "name_ko": "일간",
+    "meaning_ko": "태어난 날의 천간으로, 사주에서 나를 상징하는 기준 글자입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "日柱",
+    "name_ko": "일주",
+    "meaning_ko": "태어난 날의 천간과 지지입니다. 나를 나타내는 일간과 일상의 관계를 살펴보는 자리입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "時柱",
+    "name_ko": "시주",
+    "meaning_ko": "태어난 시간의 천간과 지지입니다. 전통적으로 이후의 방향과 결실을 살펴보는 자리입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "月柱",
+    "name_ko": "월주",
+    "meaning_ko": "태어난 절기상 월의 천간과 지지입니다. 계절의 기운과 사회 활동의 바탕을 살펴보는 자리입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "正格",
+    "name_ko": "정격",
+    "meaning_ko": "월지를 중심으로 살펴본 사주의 기본 유형입니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "用神",
+    "name_ko": "용신",
+    "meaning_ko": "사주 안에서 기운의 균형을 돕는 요소를 뜻합니다."
+  },
+  {
+    "category": "concept",
+    "hanja": "神殺",
+    "name_ko": "신살",
+    "meaning_ko": "특정 글자 조합에 붙인 전통적인 상징입니다. 실제 사건이나 운명을 확정하는 의미는 아닙니다."
+  },
+  {
+    "category": "element",
+    "hanja": "土",
+    "name_ko": "토",
+    "meaning_ko": "흙을 뜻하며 안정과 포용, 중심을 잡고 조율하는 성질을 상징합니다."
+  },
+  {
+    "category": "element",
+    "hanja": "木",
+    "name_ko": "목",
+    "meaning_ko": "나무를 뜻하며 성장과 시작, 뻗어나가는 움직임을 상징합니다."
+  },
+  {
+    "category": "element",
+    "hanja": "水",
+    "name_ko": "수",
+    "meaning_ko": "물을 뜻하며 지혜와 유연함, 흐름과 저장을 상징합니다."
+  },
+  {
+    "category": "element",
+    "hanja": "火",
+    "name_ko": "화",
+    "meaning_ko": "불을 뜻하며 따뜻함과 열정, 드러내고 표현하는 움직임을 상징합니다."
+  },
+  {
+    "category": "element",
+    "hanja": "金",
+    "name_ko": "금",
+    "meaning_ko": "금속을 뜻하며 결단과 정리, 원칙과 구분을 상징합니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁丑",
+    "name_ko": "정축",
+    "meaning_ko": "정축: 천간 정, 지지 축의 조합입니다. 위 글자는 화의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁亥",
+    "name_ko": "정해",
+    "meaning_ko": "정해: 천간 정, 지지 해의 조합입니다. 위 글자는 화의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁卯",
+    "name_ko": "정묘",
+    "meaning_ko": "정묘: 천간 정, 지지 묘의 조합입니다. 위 글자는 화의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁巳",
+    "name_ko": "정사",
+    "meaning_ko": "정사: 천간 정, 지지 사의 조합입니다. 위 글자는 화의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁未",
+    "name_ko": "정미",
+    "meaning_ko": "정미: 천간 정, 지지 미의 조합입니다. 위 글자는 화의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丁酉",
+    "name_ko": "정유",
+    "meaning_ko": "정유: 천간 정, 지지 유의 조합입니다. 위 글자는 화의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙午",
+    "name_ko": "병오",
+    "meaning_ko": "병오: 천간 병, 지지 오의 조합입니다. 위 글자는 화의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙子",
+    "name_ko": "병자",
+    "meaning_ko": "병자: 천간 병, 지지 자의 조합입니다. 위 글자는 화의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙寅",
+    "name_ko": "병인",
+    "meaning_ko": "병인: 천간 병, 지지 인의 조합입니다. 위 글자는 화의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙戌",
+    "name_ko": "병술",
+    "meaning_ko": "병술: 천간 병, 지지 술의 조합입니다. 위 글자는 화의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙申",
+    "name_ko": "병신",
+    "meaning_ko": "병신: 천간 병, 지지 신의 조합입니다. 위 글자는 화의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "丙辰",
+    "name_ko": "병진",
+    "meaning_ko": "병진: 천간 병, 지지 진의 조합입니다. 위 글자는 화의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙丑",
+    "name_ko": "을축",
+    "meaning_ko": "을축: 천간 을, 지지 축의 조합입니다. 위 글자는 목의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙亥",
+    "name_ko": "을해",
+    "meaning_ko": "을해: 천간 을, 지지 해의 조합입니다. 위 글자는 목의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙卯",
+    "name_ko": "을묘",
+    "meaning_ko": "을묘: 천간 을, 지지 묘의 조합입니다. 위 글자는 목의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙巳",
+    "name_ko": "을사",
+    "meaning_ko": "을사: 천간 을, 지지 사의 조합입니다. 위 글자는 목의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙未",
+    "name_ko": "을미",
+    "meaning_ko": "을미: 천간 을, 지지 미의 조합입니다. 위 글자는 목의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "乙酉",
+    "name_ko": "을유",
+    "meaning_ko": "을유: 천간 을, 지지 유의 조합입니다. 위 글자는 목의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬午",
+    "name_ko": "임오",
+    "meaning_ko": "임오: 천간 임, 지지 오의 조합입니다. 위 글자는 수의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬子",
+    "name_ko": "임자",
+    "meaning_ko": "임자: 천간 임, 지지 자의 조합입니다. 위 글자는 수의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬寅",
+    "name_ko": "임인",
+    "meaning_ko": "임인: 천간 임, 지지 인의 조합입니다. 위 글자는 수의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬戌",
+    "name_ko": "임술",
+    "meaning_ko": "임술: 천간 임, 지지 술의 조합입니다. 위 글자는 수의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬申",
+    "name_ko": "임신",
+    "meaning_ko": "임신: 천간 임, 지지 신의 조합입니다. 위 글자는 수의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "壬辰",
+    "name_ko": "임진",
+    "meaning_ko": "임진: 천간 임, 지지 진의 조합입니다. 위 글자는 수의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己丑",
+    "name_ko": "기축",
+    "meaning_ko": "기축: 천간 기, 지지 축의 조합입니다. 위 글자는 토의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己亥",
+    "name_ko": "기해",
+    "meaning_ko": "기해: 천간 기, 지지 해의 조합입니다. 위 글자는 토의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己卯",
+    "name_ko": "기묘",
+    "meaning_ko": "기묘: 천간 기, 지지 묘의 조합입니다. 위 글자는 토의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己巳",
+    "name_ko": "기사",
+    "meaning_ko": "기사: 천간 기, 지지 사의 조합입니다. 위 글자는 토의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己未",
+    "name_ko": "기미",
+    "meaning_ko": "기미: 천간 기, 지지 미의 조합입니다. 위 글자는 토의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "己酉",
+    "name_ko": "기유",
+    "meaning_ko": "기유: 천간 기, 지지 유의 조합입니다. 위 글자는 토의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚午",
+    "name_ko": "경오",
+    "meaning_ko": "경오: 천간 경, 지지 오의 조합입니다. 위 글자는 금의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚子",
+    "name_ko": "경자",
+    "meaning_ko": "경자: 천간 경, 지지 자의 조합입니다. 위 글자는 금의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚寅",
+    "name_ko": "경인",
+    "meaning_ko": "경인: 천간 경, 지지 인의 조합입니다. 위 글자는 금의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚戌",
+    "name_ko": "경술",
+    "meaning_ko": "경술: 천간 경, 지지 술의 조합입니다. 위 글자는 금의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚申",
+    "name_ko": "경신",
+    "meaning_ko": "경신: 천간 경, 지지 신의 조합입니다. 위 글자는 금의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "庚辰",
+    "name_ko": "경진",
+    "meaning_ko": "경진: 천간 경, 지지 진의 조합입니다. 위 글자는 금의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊午",
+    "name_ko": "무오",
+    "meaning_ko": "무오: 천간 무, 지지 오의 조합입니다. 위 글자는 토의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊子",
+    "name_ko": "무자",
+    "meaning_ko": "무자: 천간 무, 지지 자의 조합입니다. 위 글자는 토의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊寅",
+    "name_ko": "무인",
+    "meaning_ko": "무인: 천간 무, 지지 인의 조합입니다. 위 글자는 토의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊戌",
+    "name_ko": "무술",
+    "meaning_ko": "무술: 천간 무, 지지 술의 조합입니다. 위 글자는 토의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊申",
+    "name_ko": "무신",
+    "meaning_ko": "무신: 천간 무, 지지 신의 조합입니다. 위 글자는 토의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "戊辰",
+    "name_ko": "무진",
+    "meaning_ko": "무진: 천간 무, 지지 진의 조합입니다. 위 글자는 토의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲午",
+    "name_ko": "갑오",
+    "meaning_ko": "갑오: 천간 갑, 지지 오의 조합입니다. 위 글자는 목의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲子",
+    "name_ko": "갑자",
+    "meaning_ko": "갑자: 천간 갑, 지지 자의 조합입니다. 위 글자는 목의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲寅",
+    "name_ko": "갑인",
+    "meaning_ko": "갑인: 천간 갑, 지지 인의 조합입니다. 위 글자는 목의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲戌",
+    "name_ko": "갑술",
+    "meaning_ko": "갑술: 천간 갑, 지지 술의 조합입니다. 위 글자는 목의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲申",
+    "name_ko": "갑신",
+    "meaning_ko": "갑신: 천간 갑, 지지 신의 조합입니다. 위 글자는 목의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "甲辰",
+    "name_ko": "갑진",
+    "meaning_ko": "갑진: 천간 갑, 지지 진의 조합입니다. 위 글자는 목의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸丑",
+    "name_ko": "계축",
+    "meaning_ko": "계축: 천간 계, 지지 축의 조합입니다. 위 글자는 수의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸亥",
+    "name_ko": "계해",
+    "meaning_ko": "계해: 천간 계, 지지 해의 조합입니다. 위 글자는 수의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸卯",
+    "name_ko": "계묘",
+    "meaning_ko": "계묘: 천간 계, 지지 묘의 조합입니다. 위 글자는 수의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸巳",
+    "name_ko": "계사",
+    "meaning_ko": "계사: 천간 계, 지지 사의 조합입니다. 위 글자는 수의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸未",
+    "name_ko": "계미",
+    "meaning_ko": "계미: 천간 계, 지지 미의 조합입니다. 위 글자는 수의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "癸酉",
+    "name_ko": "계유",
+    "meaning_ko": "계유: 천간 계, 지지 유의 조합입니다. 위 글자는 수의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛丑",
+    "name_ko": "신축",
+    "meaning_ko": "신축: 천간 신, 지지 축의 조합입니다. 위 글자는 금의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛亥",
+    "name_ko": "신해",
+    "meaning_ko": "신해: 천간 신, 지지 해의 조합입니다. 위 글자는 금의 기운, 아래 글자는 수의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛卯",
+    "name_ko": "신묘",
+    "meaning_ko": "신묘: 천간 신, 지지 묘의 조합입니다. 위 글자는 금의 기운, 아래 글자는 목의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛巳",
+    "name_ko": "신사",
+    "meaning_ko": "신사: 천간 신, 지지 사의 조합입니다. 위 글자는 금의 기운, 아래 글자는 화의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛未",
+    "name_ko": "신미",
+    "meaning_ko": "신미: 천간 신, 지지 미의 조합입니다. 위 글자는 금의 기운, 아래 글자는 토의 기운을 나타냅니다."
+  },
+  {
+    "category": "ganji",
+    "hanja": "辛酉",
+    "name_ko": "신유",
+    "meaning_ko": "신유: 천간 신, 지지 유의 조합입니다. 위 글자는 금의 기운, 아래 글자는 금의 기운을 나타냅니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "偏印格",
+    "name_ko": "편인격",
+    "meaning_ko": "독창적인 관찰과 깊이 있는 탐구를 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "偏官格",
+    "name_ko": "편관격",
+    "meaning_ko": "도전과 결단을 통해 책임을 감당하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "偏財格",
+    "name_ko": "편재격",
+    "meaning_ko": "활동 범위를 넓히고 기회를 포착하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "傷官格",
+    "name_ko": "상관격",
+    "meaning_ko": "새로운 생각과 자유로운 표현을 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "地支合化格",
+    "name_ko": "지지합화격",
+    "meaning_ko": "주변 관계가 결합하면서 생기는 변화에 주목하는 유형으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "建祿格",
+    "name_ko": "건록격",
+    "meaning_ko": "자립심과 꾸준한 실행력을 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "正印格",
+    "name_ko": "정인격",
+    "meaning_ko": "배움과 돌봄, 안정적인 지원을 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "正官格",
+    "name_ko": "정관격",
+    "meaning_ko": "원칙과 신뢰, 사회적 책임을 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "正財格",
+    "name_ko": "정재격",
+    "meaning_ko": "계획적으로 자원을 관리하고 꾸준함을 중시하는 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "羊刃格",
+    "name_ko": "양인격",
+    "meaning_ko": "강한 추진력을 조절하고 타인과 조율하는 것이 중요한 성향으로 풀이합니다."
+  },
+  {
+    "category": "gyeokguk",
+    "hanja": "食神格",
+    "name_ko": "식신격",
+    "meaning_ko": "꾸준히 익힌 재능을 표현하고 생활의 즐거움을 만드는 성향으로 풀이합니다."
+  },
+  {
+    "category": "sinsal",
+    "hanja": "喪門殺",
+    "name_ko": "상문살",
+    "meaning_ko": "집안에 슬픈 일이나 본인·주변의 건강 악화 주의"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "天乙貴人",
+    "name_ko": "천을귀인",
+    "meaning_ko": "위기 상황에서 귀인의 도움을 받아 화가 복으로 변함"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "天廚貴人",
+    "name_ko": "천주귀인",
+    "meaning_ko": "하늘의 주방. 먹을 복이 타고났으며 경제적 여유"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "天羅地網",
+    "name_ko": "천라지망",
+    "meaning_ko": "하늘과 땅의 그물. 일이 막히니 정신적 성취가 필요"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "天醫星",
+    "name_ko": "천의성",
+    "meaning_ko": "하늘의 의사. 의료·상담·교육 등 남을 살리는 직업"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "太極貴人",
+    "name_ko": "태극귀인",
+    "meaning_ko": "초년에 고생해도 결국 큰 성취를 이루고 복을 받음. 종교·철학적 명예"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "孤辰殺",
+    "name_ko": "고신살",
+    "meaning_ko": "홀아비 살. 배우자와의 인연이 약하고 외로움"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "孤鸞殺",
+    "name_ko": "고란살",
+    "meaning_ko": "외로운 새의 울음. 배우자 운이 약하고 홀로 지냄. 여성에게 주로 해당"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "學堂貴人",
+    "name_ko": "학당귀인",
+    "meaning_ko": "배움에 능하고 지적이며, 가르치는 직업에 유리"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "寡宿殺",
+    "name_ko": "과숙살",
+    "meaning_ko": "과부 살. 배우자와의 인연이 약하고 외로움"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "弔客殺",
+    "name_ko": "조객살",
+    "meaning_ko": "조문할 일이 생기거나 집안에 우환"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "急脚殺",
+    "name_ko": "급각살",
+    "meaning_ko": "다리를 다치거나 신경통 등 정형외과적 질환 주의"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "怨嗔殺",
+    "name_ko": "원진살",
+    "meaning_ko": "이유 없이 서로 미워하고 원망하며 소통이 꼬임"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "懸針殺",
+    "name_ko": "현침살",
+    "meaning_ko": "바늘을 든 형상. 정밀한 기술이나 날카로운 언변"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "文昌貴人",
+    "name_ko": "문창귀인",
+    "meaning_ko": "지혜롭고 문학적 재능이 뛰어나며 학업 성취가 높음"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "文曲貴人",
+    "name_ko": "문곡귀인",
+    "meaning_ko": "문학적 재능과 예술적 감각, 아이디어가 뛰어남"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "暗祿",
+    "name_ko": "암록",
+    "meaning_ko": "보이지 않는 곳에서 돕는 손길, 경제적 위기 탈출"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "梟神殺",
+    "name_ko": "효신살",
+    "meaning_ko": "어머니와의 갈등이나 집착, 고부 갈등의 소지"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "湯火殺",
+    "name_ko": "탕화살",
+    "meaning_ko": "화상·중독 주의. 감정 기복이 심해 폭발할 위험"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "白虎大殺",
+    "name_ko": "백호대살",
+    "meaning_ko": "호랑이에게 물려가듯 갑작스러운 사고나 폭발적인 힘"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "福神",
+    "name_ko": "복신",
+    "meaning_ko": "예상치 못한 행운이 따르며 흉한 일을 막아줌"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "紅艶殺",
+    "name_ko": "홍염살",
+    "meaning_ko": "도화보다 짙고 개인적인 매력으로 사람을 홀림"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "落井關殺",
+    "name_ko": "낙정관살",
+    "meaning_ko": "구덩이에 빠짐. 갑작스러운 사고나 인간관계의 배신"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "金輿",
+    "name_ko": "금여",
+    "meaning_ko": "귀한 신분, 배우자의 덕이 있고 평온한 삶"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "鐵蛇戒",
+    "name_ko": "철사계",
+    "meaning_ko": "쇠나 뱀에 물림. 몸에 칼을 대는 수술수나 흉터"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "陽刃殺",
+    "name_ko": "양인살",
+    "meaning_ko": "극단적인 추진력과 고집, 전문적인 기술과 권력"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "隔角殺",
+    "name_ko": "격각살",
+    "meaning_ko": "육친과의 인연이 박하고 고향을 떠나 떠돌 수 있음"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "鬼門關殺",
+    "name_ko": "귀문관살",
+    "meaning_ko": "신경이 예민하고 직관력이 뛰어나며 집착이 강함"
+  },
+  {
+    "category": "sinsal",
+    "hanja": "魁罡殺",
+    "name_ko": "괴강살",
+    "meaning_ko": "총명하고 결단력이 강하며 대중을 이끄는 카리스마"
+  },
+  {
+    "category": "stem",
+    "hanja": "丁",
+    "name_ko": "정",
+    "meaning_ko": "촛불·등불 — 따뜻하고 섬세하며 지혜로운 빛이 있습니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "丙",
+    "name_ko": "병",
+    "meaning_ko": "태양 — 밝고 적극적이며 표현과 명예를 추구합니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "乙",
+    "name_ko": "을",
+    "meaning_ko": "풀·꽃·덩굴 — 부드럽고 적응력 강하며 인내가 큽니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "壬",
+    "name_ko": "임",
+    "meaning_ko": "큰 강·바다 — 지혜롭고 유연하며 그릇이 큽니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "己",
+    "name_ko": "기",
+    "meaning_ko": "정원·논밭 — 포용력 있고 기르는 성품, 차분하고 실용적입니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "庚",
+    "name_ko": "경",
+    "meaning_ko": "무쇠·도끼 — 강직하고 결단력 있으며 의리를 중시합니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "戊",
+    "name_ko": "무",
+    "meaning_ko": "큰 산·대지 — 든든하고 신뢰감 있으며 묵직합니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "甲",
+    "name_ko": "갑",
+    "meaning_ko": "큰 나무·소나무 — 진취적이고 시작을 즐기며 우두머리 기질이 있습니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "癸",
+    "name_ko": "계",
+    "meaning_ko": "비·이슬 — 맑고 섬세하며 직관과 감수성이 뛰어납니다."
+  },
+  {
+    "category": "stem",
+    "hanja": "辛",
+    "name_ko": "신",
+    "meaning_ko": "보석·세공된 금 — 섬세하고 예리하며 분석력이 뛰어납니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "全旺",
+    "name_ko": "전왕",
+    "meaning_ko": "특정 기운이 매우 강할 때 그 흐름을 따르는 방식입니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "抑扶",
+    "name_ko": "억부",
+    "meaning_ko": "강한 기운은 조절하고 약한 기운은 도와 균형을 살피는 방식입니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "未定",
+    "name_ko": "미정",
+    "meaning_ko": "현재 계산 규칙으로 용신 도출 방식을 확정하지 못한 상태입니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "格局",
+    "name_ko": "격국",
+    "meaning_ko": "사주의 기본 유형이 원활히 작용하도록 돕는 기운을 찾는 방식입니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "病藥",
+    "name_ko": "병약",
+    "meaning_ko": "사주의 불균형을 병에, 이를 완화하는 기운을 약에 비유해 살피는 방식입니다. 의학적 진단을 뜻하지 않습니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "調候",
+    "name_ko": "조후",
+    "meaning_ko": "태어난 계절의 차고 더움, 건조함과 습함을 살펴 균형을 돕는 방식입니다."
+  },
+  {
+    "category": "yongsin_method",
+    "hanja": "通關",
+    "name_ko": "통관",
+    "meaning_ko": "서로 대립하는 두 기운 사이에서 연결 역할을 하는 기운을 찾는 방식입니다."
+  }
+]
