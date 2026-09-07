@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useChatLimit } from '../../lib/useChatLimit.js';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
 import './fortune-experience.css';
 
