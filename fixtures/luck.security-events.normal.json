@@ -1,0 +1,51 @@
+{
+  "event_id": "sec_evt_fixture_0001",
+  "source_event_id": "raw_evt_fixture_0001",
+  "schema_version": "1.0",
+  "request_id": "req_fixture_0001",
+  "occurred_at": "2026-09-07T01:00:00.000Z",
+  "detected_at": "2026-09-07T01:00:00.125Z",
+  "environment": "test",
+  "source_service": "luck-was",
+  "source_type": "llm_prompt",
+  "event_name": "saju.chat.requested",
+  "risk_level": "HIGH",
+  "risk_score": 82,
+  "detector_version": "detector-fixture-1.0",
+  "masking_policy_version": "masking-fixture-1.0",
+  "masked_excerpt": "사용자 연락처 [PHONE_NUMBER]가 포함된 요청",
+  "body_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "safe_metadata": {
+    "route": "/api/saju/chat",
+    "method": "POST",
+    "fixture": true
+  },
+  "detections": [
+    {
+      "detection_id": "det_fixture_0001",
+      "rule_id": "PHONE_NUMBER",
+      "rule_version": "rules-fixture-1.0",
+      "category": "PII",
+      "entity_type": "phone_number",
+      "risk_level": "HIGH",
+      "confidence": 0.9900,
+      "match_count": 1,
+      "evidence_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "locations_json": [
+        { "field": "prompt", "start": 10, "end": 23 }
+      ]
+    },
+    {
+      "detection_id": "det_fixture_0002",
+      "rule_id": "REPEATED_FAILURE",
+      "rule_version": "rules-fixture-1.0",
+      "category": "BEHAVIOR",
+      "entity_type": "repeated_failure",
+      "risk_level": "MEDIUM",
+      "confidence": 0.8700,
+      "match_count": 3,
+      "evidence_fingerprint": null,
+      "locations_json": null
+    }
+  ]
+}
