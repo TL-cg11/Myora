@@ -1,0 +1,12 @@
+{
+  "event_id": "sec_evt_invalid_0001",
+  "source_event_id": "raw_evt_invalid_0001",
+  "schema_version": "9.9",
+  "occurred_at": "2026-09-07T01:02:00.000Z",
+  "detected_at": "2026-09-07T01:02:00.125Z",
+  "environment": "test",
+  "source_service": "luck-was",
+  "source_type": "llm_prompt",
+  "risk_level": "UNKNOWN",
+  "risk_score": 140
+}

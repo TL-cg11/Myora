@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luck.local/contracts/luck.security-events.v1.schema.json",
+  "title": "luck.security-events v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "source_event_id",
+    "schema_version",
+    "risk_level",
+    "risk_score",
+    "detected_at",
+    "occurred_at",
+    "environment",
+    "source_service",
+    "source_type",
+    "detector_version",
+    "masking_policy_version",
+    "detections"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "source_event_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "schema_version": { "const": "1.0" },
+    "request_id": { "type": ["string", "null"], "maxLength": 64 },
+    "occurred_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "detected_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "environment": {
+      "type": "string",
+      "enum": ["development", "test", "staging", "production"]
+    },
+    "source_service": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "source_type": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "event_name": { "type": ["string", "null"], "maxLength": 128 },
+    "risk_level": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "detector_version": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "masking_policy_version": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "masked_excerpt": { "type": ["string", "null"], "maxLength": 1000 },
+    "body_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "safe_metadata": { "type": ["object", "null"] },
+    "detections": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/detection" }
+    }
+  },
+  "$defs": {
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detection_id",
+        "rule_id",
+        "rule_version",
+        "category",
+        "entity_type",
+        "risk_level",
+        "confidence",
+        "match_count"
+      ],
+      "properties": {
+        "detection_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "rule_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "rule_version": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "category": {
+          "type": "string",
+          "enum": ["PII", "SECRET", "BEHAVIOR"]
+        },
+        "entity_type": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "risk_level": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "match_count": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "evidence_fingerprint": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "locations_json": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "start", "end"],
+            "properties": {
+              "field": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "start": { "type": "integer", "minimum": 0 },
+              "end": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

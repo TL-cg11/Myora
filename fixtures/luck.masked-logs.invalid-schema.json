@@ -1,0 +1,7 @@
+{
+  "event_id": "raw_evt_invalid_0001",
+  "schema_version": "9.9",
+  "occurred_at": "not-a-date",
+  "environment": "test",
+  "source_service": "luck-was"
+}

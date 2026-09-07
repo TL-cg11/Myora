@@ -54,3 +54,9 @@ bash scripts/test.sh
 `tailscale serve status`에 표시되는 `https://<machine>.<tailnet>.ts.net` 주소로 접속해야 합니다. Tailscale IP를 사용한 `http://100.117.253.9` 접속은 더 이상 제공하지 않습니다.
 
 카메라는 HTTPS 주소에서만 정상적으로 권한을 요청합니다. 사이트 권한에서 카메라를 허용한 뒤 `/face` 페이지를 사용하세요.
+
+## 보안 모니터링 계약
+
+저장·감사·관측 파트의 Kafka 메시지 계약은 [`contracts/`](contracts/README.md), DB 분리·검증·재시도·DLQ 정책은 [`docs/security-monitoring-foundation.md`](docs/security-monitoring-foundation.md)에서 관리합니다.
+
+Loki·Prometheus·Grafana의 로컬 실행과 health check는 [`docs/observability.md`](docs/observability.md)를 참고합니다.
