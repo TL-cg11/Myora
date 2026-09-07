@@ -59,6 +59,17 @@ sudo systemctl status mariadb --no-pager
 | `09_face.sql` | `face_shape`, `face_reading` — 관상 인상 유형과 리딩 상세 (앱은 아직 안 씀) |
 | `10_face_seed.sql` | 관상 인상 유형 5종 |
 | `11_face_interpretation.sql` | 비율·눈매·입매·조화·분위기별 관상 세부 해석 20종 |
+| `12_saju_dictionary.sql` | `saju_term` — 한자·사주 용어의 한글 이름과 뜻 사전 |
+| `13_saju_dictionary_seed.sql` | 천간·지지·60갑자·오행·정격·신살·용신 방식·기본 용어 142개 |
+
+### 사주 사전 적용
+
+기존 사주 테이블이 있는 DB는 관리자 계정으로 12번과 13번 SQL을 순서대로 적용합니다.
+기존 테이블을 변경하지 않습니다. WAS는 계산 결과의 `(category, hanja)`로 사전을 조회해
+한글 이름과 뜻을 표시합니다. `meaning_ko`를 UPDATE하면 다음 계산 요청부터 반영됩니다.
+13번 SQL을 재실행하면 누락 항목만 추가하고 이미 편집한 뜻은 보존합니다.
+초기 데이터 원본은 `luck-was/app/data/saju_terms.json`이고
+`luck-was/scripts/export-saju-dictionary.py`로 이 저장소의 13번 SQL을 생성합니다.
 
 ### 테이블
 
