@@ -5,6 +5,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -30,23 +32,76 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
     try:
         from korean_saju import Saju, SajuAnalysis, load_bundled_data
     except ImportError as exc:
-        raise HTTPException(status_code=503, detail="Install korean-saju first") from exc
+        raise HTTPException(status_code=503, detail="korean-saju is not installed.") from exc
 
     birth = datetime.combine(payload.birth_date, payload.birth_time or time(12, 0))
-    saju = Saju.from_birth(kst_moment=birth, solar_terms=load_bundled_data()[1], longitude=126.9784, yaja_si_separated=True)
-    analysis = SajuAnalysis(saju)
-    chart = SajuChart(
-        birth_date=payload.birth_date, birth_time=payload.birth_time,
-        time_unknown=payload.birth_time is None, gender=_gender(payload.gender),
-        engine_version=version("korean-saju"), pillar_year=str(saju.year_pillar),
-        pillar_month=str(saju.month_pillar), pillar_day=str(saju.day_pillar),
-        pillar_hour=str(saju.hour_pillar) if saju.hour_pillar else None,
-        jeonggyeok=str(analysis.jeonggyeok), yongsin=str(analysis.yongsin),
-        sinsal=[str(item) for item in analysis.sinsal],
+    saju = Saju.from_birth(
+        kst_moment=birth,
+        solar_terms=load_bundled_data()[1],
+        longitude=126.9784,
+        yaja_si_separated=True,
     )
-    reading = Reading(service="saju", guest_key=str(payload.guest_key), summary_title="사주 계산 결과", summary_text=str(saju), interpretation_source="rule", status="interpreted")
-    session.add_all([chart, reading])
-    session.flush()
-    session.add(SajuReading(reading_id=reading.id, chart_id=chart.id))
-    session.commit()
-    return {"status": "ok", "reading_id": reading.id, "chart_id": chart.id, "profile": payload.model_dump(mode="json"), "reading": {"pillars": str(saju), "jeonggyeok": str(analysis.jeonggyeok), "yongsin": str(analysis.yongsin), "sinsal": [str(item) for item in analysis.sinsal]}}
+    analysis = SajuAnalysis(saju)
+    gender = _gender(payload.gender)
+    engine_version = version("korean-saju")
+    time_unknown = payload.birth_time is None
+
+    try:
+        chart = session.scalar(
+            select(SajuChart).where(
+                SajuChart.birth_date == payload.birth_date,
+                SajuChart.birth_time == payload.birth_time,
+                SajuChart.time_unknown == time_unknown,
+                SajuChart.gender == gender,
+                SajuChart.engine_version == engine_version,
+            )
+        )
+        if chart is None:
+            chart = SajuChart(
+                birth_date=payload.birth_date,
+                birth_time=payload.birth_time,
+                time_unknown=time_unknown,
+                gender=gender,
+                engine_version=engine_version,
+                pillar_year=saju.year_pillar.hanja,
+                pillar_month=saju.month_pillar.hanja,
+                pillar_day=saju.day_pillar.hanja,
+                pillar_hour=saju.hour_pillar.hanja if saju.hour_pillar else None,
+                jeonggyeok=str(analysis.jeonggyeok)[:40],
+                yongsin=str(analysis.yongsin)[:40],
+                sinsal=[str(item) for item in analysis.sinsal],
+            )
+            session.add(chart)
+            session.flush()
+
+        reading = Reading(
+            service="saju",
+            guest_key=str(payload.guest_key),
+            summary_title="Saju calculation result",
+            summary_text=str(saju),
+            interpretation_source="rule",
+            status="interpreted",
+        )
+        session.add(reading)
+        session.flush()
+        session.add(SajuReading(reading_id=reading.id, chart_id=chart.id))
+        session.commit()
+    except SQLAlchemyError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Saju database tables are not ready. Apply the saju schema first.",
+        ) from exc
+
+    return {
+        "status": "ok",
+        "reading_id": reading.id,
+        "chart_id": chart.id,
+        "profile": payload.model_dump(mode="json"),
+        "reading": {
+            "pillars": str(saju),
+            "jeonggyeok": str(analysis.jeonggyeok),
+            "yongsin": str(analysis.yongsin),
+            "sinsal": [str(item) for item in analysis.sinsal],
+        },
+    }
