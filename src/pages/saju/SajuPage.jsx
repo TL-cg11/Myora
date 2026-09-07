@@ -10,11 +10,23 @@ export default function SajuPage() {
 
   function update(event) {
     const { name, value } = event.target;
+    if (name === 'birth_date' && /^\d{4}/.test(value)) {
+      const year = Number(value.slice(0, 4));
+      if (year < 1900 || year > 2100) {
+        setError('생년월일은 1900~2100년 사이로 입력해 주세요.');
+        return;
+      }
+    }
     setForm((current) => ({ ...current, [name]: value }));
   }
 
   async function submit(event) {
     event.preventDefault();
+    const birthYear = Number(form.birth_date.slice(0, 4));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.birth_date) || birthYear < 1900 || birthYear > 2100) {
+      setError('생년월일은 1900~2100년 사이로 입력해 주세요.');
+      return;
+    }
     setLoading(true); setError(''); setResult(null);
     try {
       const response = await fetch('/api/saju/readings', {
@@ -55,7 +67,7 @@ export default function SajuPage() {
       <section className="fortune-workspace">
         <form className="fortune-form" onSubmit={submit}>
           <label>이름<input name="name" value={form.name} onChange={update} placeholder="이름" /></label>
-          <label>생년월일<input name="birth_date" type="date" min="1800-01-01" max="2100-12-31" required value={form.birth_date} onChange={update} /></label>
+          <label>생년월일<input name="birth_date" type="date" min="1900-01-01" max="2100-12-31" required value={form.birth_date} onChange={update} /></label>
           <label>출생시간<input name="birth_time" type="time" value={form.birth_time} onChange={update} /></label>
           <label>성별<select name="gender" value={form.gender} onChange={update}><option value="">선택 안 함</option><option value="M">남성</option><option value="F">여성</option></select></label>
           <button className="fortune-submit" disabled={loading}>{loading ? '계산 중...' : '사주 결과 보기'}</button>
