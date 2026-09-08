@@ -61,6 +61,14 @@ sudo systemctl status mariadb --no-pager
 | `11_face_interpretation.sql` | 비율·눈매·입매·조화·분위기별 관상 세부 해석 20종 |
 | `12_saju_dictionary.sql` | `saju_term` — 한자·사주 용어의 한글 이름과 뜻 사전 |
 | `13_saju_dictionary_seed.sql` | 천간·지지·60갑자·오행·정격·신살·용신 방식·기본 용어 142개 |
+| `14_saju_narrative.sql` | `saju_narrative_rule` — 구조화된 상담 프로필과 보완 조언 |
+| `15_saju_narrative_seed.sql` | 일주 프로필 60개 + 용신·정격·신살 조언 45개 |
+
+상담형 화면을 배포할 때는 14번과 15번 SQL을 WAS 갱신 전에 적용합니다.
+기존 사전·리딩은 유지하며 새 테이블만 추가합니다. `data` JSON에 일주별 키워드,
+강점, 약점, 일, 관계와 설명 문장이 들어 있고 WAS가 실제 계산값에 따라 조합합니다.
+문구 수정은 `saju_narrative_rule.data`에서 하며 초기 SQL 재적용은 수정한 값을 덮어쓰지 않습니다.
+초기 원본은 `luck-was/app/data/saju_narratives.json`입니다.
 
 ### 사주 사전 적용
 
