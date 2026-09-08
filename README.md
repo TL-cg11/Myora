@@ -145,6 +145,42 @@ powershell -ExecutionPolicy Bypass -File scripts/run-local.ps1
 검증: `.venv/Scripts/python -m unittest discover -s app/tests`, `npm test`, `npm run build`.
 DB 문구 수정 반영, 초기화 재실행 보존, 사전 전체 항목, 누락 시 롤백, 기존 응답·저장을 확인합니다.
 
+## 보안 이벤트 조회 API
+
+`/api/security/events`는 `security_monitoring` DB를 조회하며 `/api/security` 전용
+Bearer 인증과 VIEWER 이상의 `event:read` 권한이 필요합니다. 인증 설정과 token 생성은
+`docs/security-api-auth.md`를 참고합니다.
+
+```bash
+curl -H "Authorization: Bearer $SECURITY_API_TOKEN" \
+  'http://127.0.0.1:8000/api/security/events?risk_level=HIGH&status=OPEN&page=1&page_size=50'
+curl -H "Authorization: Bearer $SECURITY_API_TOKEN" \
+  http://127.0.0.1:8000/api/security/events/evt-example
+```
+
+목록은 `start_time`, `end_time`, `risk_level`, `status`, `source` 필터와
+`sort_by`(`occurred_at`, `detected_at`, `risk_score`, `created_at`), `sort_order`,
+`page`, `page_size`를 지원합니다. 상세 응답에는 detections와 시간순 actions가 포함됩니다.
+
+EDITOR 이상은 다음 endpoint로 이벤트를 조치합니다. 이벤트 행 잠금 후 이벤트 변경과
+`security_event_action` INSERT를 같은 transaction으로 commit하며 actor ID는 인증 정보만
+사용합니다.
+
+```text
+PATCH /api/security/events/{event_id}/status
+PATCH /api/security/events/{event_id}/assignee
+POST  /api/security/events/{event_id}/false-positive
+POST  /api/security/events/{event_id}/reopen
+```
+
+오탐과 재오픈은 전용 endpoint만 허용해 각각 `MARKED_FALSE_POSITIVE`, `REOPENED` action이
+남도록 보장합니다. 감사 action을 수정하거나 삭제하는 API는 제공하지 않습니다.
+
+`GET /api/security/audit-logs`는 VIEWER 이상에게 append-only 조치 이력을 제공합니다.
+`start_time`, `end_time`, `event_id`, `actor_id`, `action_type`, `sort_order`, `page`,
+`page_size`로 조회할 수 있으며 내부 DB key는 응답하지 않습니다. 같은 경로에 대한
+POST·PUT·PATCH·DELETE는 405로 거부되고 DB API 계정에도 action UPDATE·DELETE 권한이 없습니다.
+
 ## 타로 기능
 
 카드 뽑기와 해석은 서버가 정합니다. 화면에서 카드를 고르더라도 어떤 카드가 나왔는지는

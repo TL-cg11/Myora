@@ -24,6 +24,20 @@ class Settings:
     db_name: str = os.getenv("DB_NAME", "luck_db")
     db_user: str = os.getenv("DB_USER", "luck_user")
     db_password: str = os.getenv("DB_PASSWORD", "Luck1234!")
+
+    # 보안 관제 API는 일반 서비스 데이터와 분리된 DB/계정을 사용한다.
+    security_database_url: str = os.getenv("SECURITY_DATABASE_URL", "")
+    security_db_host: str = os.getenv(
+        "SECURITY_DB_HOST", os.getenv("DB_HOST", "100.104.124.29")
+    )
+    security_db_port: int = int(
+        os.getenv("SECURITY_DB_PORT", os.getenv("DB_PORT", "3306"))
+    )
+    security_db_name: str = os.getenv("SECURITY_DB_NAME", "security_monitoring")
+    security_db_user: str = os.getenv("SECURITY_DB_USER", "security_monitoring_api")
+    security_db_password: str = os.getenv("SECURITY_DB_PASSWORD", "")
+    # {"<sha256 hex>": "actor-id"} 형태. 원문 Bearer token은 저장하지 않는다.
+    security_auth_token_hashes: str = os.getenv("SECURITY_AUTH_TOKEN_HASHES", "{}")
     
     deepseek_saju_api_key: str = os.getenv("DEEPSEEK_SAJU_API_KEY", "")
     deepseek_tarot_api_key: str = os.getenv("DEEPSEEK_TAROT_API_KEY", "")

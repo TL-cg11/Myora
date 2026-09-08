@@ -4,15 +4,25 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db import check_db
+from app.security_auth import SecurityAuthMiddleware, TokenAuthenticator, parse_token_hashes
+from app.security_db import find_security_user
 from app.routers.chat import router as chat_router
 from app.routers.face import router as face_router
 from app.routers.pages import DIST_DIR, router as pages_router
 from app.routers.saju import router as saju_router
 from app.routers.saju_chat import router as saju_chat_router
+from app.routers.security_audit import router as security_audit_router
+from app.routers.security_events import router as security_events_router
 from app.routers.tarot import router as tarot_router
 from app.routers.tarot_chat import router as tarot_chat_router
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
+app.add_middleware(
+    SecurityAuthMiddleware,
+    authenticator=TokenAuthenticator(
+        parse_token_hashes(settings.security_auth_token_hashes), find_security_user
+    ),
+)
 
 
 @app.get("/health")
@@ -47,6 +57,8 @@ app.include_router(chat_router)
 app.include_router(face_router)
 app.include_router(tarot_router)
 app.include_router(tarot_chat_router)
+app.include_router(security_audit_router)
+app.include_router(security_events_router)
 app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
 app.mount(
     "/mediapipe",
