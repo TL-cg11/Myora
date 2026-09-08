@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.models import Reading, SajuChart, SajuReading
 from app.services.saju_dictionary import MissingSajuTerm, lookup_saju_meanings
+from app.services.saju_narrative import compose_saju_narrative
 
 router = APIRouter(prefix="/api/saju", tags=["saju"])
 
@@ -49,6 +50,7 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
 
     try:
         interpretation = lookup_saju_meanings(session, saju, analysis)
+        interpretation['narrative'] = compose_saju_narrative(session, interpretation, time_unknown)
         chart = session.scalar(
             select(SajuChart).where(
                 SajuChart.birth_date == payload.birth_date,
@@ -95,7 +97,7 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
         session.rollback()
         raise HTTPException(
             status_code=503,
-            detail="사주 DB에 연결할 수 없거나 테이블이 준비되지 않았습니다. 기존 사주 스키마와 사전 SQL(12, 13번)을 확인해 주세요.",
+            detail="사주 DB에 연결할 수 없거나 테이블이 준비되지 않았습니다. 기존 사주 스키마와 사전·상담 SQL(12~15번)을 확인해 주세요.",
         ) from exc
 
     return {

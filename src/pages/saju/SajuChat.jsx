@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useChatLimit } from '../../lib/useChatLimit.js';
+import { buildSajuChatContext } from './sajuChatContext.js';
 
 const suggestions = ['오늘의 흐름을 설명해줘', '내 사주에서 강점은 뭐야?', '앞으로 어떤 점을 조심할까?'];
 
@@ -28,7 +29,7 @@ export default function SajuChat({ result }) {
     const next = [...messages, { role: 'user', content: text }];
     setMessages(next); setQuestion(''); setLoading(true);
     try {
-      const response = await fetch('/api/saju/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: JSON.stringify(result), messages: next }) });
+      const response = await fetch('/api/saju/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: buildSajuChatContext(result), messages: next }) });
       const data = await response.json();
       if (!response.ok) throw new Error(getErrorMessage(data.detail));
       setMessages((current) => [...current, { role: 'assistant', content: data.answer }]);

@@ -288,6 +288,18 @@ class SajuTerm(Base):
     meaning_ko: Mapped[str] = mapped_column(Text)
 
 
+class SajuNarrativeRule(Base):
+    """일주별 상담 프로필과 계산 결과에 따라 선택할 보완 문구."""
+
+    __tablename__ = "saju_narrative_rule"
+    __table_args__ = (UniqueConstraint("category", "hanja", name="uk_saju_narrative_rule"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category: Mapped[str] = mapped_column(String(24))
+    hanja: Mapped[str] = mapped_column(String(16))
+    data: Mapped[dict] = mapped_column(JSON)
+
+
 class FaceShape(Base):
     __tablename__ = "face_shape"
 
