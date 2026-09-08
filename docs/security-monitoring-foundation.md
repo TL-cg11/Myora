@@ -45,6 +45,10 @@ sink는 메시지를 처리하기 전에 topic에 대응하는 JSON Schema와 `s
 
 재시도 대기 시간은 1초부터 시작해 최대 30초로 제한한다. DLQ 메시지에는 원문 대신 원본 topic·partition·offset, message key, payload hash, schema version, 오류 코드와 마스킹된 오류 설명만 기록한다.
 
+`luck.masked-logs`의 일시 장애가 재시도를 소진하면 schema와 마스킹 안전성 검사를 통과한 payload를 권한 0600의 filesystem buffer에 원자 저장한 뒤 sink DLQ로 보낸다. buffer는 주기적으로 Loki에 재전송하고 성공한 파일만 삭제하며, 제한 용량을 넘으면 source offset을 commit하지 않아 유실 대신 backpressure를 선택한다.
+
+Loki push와 DB·Kafka offset commit은 하나의 transaction이 될 수 없으므로 masked-log sink는 at-least-once를 보장한다. Loki 성공 후 프로세스가 중단되면 같은 로그가 재전송될 수 있으며, 운영 조회에서는 log line의 `event_id`로 중복을 식별한다.
+
 ## DLQ ownership
 
 저장 파트(C)는 아래 sink 전용 DLQ의 메시지 형식, 발행 코드, 재처리 정책을 소유한다. Kafka 토픽 생성·TLS/SASL·ACL은 Kafka 담당(A)에게 요청한다.
