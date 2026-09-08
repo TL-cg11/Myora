@@ -1,0 +1,16 @@
+[Unit]
+Description=Luck security monitoring retention cleanup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=nginx
+Group=nginx
+WorkingDirectory=/home/nginx/luck-nginx
+EnvironmentFile=/etc/luck-security-retention.env
+ExecStart=/home/nginx/luck-nginx/.venv-security-sink/bin/python scripts/run_security_retention.py --execute --batch-size 1000 --max-batches 10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

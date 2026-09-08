@@ -12,12 +12,26 @@ Run on the Ubuntu 24.04 observability server after `git pull`:
 cd ~/luck-nginx
 sudo env GRAFANA_ADMIN_USER=admin \
   GRAFANA_ADMIN_PASSWORD='replace-with-a-strong-password' \
+  GRAFANA_SECURITY_DB_HOST='100.104.124.29' \
+  GRAFANA_SECURITY_DB_PORT='3306' \
+  GRAFANA_SECURITY_DB_USER='security_grafana' \
+  GRAFANA_SECURITY_DB_PASSWORD='replace-with-the-readonly-db-password' \
+  GRAFANA_SLACK_WEBHOOK_URL='https://hooks.slack.com/services/replace-me' \
+  GRAFANA_SLACK_RECIPIENT='security-alerts' \
+  GRAFANA_ALERT_EMAIL_ADDRESSES='security-team@example.com' \
+  GRAFANA_SMTP_HOST='smtp.example.com:587' \
+  GRAFANA_SMTP_USER='security-monitoring@example.com' \
+  GRAFANA_SMTP_PASSWORD='replace-with-the-smtp-password' \
+  GRAFANA_SMTP_FROM_ADDRESS='security-monitoring@example.com' \
   bash scripts/observability-install.sh
 
 sudo bash scripts/observability-test.sh
 ```
 
-The installer pins Loki `3.0.0` and Prometheus `2.53.1` by default, creates
+Create the `security_grafana` account and grant it only the
+`security_monitoring_readonly` role as described in
+`docs/grafana-security-monitoring.md` before installation. The installer pins
+Loki `3.0.0` and Prometheus `2.53.1` by default, creates
 dedicated `loki` and `prometheus` system users, sets 30-day retention, and
 installs Grafana from its official APT repository. The Grafana admin password
 is stored only in `/etc/luck-observability.env` with mode `0600`.
@@ -28,9 +42,11 @@ is stored only in `/etc/luck-observability.env` with mode `0600`.
 | Prometheus | `http://127.0.0.1:9090/-/ready` |
 | Grafana | `http://127.0.0.1:3000/api/health` |
 
-Grafana provisions the Prometheus and Loki datasources automatically. Part 6
-will add private sink-consumer `/metrics` targets; dashboards and alert rules
-remain deferred to Parts 8 through 10.
+Grafana provisions Prometheus, Loki, and the read-only security MariaDB
+datasource automatically. It also provisions the security-event and consumer
+dashboards plus lag, DLQ, and scrape-target alert rules. The provisioned Slack
+and email contact point groups matching alerts for 30 seconds and repeats an
+unchanged firing alert after four hours.
 
 ## Service operations
 

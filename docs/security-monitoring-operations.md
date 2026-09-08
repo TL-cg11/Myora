@@ -6,16 +6,16 @@
 
 | Data | Retention | Cleanup |
 |---|---:|---|
-| `security_event` | 365일 | 감사 이력과 함께 아카이브 후 batch 삭제 |
+| `security_event` | 365일 | 탐지·조치 이력과 함께 batch 삭제 |
 | `security_event_detection` | 365일 | 부모 이벤트와 같은 기준으로 삭제 |
-| `security_event_action` | 365일 | append-only 보존 후 부모 이벤트와 함께 아카이브 |
+| `security_event_action` | 365일 | append-only 기간 종료 후 부모 이벤트와 함께 삭제 |
 | `kafka_consumption` | 14일 | 메시지별 기록이므로 최우선 정리 대상 |
 | `consumer_failure` | 90일 | DLQ 처리 완료 행부터 정리 |
 | `notification_log` | 90일 | `SENT`, `SUPPRESSED` 완료 행부터 정리 |
 | Loki logs | 30일 | Loki retention 설정 |
 | Prometheus metrics | 30일 | Prometheus retention 설정 |
 
-초기 버전은 FK와 운영 복잡도를 고려해 DB partition을 사용하지 않고 인덱스 기반 batch 삭제를 사용한다. 정리 worker는 한 transaction당 최대 10,000행을 처리하며, `security_event` 계열은 365일이 지난 이벤트·탐지·감사 이력을 함께 아카이브한 뒤 자식에서 부모 순서로 삭제한다. `kafka_consumption`은 `(consumer_group, topic_name, partition_number, message_offset)` 중복 방지 목적의 짧은 보존 데이터이므로 14일 이후 동일한 batch 방식으로 삭제한다.
+초기 버전은 FK와 운영 복잡도를 고려해 DB partition을 사용하지 않고 인덱스 기반 batch 삭제를 사용한다. 정리 worker는 정책별 한 batch당 최대 10,000개의 기준 행을 잠그며, `security_event` 계열은 365일이 지난 이벤트의 탐지·조치 이력을 같은 transaction에서 자식→부모 순서로 삭제한다. 진행 중인 알림이 있는 이벤트와 미완료 consumer failure는 삭제하지 않는다. `kafka_consumption`은 `(consumer_group, topic_name, partition_number, message_offset)` 중복 방지 목적의 짧은 보존 데이터이므로 14일 이후 동일한 batch 방식으로 삭제한다.
 
 ## Initial performance targets
 
@@ -59,6 +59,88 @@ python -m unittest discover -s tests -v
 ```
 
 실제 서버 합격 판정은 Kafka broker, MariaDB, Loki가 연결된 상태에서 같은 목표를 60초 이상 측정해야 한다. server I/O가 포함되지 않은 local core 결과만으로 Part 6-18의 운영 합격을 선언하지 않는다.
+
+## Loki masking and retention verification
+
+보안 마스킹 로그에는 `pipeline=security-masked-logs`, `data_class=masked` 고정 label을
+부여한다. sink는 메시지 전체를 검사해 주민번호·전화·이메일·카드번호·API key·JWT·
+Authorization과 사설·Tailscale·내부 서비스 URL이 남아 있으면 Loki push 전에 거부한다.
+`safe_metadata`, `masked_excerpt`, `error_message`에도 같은 검사를 적용한다.
+
+실제 마스킹 메시지를 넣은 뒤 최근 1시간의 완료 로그와 Loki 30일 retention을 함께 검증한다.
+
+```bash
+python3 scripts/verify_loki_security.py \
+  --loki-url http://127.0.0.1:3100 --lookback-hours 1
+```
+
+성공 출력의 `masked_log_count`는 1 이상, `retention_hours`는 720이어야 한다. 로그 생성 전
+연결·설정만 확인할 때는 `--allow-empty`를 사용할 수 있지만 실제 적재 합격 판정으로는
+인정하지 않는다. `scripts/observability-test.sh`도 read-only 방식으로 ready 상태와 runtime
+retention 설정을 확인한다.
+
+## Retention verification
+
+아래 read-only 검사는 정리 기준을 넘긴 행 수를 반환한다. `kafka_consumption`은 14일,
+`consumer_failure`와 완료 알림은 90일, security event는 365일 기준이며 한 건이라도
+기한 초과 행이 있으면 종료 코드 1을 반환한다.
+
+```bash
+python3 scripts/verify_security_retention.py
+```
+
+실제 삭제 전에는 기본 dry-run으로 대상 수를 확인한다. `--execute`를 명시한 경우에만
+삭제를 commit하며, 한 번의 실행량은 batch 크기와 최대 반복 횟수로 제한된다.
+
+```bash
+python3 scripts/run_security_retention.py --batch-size 1000 --max-batches 1
+python3 scripts/run_security_retention.py --execute --batch-size 1000 --max-batches 10
+python3 scripts/verify_security_retention.py
+```
+
+운영 서버에서는 `/etc/luck-security-retention.env`에 전용 DB 계정을 설정하고 권한을
+`0600`으로 제한한 뒤 daily systemd timer를 설치한다. 설치 스크립트는 실수로 삭제가
+시작되지 않도록 timer를 enable만 한다. dry-run 결과를 확인한 뒤 직접 시작한다.
+
+```bash
+sudo install -m 0600 security_retention.env.example /etc/luck-security-retention.env
+sudo vi /etc/luck-security-retention.env
+sudo bash scripts/security-retention-install.sh
+sudo bash -c 'set -a; source /etc/luck-security-retention.env; set +a; exec /home/nginx/luck-nginx/.venv-security-sink/bin/python /home/nginx/luck-nginx/scripts/run_security_retention.py --batch-size 1000 --max-batches 1'
+sudo systemctl start security-retention.timer
+systemctl list-timers security-retention.timer --no-pager
+```
+
+## Sink metrics and scrape scope
+
+두 sink worker는 별도 dependency 없이 Prometheus text format의 `/metrics`를 제공한다.
+기본 포트는 security-event sink 9108, masked-log sink 9109이며 WAS Tailscale 주소에만
+bind한다.
+
+| Metric | Meaning |
+|---|---|
+| `luck_sink_messages_total` | 성공·중복·DLQ 결과별 누적 처리량 |
+| `luck_sink_failures_total` | 단계별 실패 수 |
+| `luck_sink_retries_total` | 단계별 재시도 수 |
+| `luck_sink_dlq_total` | 단계별 DLQ 수 |
+| `luck_sink_processing_duration_seconds` | 처리 지연 histogram |
+| `luck_consumer_lag_messages` | group/topic/partition별 high watermark lag |
+| `luck_consumer_oldest_message_age_seconds` | 처리 중인 가장 오래된 메시지 나이 |
+
+Prometheus는 `kafka-consumer-targets.yml`의 file discovery로 두 sink를 수집한다. 현재
+책임 범위는 `security-event-sink`, `masked-log-sink` 두 consumer 전체다. 다른 팀 consumer도
+동일 공통 metric을 제공하거나 Kafka exporter를 배치한 뒤 이 target 파일에 추가해야 전체
+프로젝트 consumer 범위로 확장된다.
+
+```bash
+python3 scripts/verify_security_metrics.py \
+  --prometheus-url http://127.0.0.1:9090 \
+  --metrics-target http://100.66.77.55:9108 \
+  --metrics-target http://100.66.77.55:9109
+```
+
+검증기는 두 `/metrics`의 필수 metric, Prometheus의 두 target `up=1`, metric 30일 retention을
+함께 확인한다. 포트는 인터넷에 공개하지 않고 Nginx 서버에서 WAS Tailscale 경로로만 scrape한다.
 
 ## Scheduled work
 

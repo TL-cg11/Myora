@@ -1,0 +1,5 @@
+- targets:
+    - "100.66.77.55:9108"
+    - "100.66.77.55:9109"
+  labels:
+    metrics_scope: "security-sinks"

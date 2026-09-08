@@ -1,0 +1,21 @@
+[Unit]
+Description=Luck security notification worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nginx
+Group=nginx
+WorkingDirectory=/home/nginx/luck-nginx
+EnvironmentFile=/etc/luck-security-notifier.env
+ExecStart=/home/nginx/luck-nginx/.venv-security-sink/bin/python -m security_sink.notifier_worker
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
