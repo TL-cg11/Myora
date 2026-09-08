@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-09-08T04:20:01Z",
+  "source": "was",
+  "service": "tarot",
+  "event_type": "ai_request",
+  "request_id": "efa41bc3638fccc4608bfba32bf456c1",
+  "user_id": null,
+  "guest_key": "3889ff5a-cadb-4c20-8759-083cac443121",
+  "input": {"prompt": "사용자가 입력한 프롬프트 원문"},
+  "ai": {"provider": "deepseek", "model": "deepseek-chat", "latency": null},
+  "metadata": {"content_length": 39}
+}
