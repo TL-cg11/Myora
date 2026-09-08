@@ -211,9 +211,9 @@ GRANT SELECT ON security_monitoring.consumer_failure TO security_monitoring_api;
 GRANT SELECT ON security_monitoring.notification_log TO security_monitoring_api;
 GRANT SELECT ON security_monitoring.* TO security_monitoring_readonly;
 
--- The notifier changes only delivery state. It reads the event only to compose
--- a notification and cannot insert, delete, or alter security events.
-GRANT SELECT, UPDATE ON security_monitoring.notification_log TO security_monitoring_notifier;
+-- The notifier creates unresolved-event queue rows and changes only delivery
+-- state. It cannot insert, delete, or alter security events.
+GRANT SELECT, INSERT, UPDATE ON security_monitoring.notification_log TO security_monitoring_notifier;
 GRANT SELECT ON security_monitoring.security_event TO security_monitoring_notifier;
 
 -- Retention deletes only documented retention data. Its worker must delete

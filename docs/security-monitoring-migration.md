@@ -27,3 +27,10 @@ bash scripts/apply-security-monitoring-migration.sh
 ```
 
 The migration account is intentionally restricted to `localhost`. Re-running the bootstrap is idempotent for tables, roles, permissions, and role seed data; it also rotates each supplied service-account password. It does not alter an already-existing incompatible table definition.
+
+The verification script also confirms that `security_monitoring_api` can only
+`SELECT` and `INSERT` rows in `security_event_action`; `UPDATE` and `DELETE` are
+intentionally absent so audit history remains append-only even if an API bug is introduced.
+The notifier role can `SELECT`, `INSERT`, and `UPDATE` only `notification_log`
+and can only `SELECT` `security_event`; this permits unresolved-event scheduling
+without allowing event or audit-history mutation.

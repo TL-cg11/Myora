@@ -27,10 +27,20 @@ if [[ "$role_mappings" -lt '6' ]]; then
   exit 1
 fi
 
-notifier_update=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_notifier;" | grep -c 'UPDATE.*notification_log' || true)
+notifier_update=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_notifier;" | grep -Ec 'INSERT.*UPDATE.*notification_log' || true)
 retention_delete=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_retention;" | grep -c 'DELETE.*security_event' || true)
 if [[ "$notifier_update" -lt '1' || "$retention_delete" -lt '1' ]]; then
   echo 'Notifier or retention privileges are incomplete.' >&2
+  exit 1
+fi
+
+api_action_grants=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_api;")
+if ! grep -Eq 'SELECT.*INSERT.*security_event_action' <<<"$api_action_grants"; then
+  echo 'API role cannot read and append security_event_action.' >&2
+  exit 1
+fi
+if grep -Eq '(UPDATE|DELETE).*security_event_action' <<<"$api_action_grants"; then
+  echo 'API role must not modify or delete security_event_action.' >&2
   exit 1
 fi
 
