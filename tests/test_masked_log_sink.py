@@ -92,6 +92,8 @@ class MaskedLogSinkTests(unittest.TestCase):
         self.assertEqual(calls[0][0], "http://127.0.0.1:3100/loki/api/v1/push")
         loki_payload = json.loads(calls[0][1])
         stream = loki_payload["streams"][0]
+        self.assertEqual(stream["stream"]["pipeline"], "security-masked-logs")
+        self.assertEqual(stream["stream"]["data_class"], "masked")
         self.assertEqual(stream["stream"]["source_service"], "luck-was")
         self.assertIn("[PHONE_NUMBER]", stream["values"][0][1])
         self.assertEqual(len(write_connection.executions), 1)

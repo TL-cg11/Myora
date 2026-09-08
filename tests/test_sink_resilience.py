@@ -228,6 +228,31 @@ class ResilientProcessorTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "size limit"):
                 buffer.store(metadata(), raw_payload())
 
+    def test_retry_and_dlq_callbacks_receive_sanitized_stage(self) -> None:
+        failures = FakeFailures()
+        terminal = FakeTerminal()
+        sent: list[tuple[str, str | None, bytes]] = []
+        retries: list[str] = []
+        dlqs: list[str] = []
+        processor = self.make_processor(
+            failures,
+            terminal,
+            sent,
+            max_retries=1,
+            sleeper=lambda _delay: None,
+            on_retry=lambda _metadata, details: retries.append(details.stage),
+            on_dlq=lambda _metadata, details: dlqs.append(details.stage),
+        )
+
+        processor.execute(
+            lambda: (_ for _ in ()).throw(ConnectionError("private detail")),
+            raw_payload(),
+            metadata(),
+        )
+
+        self.assertEqual(retries, ["sink_processing"])
+        self.assertEqual(dlqs, ["sink_processing"])
+
 
 class FailureRepositoryTests(unittest.TestCase):
     def test_failure_is_upserted_and_can_be_marked_recovered(self) -> None:

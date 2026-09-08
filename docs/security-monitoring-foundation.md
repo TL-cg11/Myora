@@ -22,7 +22,7 @@ DDL-capable migration account. These roles extend the account boundary above.
 
 | Account role | Permission |
 |---|---|
-| notifier | `notification_log` `SELECT`, `UPDATE`; `security_event` `SELECT` only for message composition |
+| notifier | `notification_log` `SELECT`, `INSERT`, `UPDATE`; `security_event` `SELECT` only for scheduling and message composition |
 | retention | `SELECT`, `DELETE` only on `security_event_detection`, `security_event_action`, `security_event`, `kafka_consumption`, `consumer_failure`, and `notification_log` |
 
 The retention worker deletes `security_event_detection` and

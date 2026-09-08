@@ -14,6 +14,8 @@ from security_sink.common import (
     sha256_hex,
     validate_masking_safety,
 )
+from security_sink.notification_policy import DEFAULT_POLICY, NotificationPolicy, configured_channels, queue_rows
+from security_sink.notifications import INSERT_NOTIFICATION
 from scripts.mock_security_producer import validate
 
 
@@ -69,8 +71,15 @@ def _json(value: Any) -> str | None:
 class SecurityEventRepository:
     """MariaDB transaction boundary for one security event message."""
 
-    def __init__(self, connection_factory: Callable[[], Any]) -> None:
+    def __init__(
+        self,
+        connection_factory: Callable[[], Any],
+        notification_policy: NotificationPolicy = DEFAULT_POLICY,
+        notification_channels: tuple[str, ...] | None = None,
+    ) -> None:
         self._connection_factory = connection_factory
+        self._notification_policy = notification_policy
+        self._notification_channels = notification_channels or configured_channels()
 
     def save(
         self,
@@ -116,6 +125,10 @@ class SecurityEventRepository:
                     INSERT_CREATED_ACTION,
                     (security_event_id, CREATED_ACTOR_TYPE, CREATED_ACTOR_ID),
                 )
+                for notification in queue_rows(
+                    event, self._notification_channels, self._notification_policy
+                ):
+                    cursor.execute(INSERT_NOTIFICATION, notification)
                 cursor.execute(
                     INSERT_CONSUMPTION,
                     metadata.consumption_values(payload_hash, event["event_id"]),
@@ -193,7 +206,5 @@ class SecurityEventSink:
         if not isinstance(event, dict):
             raise ValueError("security event payload must be a JSON object")
         validate(TOPIC, event)
-        validate_masking_safety(
-            event.get("masked_excerpt"), event.get("safe_metadata")
-        )
+        validate_masking_safety(event)
         return self._repository.save(event, metadata, sha256_hex(raw_bytes))

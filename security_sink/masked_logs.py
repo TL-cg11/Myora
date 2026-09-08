@@ -67,6 +67,8 @@ class LokiClient:
             "streams": [
                 {
                     "stream": {
+                        "pipeline": "security-masked-logs",
+                        "data_class": "masked",
                         "environment": event["environment"],
                         "source_service": event["source_service"],
                         "source_type": event["source_type"],
@@ -167,5 +169,5 @@ class MaskedLogSink:
         if not isinstance(event, dict):
             raise ValueError("masked log payload must be a JSON object")
         validate(TOPIC, event)
-        validate_masking_safety(event["masked_message"], event.get("safe_metadata"))
+        validate_masking_safety(event)
         return event, raw_bytes

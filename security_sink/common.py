@@ -86,6 +86,8 @@ _SENSITIVE_PATTERNS = (
     re.compile(r"\b(?:\d[ -]?){12,18}\d\b"),
     re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b", re.IGNORECASE),
+    re.compile(r"\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[0-9A-Za-z]{20,})\b"),
+    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b", re.IGNORECASE),
     re.compile(
         r"\b(?:authorization|api[_-]?key|secret[_-]?key)\s*[:=]\s*(?!\[[A-Z_]+\])\S+",
         re.IGNORECASE,
@@ -93,6 +95,13 @@ _SENSITIVE_PATTERNS = (
     re.compile(
         r"https?://(?:localhost|127\.0\.0\.1|10(?:\.\d{1,3}){3}|"
         r"192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})"
+        r"(?::\d+)?(?:[/\w.?=&%-]*)?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"https?://(?:100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}|"
+        r"169\.254(?:\.\d{1,3}){2}|\[?::1\]?|"
+        r"[a-z0-9-]+\.(?:internal|local|lan)|[a-z0-9-]+(?=[:/]))"
         r"(?::\d+)?(?:[/\w.?=&%-]*)?",
         re.IGNORECASE,
     ),

@@ -102,6 +102,7 @@ class FailureRepository:
         retry_count: int,
         status: str,
     ) -> None:
+        validate_masking_safety(details.message)
         connection = self._connection_factory()
         try:
             connection.begin()
@@ -292,6 +293,8 @@ class ResilientProcessor:
         max_delay_seconds: float = 30,
         sleeper: Callable[[float], None] = time.sleep,
         buffer: FilesystemBuffer | None = None,
+        on_retry: Callable[[KafkaMetadata, FailureDetails], None] | None = None,
+        on_dlq: Callable[[KafkaMetadata, FailureDetails], None] | None = None,
     ) -> None:
         self._failures = failures
         self._terminal_consumption = terminal_consumption
@@ -300,6 +303,8 @@ class ResilientProcessor:
         self._max_delay_seconds = max_delay_seconds
         self._sleeper = sleeper
         self._buffer = buffer
+        self._on_retry = on_retry
+        self._on_dlq = on_dlq
 
     def execute(
         self,
@@ -338,6 +343,8 @@ class ResilientProcessor:
                 last_details = details
                 had_failure = True
                 if details.permanent or retry_count >= self._max_retries:
+                    if self._on_dlq is not None:
+                        self._on_dlq(metadata, details)
                     if self._buffer is not None and not details.permanent:
                         self._buffer.store(metadata, raw_value)
                     self._dlq.publish(
@@ -361,6 +368,8 @@ class ResilientProcessor:
                     return ProcessResult(event_db_id=None, duplicate="dlq")
 
                 retry_count += 1
+                if self._on_retry is not None:
+                    self._on_retry(metadata, details)
                 try:
                     self._failures.record(
                         metadata,
