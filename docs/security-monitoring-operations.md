@@ -34,6 +34,32 @@
 
 측정값은 메시지 수신 시각부터 DB/Loki 저장 성공 시각까지 계산한다. 실제 운영 수치가 목표를 초과하면 partition 수, consumer 수, DB batch size, Loki buffer를 조정하고 기준을 개정한다.
 
+### Verification commands
+
+외부 I/O를 제외한 계약 검증·메시지 처리 core의 회귀 성능은 아래 명령으로 60초씩 측정한다. 이 결과는 코드 자체의 병목을 찾는 기준이며 실제 DB·Loki latency 또는 Kafka lag 측정값으로 대체할 수 없다.
+
+```bash
+python scripts/benchmark_security_sink_core.py --duration 60
+```
+
+서버에서 수집한 실제 측정값은 아래 판정기에 입력한다. 종료 코드 0은 모든 목표 통과, 1은 하나 이상의 목표 미달을 뜻한다.
+
+```bash
+python scripts/verify_security_sink_targets.py \
+  --sustained-throughput 100 --burst-throughput 300 \
+  --db-p95-seconds 2 --loki-p95-seconds 5 \
+  --end-to-end-p95-seconds 10 --consumer-lag 999 \
+  --oldest-message-seconds 60
+```
+
+단위 테스트는 DB/Loki 오류, 중복 offset/event, Kafka commit 직전 재시작, broker poll 장애 후 복구, filesystem buffer 재전송과 목표 경계 판정을 검증한다.
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+실제 서버 합격 판정은 Kafka broker, MariaDB, Loki가 연결된 상태에서 같은 목표를 60초 이상 측정해야 한다. server I/O가 포함되지 않은 local core 결과만으로 Part 6-18의 운영 합격을 선언하지 않는다.
+
 ## Scheduled work
 
 알림과 정리 작업은 별도 worker 또는 cron이 주기적으로 실행한다.
