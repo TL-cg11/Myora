@@ -170,3 +170,30 @@ LLM_TIMEOUT=20
 
 리딩 요약은 LLM 을 쓰지 않습니다. 카드를 뽑는 순간에 외부 API 를 기다리게 하지
 않으려는 것이고, 바꾸려면 `app/routers/tarot.py` 의 주석을 보세요.
+
+
+## Kafka 보안 로그 Consumer (1차 버전)
+
+FastAPI와 별도 프로세스로 실행하며, Nginx의 flat JSON 로그에서
+`timestamp`, `source`, `request_id`, `client_ip`, `method`, `uri`, `status`,
+`request_time`을 들여쓰기된 JSON으로 터미널에 출력합니다. 누락 필드는 `null`입니다.
+마스킹, 공격 탐지, DB 저장은 아직 구현하지 않았습니다.
+
+`luck-was` 디렉터리에서 실행합니다.
+
+```bash
+.venv/bin/python -m pip install -r requirements.txt
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092 .venv/bin/python -m consumer.kafka_consumer
+```
+
+`KAFKA_BOOTSTRAP_SERVERS`는 루트 `.env`에도 설정할 수 있으며,
+셸 환경변수가 우선합니다. 미설정 시 `localhost:9092`를 사용합니다.
+Topic은 `myohan.nginx.access`, group은 `myohan-security-consumer`,
+`auto.offset.reset`은 `latest`입니다. 저장된 offset이 없을 때는 구독 준비 후
+새로 발생한 로그부터 읽으므로 Consumer 실행 후 Nginx에 요청을 보내 확인하세요.
+기존 group offset이 있으면 해당 위치에서 이어 읽습니다.
+
+현재는 라이브러리 기본 자동 offset 커밋을 사용합니다. 파싱에 실패한 메시지와
+값이 없는 메시지는 경고 후 건너뛰고, 수신 중 Kafka 오류도 기록 후 계속 대기합니다.
+Ctrl+C로 종료하면 `consumer.close()`를 호출합니다.
+실제 Kafka 연결 및 로그 수신 확인은 WAS 서버에서 진행합니다.
