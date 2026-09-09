@@ -135,8 +135,8 @@ Prometheus는 `kafka-consumer-targets.yml`의 file discovery로 두 sink를 수�
 ```bash
 python3 scripts/verify_security_metrics.py \
   --prometheus-url http://127.0.0.1:9090 \
-  --metrics-target http://100.66.77.55:9108 \
-  --metrics-target http://100.66.77.55:9109
+  --metrics-target http://100.117.253.9:9108 \
+  --metrics-target http://100.117.253.9:9109
 ```
 
 검증기는 두 `/metrics`의 필수 metric, Prometheus의 두 target `up=1`, metric 30일 retention을
