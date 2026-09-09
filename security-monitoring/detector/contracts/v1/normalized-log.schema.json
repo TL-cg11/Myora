@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NormalizedLog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "timestamp",
+    "environment",
+    "service",
+    "source_type",
+    "event_name",
+    "severity",
+    "body",
+    "attributes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "$comment": "입출력 계약 버전"
+    },
+    "event_id": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "해당 로그 또는 보안 이벤트의 고유 ID"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "$comment": "서비스 간 요청 추적 ID; 없으면 None"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "$comment": "시간대가 포함된 원본 로그 시각"
+    },
+    "environment": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "실행 환경(test/development/production 등)"
+    },
+    "service": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "원본 로그 생성 서비스"
+    },
+    "source_type": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "로그 종류(llm_prompt 등)"
+    },
+    "event_name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "$comment": "발생한 작업 이름; 없으면 None"
+    },
+    "severity": {
+      "enum": [
+        "TRACE",
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "WARNING",
+        "ERROR",
+        "CRITICAL",
+        "FATAL"
+      ],
+      "$comment": "원본 운영 로그 수준; 보안 위험등급과 구분"
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 100000,
+      "$comment": "검사할 원본 문자열; 출력에 그대로 복사하지 않음"
+    },
+    "attributes": {
+      "type": "object",
+      "$comment": "추가 구조화 데이터; 출력 모델에서는 마스킹 완료 값"
+    }
+  },
+  "$comment": "B 탐지기 v1 계약. $comment는 개발자를 위한 설명이며 검증 조건이나 전송 필드가 아니다."
+}

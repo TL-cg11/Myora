@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "myohan.dead-letter v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "error_code",
+    "failure_stage",
+    "retryable",
+    "detector_version",
+    "source_topic",
+    "partition",
+    "offset",
+    "consumer_group",
+    "payload_hash",
+    "failed_at",
+    "retry_count"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "$comment": "입출력 계약 버전"
+    },
+    "error_code": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "원문을 포함하지 않는 고정 오류 코드"
+    },
+    "failure_stage": {
+      "enum": ["DECODE", "VALIDATE", "DETECT_MASK", "BUILD_EVENT"],
+      "$comment": "실패한 처리 단계"
+    },
+    "retryable": {
+      "type": "boolean",
+      "$comment": "원인 해결 후 재시도할 수 있는 오류인지 표시"
+    },
+    "detector_version": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "탐지 프로그램 버전"
+    },
+    "source_topic": {
+      "type": "string",
+      "maxLength": 249,
+      "$comment": "실패한 원본 메시지의 topic"
+    },
+    "partition": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "원본 메시지의 partition 번호"
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "원본 메시지의 offset. 재처리 위치를 찾는 기준이다"
+    },
+    "consumer_group": {
+      "type": "string",
+      "maxLength": 128,
+      "$comment": "어느 소비 처리에서 실패했는지 구분"
+    },
+    "message_key": {
+      "type": ["string", "null"],
+      "maxLength": 128,
+      "$comment": "원본 message key. 없으면 null"
+    },
+    "payload_hash": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "원문을 복사하지 않고 같은 메시지를 비교하는 SHA-256 hex"
+    },
+    "failed_at": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "실패 시각. UTC ISO 8601이며 Z로 끝난다"
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0,
+      "$comment": "같은 메시지를 다시 처리한 횟수"
+    }
+  },
+  "$comment": "Kafka 어댑터가 발행하는 실패 메타데이터. 원본 payload와 예외 문자열은 넣지 않는다."
+}
