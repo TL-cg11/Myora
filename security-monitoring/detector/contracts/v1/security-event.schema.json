@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SecurityEvent v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "source_event_id",
+    "request_id",
+    "occurred_at",
+    "detected_at",
+    "environment",
+    "source_service",
+    "source_type",
+    "event_name",
+    "risk_level",
+    "risk_score",
+    "detector_version",
+    "masking_policy_version",
+    "masked_excerpt",
+    "body_hash",
+    "detections",
+    "safe_metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "$comment": "입출력 계약 버전"
+    },
+    "event_id": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "해당 로그 또는 보안 이벤트의 고유 ID"
+    },
+    "source_event_id": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "A가 생성한 원본 로그 ID"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "$comment": "서비스 간 요청 추적 ID; 없으면 None"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "$comment": "원본 로그 발생 시각(UTC)"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time",
+      "$comment": "탐지 시각(UTC)"
+    },
+    "environment": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "실행 환경(test/development/production 등)"
+    },
+    "source_service": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "원본 로그 생성 서비스; C 저장용 필드명"
+    },
+    "source_type": {
+      "type": "string",
+      "maxLength": 64,
+      "$comment": "로그 종류(llm_prompt 등)"
+    },
+    "event_name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "$comment": "발생한 작업 이름; 없으면 None"
+    },
+    "risk_level": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ],
+      "$comment": "보안 위험등급"
+    },
+    "risk_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "$comment": "정책에서 정한 0~100 위험 점수"
+    },
+    "detector_version": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "탐지 프로그램 버전"
+    },
+    "masking_policy_version": {
+      "type": "string",
+      "maxLength": 32,
+      "$comment": "마스킹 정책 버전"
+    },
+    "masked_excerpt": {
+      "type": "string",
+      "maxLength": 1000,
+      "$comment": "C DB에 저장할 마스킹 발췌문(최대 1,000자)"
+    },
+    "body_hash": {
+      "type": "string",
+      "maxLength": 80,
+      "$comment": "원본 본문의 SHA-256 지문"
+    },
+    "detections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "detection_id",
+          "rule_id",
+          "rule_version",
+          "category",
+          "entity_type",
+          "risk_level",
+          "confidence",
+          "match_count",
+          "evidence_fingerprint",
+          "locations"
+        ],
+        "properties": {
+          "detection_id": {
+            "type": "string",
+            "maxLength": 64,
+            "$comment": "개별 규칙 탐지 ID. 동일 사건과 규칙 버전의 재처리에서 유지된다."
+          },
+          "rule_id": {
+            "type": "string",
+            "maxLength": 64,
+            "$comment": "탐지 규칙 식별자"
+          },
+          "rule_version": {
+            "type": "string",
+            "maxLength": 32,
+            "$comment": "탐지 규칙 버전"
+          },
+          "category": {
+            "enum": [
+              "PII",
+              "SECRET",
+              "BEHAVIOR"
+            ],
+            "$comment": "PII/SECRET 등 탐지 분류"
+          },
+          "entity_type": {
+            "type": "string",
+            "maxLength": 64,
+            "$comment": "entity_type 필드의 형식 정의."
+          },
+          "risk_level": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ],
+            "$comment": "보안 위험등급"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "$comment": "규칙 신뢰도 초기값; 보정된 확률은 아님"
+          },
+          "match_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "$comment": "같은 규칙으로 탐지한 구간 수."
+          },
+          "evidence_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "$comment": "단일 탐지의 선택적 HMAC 지문. 키가 없거나 여러 구간이면 null."
+          },
+          "locations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "field",
+                "start",
+                "end"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "$comment": "탐지 위치를 나타내는 안전한 경로"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "$comment": "탐지 시작 문자 위치(포함)"
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "$comment": "탐지 종료 문자 위치(제외)"
+                }
+              }
+            },
+            "$comment": "원문 대신 필드 경로와 문자 위치만 기록하는 배열."
+          }
+        }
+      },
+      "$comment": "규칙별로 묶은 개별 탐지 결과"
+    },
+    "safe_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "추가 허용 메타데이터; 현재는 빈 객체"
+    }
+  },
+  "$comment": "B 탐지기 v1 계약. $comment는 개발자를 위한 설명이며 검증 조건이나 전송 필드가 아니다."
+}
