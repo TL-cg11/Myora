@@ -222,38 +222,45 @@ commit 위치부터 다시 읽는다. 즉 at-least-once이며 같은 입력은 �
 발행 직전에 `adapter/safety.py`가 C의 sink와 같은 패턴으로 마스킹 누락을 한 번 더 확인한다.
 걸리면 결과 topic 대신 `UNSAFE_OUTPUT` dead-letter로 보낸다.
 
-## systemd 등록
+## systemd 서비스 설치
 
-`/etc/systemd/system/luck-masking-adapter.service`:
-
-```ini
-[Unit]
-Description=Luck Kafka Masking Adapter
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=was
-Group=was
-WorkingDirectory=/home/was/luck-was/security-monitoring/detector
-EnvironmentFile=/home/was/luck-was/.env
-Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/was/luck-was/.venv/bin/python -m adapter
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-```
+서버에서 아래 한 줄이면 의존성 확인, 가명화 키 생성, 마스킹 자체 점검, 서비스 등록까지
+끝난다. `luck-was` 저장소 루트에서 실행한다.
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl start luck-masking-adapter
+bash security-monitoring/detector/scripts/install-adapter.sh
+```
+
+스크립트가 하는 일은 다음과 같다.
+
+1. `.venv`에 `confluent-kafka`가 없으면 `requirements.txt`로 설치한다.
+2. `.env`에 `MASKING_PSEUDONYM_KEY`가 없으면 새로 만들어 넣고 mode 0600으로 바꾼다.
+   **이미 키가 있으면 절대 덮어쓰지 않는다.**
+3. Kafka에 연결하기 전에 `--dry-run`으로 IP 마스킹이 동작하는지 확인한다.
+4. `/etc/systemd/system/luck-masking-adapter.service`를 설치하고 `enable --now` 한다.
+5. 서비스가 active로 올라오지 않으면 journal 로그를 출력하고 1을 반환한다.
+
+`sudo`가 필요한 단계는 unit 설치와 `systemctl`뿐이다. 실행 사용자와 저장소 경로는
+스크립트가 실행 환경에서 그대로 읽으므로 서버마다 고칠 값이 없다.
+
+## 서비스 관리
+
+```bash
+sudo systemctl status luck-masking-adapter --no-pager
+sudo systemctl restart luck-masking-adapter
+sudo systemctl stop luck-masking-adapter
 sudo journalctl -u luck-masking-adapter -f
 ```
 
-정상 동작을 확인한 뒤에 `sudo systemctl enable luck-masking-adapter`로 자동 시작을 켠다.
+설정을 바꾸면(`.env` 수정, `git pull`) 재시작해야 반영된다. 재시작은 처리 중인 메시지를
+마친 뒤 종료하므로 commit되지 않은 결과가 남지 않는다.
+
+```bash
+cd ~/luck-was && git pull --ff-only && sudo systemctl restart luck-masking-adapter
+```
+
+unit 파일 자체를 바꾼 경우에는 설치 스크립트를 다시 실행하거나
+`sudo systemctl daemon-reload`를 먼저 실행한다.
 
 ## 남은 작업
 
