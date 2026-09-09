@@ -1,4 +1,4 @@
-"""Nginx access log를 수신한다. 실행: python -m consumer.kafka_consumer"""
+"""Nginx access log를 수신한다. 실행: python -m consumer.nginx_kafka_consumer"""
 
 import json
 import logging

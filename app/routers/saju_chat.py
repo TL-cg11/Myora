@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.config import settings
 from app.prompts.saju import SAJU_PERSONA
 from app.routers.chat import ChatRequest, ChatResponse
+from app.kafka_logging import emit_ai_request_log
 
 router = APIRouter(prefix="/api/saju", tags=["saju-chat"])
 
@@ -18,6 +19,16 @@ async def saju_chat(request: ChatRequest) -> ChatResponse:
         "max_tokens": 700,
         "stream": False,
     }
+    user_messages = [message.content for message in request.messages if message.role == "user"]
+    emit_ai_request_log(
+        feature="saju",
+        question=user_messages[-1] if user_messages else "",
+        model=settings.deepseek_saju_model,
+        timeout_seconds=45.0,
+        question_sequence=len(user_messages),
+        message_count=len(payload["messages"]),
+        context_length=len(request.context),
+    )
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as client:
             response = await client.post(f"{settings.deepseek_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {settings.deepseek_saju_api_key}"}, json=payload)
