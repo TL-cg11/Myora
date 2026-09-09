@@ -15,6 +15,7 @@ if ! getent passwd evebox >/dev/null; then
 fi
 sudo install -d -o evebox -g evebox -m 0750 /var/lib/evebox
 sudo install -m 0644 security-monitoring/evebox/luck-evebox.service /etc/systemd/system/luck-evebox.service
+sudo install -m 0644 conf.d/luck.conf /etc/nginx/conf.d/luck.conf
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now luck-evebox
@@ -27,18 +28,22 @@ for _ in $(seq 1 20); do
 done
 curl --fail --silent --show-error http://127.0.0.1:5636/ >/dev/null
 
-# Add only a path handler to the existing Tailscale HTTPS service. Its root
-# handler continues to proxy to Nginx on 127.0.0.1:8080 unchanged.
-sudo tailscale serve --bg --yes --set-path=/suricata http://127.0.0.1:5636
+# Route EveBox through Nginx so the exact /suricata request can be redirected
+# before the relative web assets are loaded. Tailscale keeps only its existing
+# root proxy to Nginx.
+sudo tailscale serve --yes --set-path=/suricata off || true
+sudo tailscale serve --yes --set-path=/suricata/ off || true
 
 DNS_NAME=$(tailscale status --self --json \
   | sed -n 's/.*"DNSName":[[:space:]]*"\([^"]*\)".*/\1/p' \
   | head -n 1 \
   | sed 's/\.$//')
 
-curl --fail --silent --show-error "https://$DNS_NAME/suricata/" >/dev/null
 sudo nginx -t
+sudo systemctl reload nginx
 sudo systemctl is-active --quiet nginx
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' "https://$DNS_NAME/suricata")" = 308
+curl --fail --silent --show-error "https://$DNS_NAME/suricata/" >/dev/null
 
 printf 'EveBox URL: https://%s/suricata/\n' "$DNS_NAME"
 printf '%s\n' 'Initial credentials: sudo journalctl -u luck-evebox | grep "Created administrator"'
