@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -129,6 +129,8 @@ def login(payload: LoginIn, session: Session = Depends(get_session)) -> AuthOut:
             user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
             if user.failed_login_attempts >= settings.auth_max_failed_attempts:
                 user.locked_until = now + timedelta(minutes=settings.auth_lockout_minutes)
+                # 잠긴 계정은 이미 발급된 세션으로도 접근하지 못하게 즉시 폐기한다.
+                session.execute(delete(AuthSession).where(AuthSession.user_id == user.id))
                 session.commit()
                 raise locked_error(user.locked_until, now)
             session.commit()

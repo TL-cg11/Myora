@@ -70,7 +70,7 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(wrong.status_code, 401)
 
     def test_five_consecutive_failures_lock_account_for_one_hour(self):
-        self.register()
+        registered = self.register()
         for attempt in range(1, 6):
             response = self.client.post(
                 "/api/auth/login",
@@ -83,6 +83,13 @@ class AuthTests(unittest.TestCase):
         )
         self.assertEqual(locked.status_code, 429)
         self.assertGreaterEqual(int(locked.headers["Retry-After"]), 3500)
+        existing_session = self.client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {registered['access_token']}"},
+        )
+        self.assertEqual(existing_session.status_code, 401)
+        with Session(self.engine) as session:
+            self.assertEqual(session.query(AuthSession).count(), 0)
 
     def test_success_resets_failures_and_session_expires_in_one_hour(self):
         self.register()
