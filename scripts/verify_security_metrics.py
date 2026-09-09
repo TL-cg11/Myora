@@ -29,8 +29,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     targets = args.metrics_target or [
-        "http://100.66.77.55:9108",
-        "http://100.66.77.55:9109",
+        "http://100.117.253.9:9108",
+        "http://100.117.253.9:9109",
     ]
     result = verify_metrics_runtime(args.prometheus_url, targets)
     print(

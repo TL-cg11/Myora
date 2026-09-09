@@ -138,8 +138,8 @@ class MetricsRuntimeVerificationTests(unittest.TestCase):
         targets = (root / "observability/prometheus/kafka-consumer-targets.yml").read_text()
         service = (root / "observability/systemd/prometheus.service").read_text()
         self.assertIn("file_sd_configs", prometheus)
-        self.assertIn("100.66.77.55:9108", targets)
-        self.assertIn("100.66.77.55:9109", targets)
+        self.assertIn("100.117.253.9:9108", targets)
+        self.assertIn("100.117.253.9:9109", targets)
         self.assertIn("--storage.tsdb.retention.time=30d", service)
 
 
