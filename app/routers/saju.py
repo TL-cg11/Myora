@@ -3,14 +3,15 @@ from importlib.metadata import version
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.auth import optional_user
 from app.db import get_session
-from app.models import Reading, SajuChart, SajuReading
+from app.models import AppUser, Reading, SajuChart, SajuReading
 from app.services.saju_dictionary import MissingSajuTerm, lookup_saju_meanings
 from app.services.saju_narrative import compose_saju_narrative
 
@@ -30,7 +31,11 @@ def _gender(value: str | None) -> str:
 
 
 @router.post("/readings")
-def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(get_session)) -> dict:
+def create_saju_reading(
+    payload: SajuProfileRequest,
+    session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
+) -> dict:
     try:
         from korean_saju import Saju, SajuAnalysis, load_bundled_data
     except ImportError as exc:
@@ -80,8 +85,9 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
 
         reading = Reading(
             service="saju",
-            guest_key=str(payload.guest_key),
-            summary_title="Saju calculation result",
+            user_id=user.id if user else None,
+            guest_key=None if user else str(payload.guest_key),
+            summary_title=interpretation['narrative']['title'],
             summary_text=str(saju),
             interpretation_source="rule",
             status="interpreted",
@@ -113,3 +119,30 @@ def create_saju_reading(payload: SajuProfileRequest, session: Session = Depends(
             "interpretation": interpretation,
         },
     }
+
+
+@router.get("/readings")
+def list_saju_readings(
+    guest_key: UUID,
+    limit: int = Query(default=12, ge=1, le=50),
+    session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
+) -> list[dict]:
+    rows = session.scalars(
+        select(Reading)
+        .where(
+            Reading.service == "saju",
+            Reading.user_id == user.id if user else Reading.guest_key == str(guest_key),
+        )
+        .order_by(Reading.created_at.desc(), Reading.id.desc())
+        .limit(limit)
+    )
+    return [
+        {
+            "id": row.id,
+            "summary_title": row.summary_title,
+            "summary_text": row.summary_text,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]

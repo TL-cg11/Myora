@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import SajuChat from './SajuChat.jsx';
-import { getGuestKey } from '../../lib/api.js';
+import { createSajuReading } from '../../lib/api.js';
 import SajuMeaning from './SajuMeaning.jsx';
 
 export default function SajuPage() {
@@ -30,30 +30,12 @@ export default function SajuPage() {
     }
     setLoading(true); setError(''); setResult(null);
     try {
-      const response = await fetch('/api/saju/readings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name.trim() || null,
-          birth_date: form.birth_date,
-          birth_time: form.birth_time || null,
-          gender: form.gender || null,
-          guest_key: getGuestKey(),
-        }),
+      const data = await createSajuReading({
+        name: form.name,
+        birthDate: form.birth_date,
+        birthTime: form.birth_time,
+        gender: form.gender,
       });
-      const body = await response.text();
-      let data;
-      try {
-        data = body ? JSON.parse(body) : {};
-      } catch {
-        throw new Error(`서버 오류 (${response.status})`);
-      }
-      if (!response.ok) {
-        const detail = typeof data.detail === 'string'
-          ? data.detail
-          : Array.isArray(data.detail) ? data.detail.map((item) => item.msg).join(' ') : `서버 오류 (${response.status})`;
-        throw new Error(detail);
-      }
       setResult(data.reading);
     } catch (caught) {
       setError(caught.message);

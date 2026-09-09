@@ -83,7 +83,7 @@ class SajuDictionaryTests(unittest.TestCase):
             self.assertEqual(session.get(Reading, body['reading_id']).summary_text, body['reading']['pillars'])
             self.assertIsNotNone(session.get(SajuReading, body['reading_id']))
         self.assertNotIn('interpretation_ko', SajuReading.__table__.c)
-        self.assertEqual(self.client.get('/api/saju/readings', params={'guest_key':self.payload['guest_key']}).status_code, 405)
+        self.assertEqual(self.client.get('/api/saju/readings', params={'guest_key':self.payload['guest_key']}).status_code, 200)
 
     def test_multiple_birth_dates_use_registered_terms(self):
         for birth_date, birth_time in [('1800-01-01',None),('2100-12-31','23:30'),('2000-02-29','00:00'),('1988-08-08','08:00')]:

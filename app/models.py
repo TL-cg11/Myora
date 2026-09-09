@@ -79,6 +79,33 @@ class ReadingStatus(str, enum.Enum):
     failed = "failed"
 
 
+class AppUser(Base):
+    __tablename__ = "app_user"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    username: Mapped[str] = mapped_column(String(40), unique=True)
+    name: Mapped[str] = mapped_column(String(40))
+    email: Mapped[str] = mapped_column(String(190), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(12), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_session"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("app_user.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped[AppUser] = relationship(lazy="joined")
+
+
 class ChatRole(str, enum.Enum):
     system = "system"
     user = "user"

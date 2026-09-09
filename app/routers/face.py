@@ -10,7 +10,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import FaceReading, FaceShape, Reading
+from app.auth import optional_user
+from app.models import AppUser, FaceReading, FaceShape, Reading
 from app.schemas import FaceReadingCreate, FaceReadingOut
 from app.services import face as service
 
@@ -40,10 +41,14 @@ def _to_out(
     "/readings", response_model=FaceReadingOut, status_code=status.HTTP_201_CREATED
 )
 def create_face_reading(
-    payload: FaceReadingCreate, session: Session = Depends(get_session)
+    payload: FaceReadingCreate,
+    session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> FaceReadingOut:
     try:
-        reading, shape, keywords = service.save_face_reading(session, payload)
+        reading, shape, keywords = service.save_face_reading(
+            session, payload, user_id=user.id if user else None
+        )
     except ValueError as exc:
         session.rollback()
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -63,10 +68,11 @@ def get_face_readings(
     guest_key: UUID,
     limit: int = Query(default=12, ge=1, le=50),
     session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> list[FaceReadingOut]:
     return [
         _to_out(reading, detail, shape)
         for reading, detail, shape in service.list_face_readings(
-            session, guest_key=str(guest_key), limit=limit
+            session, guest_key=str(guest_key), user_id=user.id if user else None, limit=limit
         )
     ]

@@ -11,9 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
+from app.auth import optional_user
 from app.db import get_session
 from app.models import (
     ChatRole,
+    AppUser,
     InterpretationSource,
     Orientation,
     TarotChatMessage,
@@ -51,7 +53,7 @@ def _ieyo(word: str) -> str:
     return f"{word}이에요" if _has_batchim(word) else f"{word}예요"
 
 
-def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotReading:
+def _load_reading(session: Session, reading_id: int, guest_key: UUID, user: AppUser | None = None) -> TarotReading:
     """guest_key가 맞는 리딩만 내준다. 없거나 남의 것이면 똑같이 404."""
     reading = session.scalar(
         select(TarotReading)
@@ -60,7 +62,10 @@ def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotRe
             selectinload(TarotReading.messages),
             selectinload(TarotReading.spread),
         )
-        .where(TarotReading.id == reading_id, TarotReading.guest_key == str(guest_key))
+        .where(
+            TarotReading.id == reading_id,
+            TarotReading.user_id == user.id if user else TarotReading.guest_key == str(guest_key),
+        )
     )
     if reading is None:
         raise HTTPException(status_code=404, detail="리딩을 찾을 수 없어요.")
@@ -180,8 +185,9 @@ async def create_chat_message(
     guest_key: UUID,
     payload: ChatCreate,
     session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> ChatOut:
-    reading = _load_reading(session, reading_id, guest_key)
+    reading = _load_reading(session, reading_id, guest_key, user)
     asked = sum(message.role is ChatRole.user for message in reading.messages)
     if asked >= settings.chat_question_limit:
         raise HTTPException(
