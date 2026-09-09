@@ -1,13 +1,30 @@
 {
   "schema_version": "1.0",
-  "timestamp": "2026-09-08T04:20:01Z",
-  "source": "was",
-  "service": "tarot",
-  "event_type": "ai_request",
+  "event_id": "4ea82c0c-a782-464a-b415-31ee78cb0ec0",
   "request_id": "efa41bc3638fccc4608bfba32bf456c1",
+  "ai_call_id": "29376ea7-0745-4a92-95ab-f18ac3952964",
+  "timestamp": "2026-09-09T02:10:00Z",
+  "environment": "production",
+  "severity": "INFO",
+  "source": "was",
+  "service": "luck-was",
+  "feature": "tarot",
+  "event_type": "ai_request",
   "user_id": null,
   "guest_key": "3889ff5a-cadb-4c20-8759-083cac443121",
-  "input": {"prompt": "사용자가 입력한 프롬프트 원문"},
-  "ai": {"provider": "deepseek", "model": "deepseek-chat", "latency": null},
-  "metadata": {"content_length": 39}
+  "ai": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "timeout_seconds": 20
+  },
+  "input": {
+    "question": "제 연애운이 어떻게 될까요?"
+  },
+  "metadata": {
+    "reading_id": 4821,
+    "question_sequence": 2,
+    "message_count": 4,
+    "context_length": 1240,
+    "prompt_length": 17
+  }
 }

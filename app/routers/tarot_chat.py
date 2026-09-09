@@ -23,6 +23,7 @@ from app.models import (
     Topic,
 )
 from app.prompts.tarot import SYSTEM_PROMPT
+from app.kafka_logging import emit_ai_request_log
 from app.schemas import ChatCreate, ChatOut
 
 router = APIRouter(prefix="/api/tarot", tags=["tarot-chat"])
@@ -200,6 +201,17 @@ async def create_chat_message(
     answer = _rule_answer(reading, payload.message)
     if settings.tarot_llm_enabled:
         try:
+            emit_ai_request_log(
+                feature="tarot",
+                question=payload.message,
+                model=settings.deepseek_tarot_model,
+                timeout_seconds=settings.llm_timeout,
+                guest_key=guest_key,
+                reading_id=reading_id,
+                question_sequence=asked + 1,
+                message_count=len(_deepseek_messages(reading)),
+                context_length=len(_reading_context(reading)),
+            )
             answer = await _deepseek_answer(reading)
             source = InterpretationSource.llm
         except RuntimeError:

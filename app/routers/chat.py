@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.config import settings
 from app.prompts import FACE_PERSONA
+from app.kafka_logging import emit_ai_request_log
 
 
 router = APIRouter(prefix="/api", tags=["chat"])
@@ -66,6 +67,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
         "Content-Type": "application/json",
     }
     endpoint = f"{settings.deepseek_base_url.rstrip('/')}/chat/completions"
+    user_messages = [message.content for message in request.messages if message.role == "user"]
+    question = user_messages[-1] if user_messages else ""
+    emit_ai_request_log(
+        feature="face",
+        question=question,
+        model=settings.deepseek_face_model,
+        timeout_seconds=45.0,
+        question_sequence=len(user_messages),
+        message_count=len(payload["messages"]),
+        context_length=len(request.context),
+    )
 
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as client:

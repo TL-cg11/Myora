@@ -16,6 +16,7 @@ from app.routers.security_audit import router as security_audit_router
 from app.routers.security_events import router as security_events_router
 from app.routers.tarot import router as tarot_router
 from app.routers.tarot_chat import router as tarot_chat_router
+from app.kafka_logging import api_request_log_middleware, flush_was_logs
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 app.add_middleware(
@@ -24,6 +25,12 @@ app.add_middleware(
         parse_token_hashes(settings.security_auth_token_hashes), find_security_user
     ),
 )
+app.middleware("http")(api_request_log_middleware)
+
+
+@app.on_event("shutdown")
+def shutdown_was_log_producer() -> None:
+    flush_was_logs()
 
 
 @app.get("/health")
