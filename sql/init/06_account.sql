@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS app_user (
     password_hash VARCHAR(255) NOT NULL,
     nickname      VARCHAR(40)  NULL COMMENT '이전 스키마 호환용. 신규 앱은 name 사용',
     status        ENUM('active','dormant','withdrawn') NOT NULL DEFAULT 'active',
+    failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    locked_until  DATETIME NULL,
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_app_user_username (username),
@@ -25,7 +27,9 @@ CREATE TABLE IF NOT EXISTS app_user (
 -- 로그인 기능 전의 app_user가 이미 있는 서버도 install.sh 재실행으로 안전하게 보강한다.
 ALTER TABLE app_user
     ADD COLUMN IF NOT EXISTS username VARCHAR(40) NULL AFTER id,
-    ADD COLUMN IF NOT EXISTS name VARCHAR(40) NULL AFTER username;
+    ADD COLUMN IF NOT EXISTS name VARCHAR(40) NULL AFTER username,
+    ADD COLUMN IF NOT EXISTS failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
+    ADD COLUMN IF NOT EXISTS locked_until DATETIME NULL AFTER failed_login_attempts;
 UPDATE app_user SET name = COALESCE(NULLIF(name, ''), nickname, '묘한 사용자') WHERE name IS NULL OR name = '';
 UPDATE app_user SET username = CONCAT('legacy_', id) WHERE username IS NULL OR username = '';
 UPDATE app_user SET password_hash = '!disabled!' WHERE password_hash IS NULL OR password_hash = '';
