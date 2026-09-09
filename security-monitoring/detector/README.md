@@ -79,6 +79,7 @@ else:
 | `adapter/pipeline.py` | 메시지 한 건의 순수 처리 경로 |
 | `adapter/kafka_runner.py` | 소비·발행·offset commit 순서 |
 | `adapter/__main__.py` | Kafka 어댑터 실행기 |
+| `scripts/install-adapter.sh` | 어댑터 systemd 서비스 설치 |
 | `contracts/v1/` | B 구현 기준 JSON Schema 초안 |
 | `contracts/consumer/` | C가 소비하는 계약 사본 |
 | `tests/fixtures/` | 정답을 포함한 43건 합성 fixture와 JSONL 입력 |
