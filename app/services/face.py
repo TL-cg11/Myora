@@ -117,7 +117,7 @@ def compose_face_reading(
 
 
 def save_face_reading(
-    session: Session, payload: FaceReadingCreate
+    session: Session, payload: FaceReadingCreate, user_id: int | None = None
 ) -> tuple[Reading, FaceShape, list[str]]:
     shape_code = classify_face_shape(payload.measurements)
     shape = session.scalar(
@@ -138,7 +138,8 @@ def save_face_reading(
 
     reading = Reading(
         service="face",
-        guest_key=str(payload.guest_key),
+        user_id=user_id,
+        guest_key=None if user_id else str(payload.guest_key),
         summary_title=title,
         summary_text=result,
         interpretation_source="rule",
@@ -171,13 +172,16 @@ def save_face_reading(
 
 
 def list_face_readings(
-    session: Session, *, guest_key: str, limit: int
+    session: Session, *, guest_key: str, user_id: int | None, limit: int
 ) -> list[tuple[Reading, FaceReading, FaceShape]]:
     statement = (
         select(Reading, FaceReading, FaceShape)
         .join(FaceReading, FaceReading.reading_id == Reading.id)
         .join(FaceShape, FaceShape.id == FaceReading.shape_id)
-        .where(Reading.service == "face", Reading.guest_key == guest_key)
+        .where(
+            Reading.service == "face",
+            Reading.user_id == user_id if user_id else Reading.guest_key == guest_key,
+        )
         .order_by(Reading.created_at.desc(), Reading.id.desc())
         .limit(limit)
     )

@@ -10,7 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import get_session
+from app.auth import optional_user
 from app.models import (
+    AppUser,
     ChatRole,
     InterpretationSource,
     Orientation,
@@ -83,6 +85,7 @@ def draw_reading(
     *,
     spread: TarotSpread,
     guest_key: str,
+    user_id: int | None,
     topic: Topic,
     question: str | None,
 ) -> TarotReading:
@@ -94,7 +97,8 @@ def draw_reading(
         )
 
     reading = TarotReading(
-        guest_key=guest_key,
+        user_id=user_id,
+        guest_key=None if user_id else guest_key,
         spread_id=spread.id,
         topic=topic,
         question=question,
@@ -133,7 +137,7 @@ def draw_reading(
     return reading
 
 
-def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotReading:
+def _load_reading(session: Session, reading_id: int, guest_key: UUID, user: AppUser | None = None) -> TarotReading:
     """guest_key가 맞는 리딩만 내준다. 없거나 남의 것이면 똑같이 404."""
     reading = session.scalar(
         select(TarotReading)
@@ -142,7 +146,10 @@ def _load_reading(session: Session, reading_id: int, guest_key: UUID) -> TarotRe
             selectinload(TarotReading.messages),
             selectinload(TarotReading.spread),
         )
-        .where(TarotReading.id == reading_id, TarotReading.guest_key == str(guest_key))
+        .where(
+            TarotReading.id == reading_id,
+            TarotReading.user_id == user.id if user else TarotReading.guest_key == str(guest_key),
+        )
     )
     if reading is None:
         raise HTTPException(status_code=404, detail="리딩을 찾을 수 없어요.")
@@ -203,7 +210,9 @@ def list_cards(session: Session = Depends(get_session)) -> list[CardOut]:
 
 @router.post("/readings", response_model=ReadingOut, status_code=status.HTTP_201_CREATED)
 def create_reading(
-    payload: ReadingCreate, session: Session = Depends(get_session)
+    payload: ReadingCreate,
+    session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> ReadingOut:
     spread = get_spread(session, payload.spread_code)
     if spread is None:
@@ -214,6 +223,7 @@ def create_reading(
             session,
             spread=spread,
             guest_key=str(payload.guest_key),
+            user_id=user.id if user else None,
             topic=payload.topic,
             question=payload.question,
         )
@@ -228,11 +238,12 @@ def list_readings(
     guest_key: UUID,
     limit: int = Query(default=HISTORY_LIMIT, ge=1, le=50),
     session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> list[ReadingSummaryOut]:
     readings = session.scalars(
         select(TarotReading)
         .options(selectinload(TarotReading.cards), selectinload(TarotReading.spread))
-        .where(TarotReading.guest_key == str(guest_key))
+        .where(TarotReading.user_id == user.id if user else TarotReading.guest_key == str(guest_key))
         .order_by(TarotReading.created_at.desc(), TarotReading.id.desc())
         .limit(limit)
     )
@@ -251,6 +262,9 @@ def list_readings(
 
 @router.get("/readings/{reading_id}", response_model=ReadingOut)
 def get_reading(
-    reading_id: int, guest_key: UUID, session: Session = Depends(get_session)
+    reading_id: int,
+    guest_key: UUID,
+    session: Session = Depends(get_session),
+    user: AppUser | None = Depends(optional_user),
 ) -> ReadingOut:
-    return _to_reading_out(_load_reading(session, reading_id, guest_key))
+    return _to_reading_out(_load_reading(session, reading_id, guest_key, user))

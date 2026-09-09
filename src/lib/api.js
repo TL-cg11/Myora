@@ -1,6 +1,18 @@
 /** 타로 API 클라이언트와 비회원 식별자 관리. */
 
 const GUEST_KEY_STORAGE = 'myohan-guest-key';
+const AUTH_TOKEN_STORAGE = 'myohan-auth-token';
+
+export const getAuthToken = () => {
+  try { return localStorage.getItem(AUTH_TOKEN_STORAGE); } catch { return null; }
+};
+
+export const setAuthToken = (token) => {
+  try {
+    if (token) localStorage.setItem(AUTH_TOKEN_STORAGE, token);
+    else localStorage.removeItem(AUTH_TOKEN_STORAGE);
+  } catch { /* 저장소가 막히면 현재 페이지에서만 인증할 수 있다. */ }
+};
 
 /** crypto.randomUUID 는 보안 컨텍스트(https/localhost)에서만 있다.
  *  사내 IP 에 http 로 접속하면 없으므로 직접 만든다. */
@@ -47,19 +59,28 @@ async function readError(response) {
     : '요청을 처리하지 못했어요.';
 }
 
-async function request(basePath, path, { method = 'GET', body } = {}) {
+export async function request(basePath, path, { method = 'GET', body } = {}) {
   let response;
   try {
     response = await fetch(`${basePath}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new Error('네트워크에 연결할 수 없어요. 연결 상태를 확인해 주세요.');
   }
-  if (!response.ok) throw new Error(await readError(response));
-  return response.json();
+  if (!response.ok) {
+    if (response.status === 401 && getAuthToken()) {
+      setAuthToken(null);
+      globalThis.dispatchEvent?.(new Event('myohan-auth-expired'));
+    }
+    throw new Error(await readError(response));
+  }
+  return response.status === 204 ? null : response.json();
 }
 
 const tarotRequest = (path, options) => request('/api/tarot', path, options);
@@ -113,3 +134,31 @@ export const storeFaceReading = ({ mood, measurements, detectorVersion }) =>
 
 export const listFaceReadings = (limit = 12) =>
   faceRequest(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+
+export const listSajuReadings = (limit = 12) =>
+  request('/api/saju', `/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+
+export const createSajuReading = ({ name, birthDate, birthTime, gender }) =>
+  request('/api/saju', '/readings', {
+    method: 'POST',
+    body: {
+      name: name?.trim() || null,
+      birth_date: birthDate,
+      birth_time: birthTime || null,
+      gender: gender || null,
+      guest_key: getGuestKey(),
+    },
+  });
+
+export const registerAccount = ({ username, name, password, email }) =>
+  request('/api/auth', '/register', {
+    method: 'POST', body: { username, name, password, email, guest_key: getGuestKey() },
+  });
+
+export const loginAccount = ({ loginId, password }) =>
+  request('/api/auth', '/login', {
+    method: 'POST', body: { login_id: loginId, password, guest_key: getGuestKey() },
+  });
+
+export const getMe = () => request('/api/auth', '/me');
+export const logoutAccount = () => request('/api/auth', '/logout', { method: 'POST' });
