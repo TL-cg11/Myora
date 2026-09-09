@@ -88,6 +88,8 @@ class AppUser(Base):
     email: Mapped[str] = mapped_column(String(190), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(12), default="active")
+    failed_login_attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

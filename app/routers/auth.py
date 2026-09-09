@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from math import ceil
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
@@ -9,7 +10,8 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import bearer_token, create_session, current_user, hash_password, token_digest, verify_password
+from app.auth import bearer_token, create_session, current_user, hash_password, token_digest, utc_now, verify_password
+from app.config import settings
 from app.db import get_session
 from app.models import AppUser, AuthSession, Reading, TarotReading
 
@@ -77,6 +79,15 @@ def claim_guest_readings(session: Session, user: AppUser, guest_key: UUID | None
         )
 
 
+def locked_error(locked_until: datetime, now: datetime) -> HTTPException:
+    retry_after = max(1, ceil((locked_until - now).total_seconds()))
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="로그인에 여러 번 실패해 계정이 1시간 동안 잠겼어요. 잠시 후 다시 시도해 주세요.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 @router.post("/register", response_model=AuthOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterIn, session: Session = Depends(get_session)) -> AuthOut:
     email = payload.email
@@ -104,9 +115,27 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)) -> Au
 @router.post("/login", response_model=AuthOut)
 def login(payload: LoginIn, session: Session = Depends(get_session)) -> AuthOut:
     login_id = payload.login_id.strip().lower()
-    user = session.scalar(select(AppUser).where(or_(AppUser.username == login_id, AppUser.email == login_id)))
+    user = session.scalar(
+        select(AppUser)
+        .where(or_(AppUser.username == login_id, AppUser.email == login_id))
+        .with_for_update()
+    )
+    now = utc_now()
+    if user is not None and user.locked_until is not None and user.locked_until > now:
+        raise locked_error(user.locked_until, now)
+
     if user is None or user.status != "active" or not verify_password(payload.password, user.password_hash):
+        if user is not None and user.status == "active":
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= settings.auth_max_failed_attempts:
+                user.locked_until = now + timedelta(minutes=settings.auth_lockout_minutes)
+                session.commit()
+                raise locked_error(user.locked_until, now)
+            session.commit()
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않아요.")
+
+    user.failed_login_attempts = 0
+    user.locked_until = None
     claim_guest_readings(session, user, payload.guest_key)
     session.commit()
     token, expires_at = create_session(session, user)
