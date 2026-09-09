@@ -62,7 +62,8 @@ EveBox reads the raw EVE stream with its embedded SQLite store. Install it with:
 bash scripts/install-evebox.sh
 ```
 
-Tailscale Serve maps `/suricata` on the existing HTTPS address to EveBox while keeping
-the root Nginx handler unchanged. EveBox itself listens only on `127.0.0.1:5636`;
+Nginx proxies only `/suricata/` to EveBox and redirects the exact `/suricata` path so
+relative web assets load correctly. EveBox itself listens only on `127.0.0.1:5636`;
 authentication remains enabled, and its first-start administrator password is recorded
-in the `luck-evebox` service log.
+in the `luck-evebox` service log. All existing application paths keep their original
+proxy behavior.
