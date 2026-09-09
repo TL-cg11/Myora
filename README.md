@@ -53,7 +53,7 @@ sudo systemctl status mariadb --no-pager
 | `03_tarot_seed.sql` | 스프레드 3종 + 메이저 아르카나 22장 |
 | `04_tarot_meaning_seed.sql` | 주제별 해석 176행 (22장 x 4주제 x 2방향) |
 | `05_chat_source.sql` | `tarot_chat_message.source` — 답변이 규칙 기반인지 LLM인지 |
-| `06_account.sql` | `app_user`, `birth_profile` — 회원 계정과 생년월일 프로필 (로그인은 아직 없음) |
+| `06_account.sql` | `app_user`, `auth_session`, `birth_profile` — 회원 계정·로그인 세션·생년월일 프로필 |
 | `07_reading.sql` | `reading`, `chat_message` — 사주/관상/타로가 공유할 리딩 뼈대 (앱은 아직 안 씀) |
 | `08_saju.sql` | `saju_chart`, `saju_reading` — 사주 계산 결과 저장용 (앱은 아직 안 씀) |
 | `09_face.sql` | `face_shape`, `face_reading` — 관상 인상 유형과 리딩 상세 (앱은 아직 안 씀) |
@@ -90,11 +90,10 @@ sudo systemctl status mariadb --no-pager
 
 ### 회원 연결
 
-`app_user`는 이제 있지만(`06_account.sql`), `tarot_reading.user_id`는 아직 그것을 참조하지 않습니다. 지금 인증이 없어서 `user_id`가 실제로 채워질 일이 없고, 채워지지 않는 FK를 미리 걸어봐야 의미가 없기 때문입니다. 비회원은 클라이언트가 보관하는 UUID를 `guest_key`에 넣으며, `user_id`/`guest_key` 중 하나는 반드시 있어야 합니다(`ck_tarot_reading_owner`). 로그인을 실제로 붙일 때 아래처럼 FK를 추가하면 됩니다.
+`app_user`와 `auth_session`이 회원 및 로그인 세션을 저장합니다. 비밀번호는 PBKDF2 해시만, 세션은 Bearer 토큰의 SHA-256 해시만 저장합니다. 비회원은 클라이언트가 보관하는 UUID를 `guest_key`에 넣으며 로그인·가입 시 해당 브라우저의 기존 리딩을 회원에게 귀속시킵니다. 기존 DB는 아래 마이그레이션을 한 번 적용합니다.
 
 ```sql
-ALTER TABLE tarot_reading
-  ADD CONSTRAINT fk_tarot_reading_user FOREIGN KEY (user_id) REFERENCES app_user (id);
+sudo mysql -uroot luck_db < sql/migrate/2026-09-09_user_auth.sql
 ```
 
 ### 사주 / 관상 / 리딩 공용 스키마
