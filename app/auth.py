@@ -13,10 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
+from app.config import settings
 from app.models import AppUser, AuthSession
 
 PBKDF2_ITERATIONS = 310_000
-SESSION_DAYS = 30
+
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def hash_password(password: str) -> str:
@@ -48,7 +51,7 @@ def token_digest(token: str) -> str:
 
 def create_session(session: Session, user: AppUser) -> tuple[str, datetime]:
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=SESSION_DAYS)
+    expires_at = utc_now() + timedelta(hours=settings.auth_session_hours)
     session.add(AuthSession(user_id=user.id, token_hash=token_digest(token), expires_at=expires_at))
     session.commit()
     return token, expires_at
@@ -71,7 +74,9 @@ def optional_user(
     auth_session = session.scalar(
         select(AuthSession).where(
             AuthSession.token_hash == token_digest(token),
-            AuthSession.expires_at > datetime.now(UTC).replace(tzinfo=None),
+            AuthSession.expires_at > utc_now(),
+            # 정책 변경 전에 길게 발급된 세션도 생성 시각 기준 1시간만 허용한다.
+            AuthSession.created_at > utc_now() - timedelta(hours=settings.auth_session_hours),
         )
     )
     if auth_session is None or auth_session.user.status != "active":

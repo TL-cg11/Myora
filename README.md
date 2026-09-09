@@ -71,7 +71,13 @@ npm run dev
 
 ```bash
 sudo mysql -uroot luck_db < sql/migrate/2026-09-09_user_auth.sql
+sudo mysql -uroot luck_db < sql/migrate/2026-09-09_auth_lockout.sql
 ```
+
+기본 인증 정책은 연속 5회 로그인 실패 시 60분 계정 잠금, 로그인 세션 1시간 만료입니다.
+`AUTH_MAX_FAILED_ATTEMPTS`, `AUTH_LOCKOUT_MINUTES`, `AUTH_SESSION_HOURS` 환경변수로
+운영 정책을 조정할 수 있습니다. 계정 잠금은 WAS가 처리하고, IP 단위 속도 제한·차단은
+Nginx 또는 Fail2ban/방화벽 계층에서 별도로 적용합니다.
 
 ## 사주 한자 뜻 사전
 

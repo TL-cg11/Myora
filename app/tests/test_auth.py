@@ -1,8 +1,9 @@
 import unittest
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -67,6 +68,57 @@ class AuthTests(unittest.TestCase):
             "/api/auth/login", json={"login_id": "myohan_user", "password": "wrong"}
         )
         self.assertEqual(wrong.status_code, 401)
+
+    def test_five_consecutive_failures_lock_account_for_one_hour(self):
+        self.register()
+        for attempt in range(1, 6):
+            response = self.client.post(
+                "/api/auth/login",
+                json={"login_id": "myohan_user", "password": "wrong-password"},
+            )
+            self.assertEqual(response.status_code, 429 if attempt == 5 else 401)
+        locked = self.client.post(
+            "/api/auth/login",
+            json={"login_id": "myohan_user", "password": "safe-password-123"},
+        )
+        self.assertEqual(locked.status_code, 429)
+        self.assertGreaterEqual(int(locked.headers["Retry-After"]), 3500)
+
+    def test_success_resets_failures_and_session_expires_in_one_hour(self):
+        self.register()
+        for _ in range(4):
+            self.client.post(
+                "/api/auth/login",
+                json={"login_id": "myohan_user", "password": "wrong-password"},
+            )
+        before = datetime.now(UTC).replace(tzinfo=None)
+        response = self.client.post(
+            "/api/auth/login",
+            json={"login_id": "myohan_user", "password": "safe-password-123"},
+        )
+        self.assertEqual(response.status_code, 200)
+        expires_at = datetime.fromisoformat(response.json()["expires_at"])
+        self.assertTrue(before + timedelta(minutes=59) <= expires_at <= before + timedelta(minutes=61))
+        with Session(self.engine) as session:
+            user = session.scalar(select(AppUser))
+            self.assertEqual(user.failed_login_attempts, 0)
+            self.assertIsNone(user.locked_until)
+
+    def test_server_rejects_session_older_than_one_hour(self):
+        result = self.register()
+        with Session(self.engine) as session:
+            session.execute(
+                update(AuthSession).values(
+                    created_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=2),
+                    expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
+                )
+            )
+            session.commit()
+        response = self.client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {result['access_token']}"},
+        )
+        self.assertEqual(response.status_code, 401)
 
     def test_guest_reading_is_claimed_and_other_user_cannot_list_it(self):
         guest_key = uuid4()
