@@ -10,14 +10,70 @@
 
 CREATE TABLE IF NOT EXISTS app_user (
     id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(40)  NOT NULL,
+    name          VARCHAR(40)  NOT NULL,
     email         VARCHAR(190) NOT NULL COMMENT 'utf8mb4 인덱스 키 길이 때문에 190자',
-    password_hash VARCHAR(255) NULL COMMENT '소셜 로그인만 쓰면 NULL',
-    nickname      VARCHAR(40)  NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    nickname      VARCHAR(40)  NULL COMMENT '이전 스키마 호환용. 신규 앱은 name 사용',
     status        ENUM('active','dormant','withdrawn') NOT NULL DEFAULT 'active',
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_app_user_username (username),
     UNIQUE KEY uk_app_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 로그인 기능 전의 app_user가 이미 있는 서버도 install.sh 재실행으로 안전하게 보강한다.
+ALTER TABLE app_user
+    ADD COLUMN IF NOT EXISTS username VARCHAR(40) NULL AFTER id,
+    ADD COLUMN IF NOT EXISTS name VARCHAR(40) NULL AFTER username;
+UPDATE app_user SET name = COALESCE(NULLIF(name, ''), nickname, '묘한 사용자') WHERE name IS NULL OR name = '';
+UPDATE app_user SET username = CONCAT('legacy_', id) WHERE username IS NULL OR username = '';
+UPDATE app_user SET password_hash = '!disabled!' WHERE password_hash IS NULL OR password_hash = '';
+ALTER TABLE app_user
+    MODIFY COLUMN username VARCHAR(40) NOT NULL,
+    MODIFY COLUMN name VARCHAR(40) NOT NULL,
+    MODIFY COLUMN password_hash VARCHAR(255) NOT NULL,
+    MODIFY COLUMN nickname VARCHAR(40) NULL;
+SET @has_username_index = (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_user'
+      AND INDEX_NAME = 'uk_app_user_username'
+);
+SET @add_username_index = IF(
+    @has_username_index = 0,
+    'ALTER TABLE app_user ADD UNIQUE KEY uk_app_user_username (username)',
+    'SELECT 1'
+);
+PREPARE add_username_index FROM @add_username_index;
+EXECUTE add_username_index;
+DEALLOCATE PREPARE add_username_index;
+
+CREATE TABLE IF NOT EXISTS auth_session (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id    BIGINT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL COMMENT 'Bearer 토큰 SHA-256. 원문 토큰은 저장하지 않음',
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_auth_session_token (token_hash),
+    KEY ix_auth_session_user (user_id),
+    CONSTRAINT fk_auth_session_user FOREIGN KEY (user_id)
+        REFERENCES app_user (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- tarot_reading은 02번에서 먼저 생성되므로 계정 테이블이 생긴 이 시점에 FK를 건다.
+SET @has_tarot_user_fk = (
+    SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'tarot_reading'
+      AND CONSTRAINT_NAME = 'fk_tarot_reading_user'
+);
+SET @add_tarot_user_fk = IF(
+    @has_tarot_user_fk = 0,
+    'ALTER TABLE tarot_reading ADD CONSTRAINT fk_tarot_reading_user FOREIGN KEY (user_id) REFERENCES app_user (id)',
+    'SELECT 1'
+);
+PREPARE add_tarot_user_fk FROM @add_tarot_user_fk;
+EXECUTE add_tarot_user_fk;
+DEALLOCATE PREPARE add_tarot_user_fk;
 
 CREATE TABLE IF NOT EXISTS birth_profile (
     id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
