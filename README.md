@@ -104,3 +104,10 @@ queue. Slack, SMTP, grouping, retry, deduplication, and native systemd setup are
 documented in [`docs/security-notifications.md`](docs/security-notifications.md).
 
 benchmark는 network I/O를 제외한 local core 회귀 검사입니다. 실제 DB·Loki latency, Kafka lag와 60초 운영 처리량은 서버 적용 후 별도로 검증해야 합니다.
+
+## Suricata IDS / DDoS 모니터링
+
+별도 탐지 전용 파이프라인은
+[`security-monitoring/README.md`](security-monitoring/README.md)를 참고하세요. Suricata
+커뮤니티 룰과 로컬 DDoS 임계치 룰을 사용하며, 분류 로그를 로컬 JSONL에 보존합니다.
+`/suricata`에서는 Tailscale HTTPS로 보호되는 EveBox 웹 콘솔로 이동합니다.
