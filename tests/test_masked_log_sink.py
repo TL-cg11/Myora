@@ -23,7 +23,7 @@ def fixture() -> dict:
 def metadata() -> KafkaMetadata:
     return KafkaMetadata(
         consumer_group="masked-log-sink",
-        topic="luck.masked-logs",
+        topic="myohan.masked-logs",
         partition=1,
         offset=19,
         key="raw_evt_fixture_0001",

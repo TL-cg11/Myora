@@ -30,7 +30,7 @@ class FakeMessage:
         return b"evt-1"
 
     def topic(self) -> str:
-        return "luck.security-events"
+        return "myohan.security-events"
 
     def partition(self) -> int:
         return 0

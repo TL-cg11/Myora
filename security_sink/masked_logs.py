@@ -1,4 +1,4 @@
-"""Push validated ``luck.masked-logs`` messages to Loki."""
+"""Push validated ``myohan.masked-logs`` messages to Loki."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from security_sink.common import (
 )
 
 
-TOPIC = "luck.masked-logs"
+TOPIC = "myohan.masked-logs"
 
 
 def _timestamp_ns(value: str) -> str:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the ``luck.masked-logs`` Kafka-to-Loki worker."""
+"""Run the ``myohan.masked-logs`` Kafka-to-Loki worker."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import Any
 from security_sink.common import KafkaMetadata
 from security_sink.kafka_loop import KafkaSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
-from security_sink.masked_logs import ConsumptionRepository, LokiClient, MaskedLogSink
+from security_sink.masked_logs import TOPIC, ConsumptionRepository, LokiClient, MaskedLogSink
 from security_sink.resilience import (
     DlqPublisher,
     FailureRepository,
@@ -104,7 +104,7 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    consumer.subscribe(["luck.masked-logs"])
+    consumer.subscribe([TOPIC])
 
     def replay_buffer() -> None:
         nonlocal next_replay
@@ -162,7 +162,7 @@ def main() -> int:
             on_processed=processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__
-            ) or metrics.record_failure("luck.masked-logs", "broker_poll"),
+            ) or metrics.record_failure(TOPIC, "broker_poll"),
         ).run()
     finally:
         consumer.close()

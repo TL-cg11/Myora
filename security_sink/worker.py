@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the ``luck.security-events`` Kafka-to-MariaDB worker."""
+"""Run the ``myohan.security-events`` Kafka-to-MariaDB worker."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from security_sink.resilience import (
     TerminalConsumptionRepository,
 )
 from security_sink.runtime import kafka_config, kafka_producer_config, mysql_connection
-from security_sink.security_events import SecurityEventRepository, SecurityEventSink
+from security_sink.security_events import TOPIC, SecurityEventRepository, SecurityEventSink
 
 
 LOGGER = logging.getLogger("security-event-sink")
@@ -80,7 +80,7 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    consumer.subscribe(["luck.security-events"])
+    consumer.subscribe([TOPIC])
 
     def process(raw_value: bytes, metadata: KafkaMetadata):
         started = time.monotonic()
@@ -117,7 +117,7 @@ def main() -> int:
             on_processed=processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__
-            ) or metrics.record_failure("luck.security-events", "broker_poll"),
+            ) or metrics.record_failure(TOPIC, "broker_poll"),
         ).run()
     finally:
         consumer.close()

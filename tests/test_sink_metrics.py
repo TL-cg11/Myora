@@ -11,7 +11,7 @@ from security_sink.retention import RETENTION_QUERIES, RetentionVerification
 
 
 class FakeMessage:
-    def topic(self): return "luck.security-events"
+    def topic(self): return "myohan.security-events"
     def partition(self): return 2
     def offset(self): return 90
     def timestamp(self): return (1, 1_788_799_999_000)
@@ -26,11 +26,11 @@ class FakeConsumer:
 class SinkMetricsTests(unittest.TestCase):
     def test_render_contains_result_failure_retry_dlq_latency_and_lag(self) -> None:
         metrics = SinkMetrics("security-event-sink")
-        metrics.record_message("luck.security-events", "processed", 0.2)
-        metrics.record_failure("luck.security-events", "database")
-        metrics.record_retry("luck.security-events", "database")
-        metrics.record_dlq("luck.security-events", "schema_validation")
-        metrics.set_partition_lag("luck.security-events", 2, 9, 1.5)
+        metrics.record_message("myohan.security-events", "processed", 0.2)
+        metrics.record_failure("myohan.security-events", "database")
+        metrics.record_retry("myohan.security-events", "database")
+        metrics.record_dlq("myohan.security-events", "schema_validation")
+        metrics.set_partition_lag("myohan.security-events", 2, 9, 1.5)
 
         rendered = metrics.render().decode()
 
@@ -49,7 +49,7 @@ class SinkMetricsTests(unittest.TestCase):
 
     def test_metrics_http_server_exposes_only_metrics(self) -> None:
         metrics = SinkMetrics("masked-log-sink")
-        metrics.record_message("luck.masked-logs", "processed", 0.01)
+        metrics.record_message("myohan.masked-logs", "processed", 0.01)
         server = MetricsServer(metrics, "127.0.0.1", 0)
         server.start()
         try:
