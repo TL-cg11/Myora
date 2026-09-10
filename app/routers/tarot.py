@@ -5,12 +5,17 @@ from __future__ import annotations
 import secrets
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.prompts.guardrail import POLICY_VERSION
-from app.services.guardrail import contains_direct_identifier
+from app.services.guardrail import (
+    CRISIS,
+    RESTRICT,
+    contains_direct_identifier,
+    screen_question,
+)
 from app.db import get_session
 from app.auth import optional_user
 from app.models import (
@@ -32,6 +37,7 @@ from app.schemas import (
     ReadingCardOut,
     ReadingCreate,
     ReadingOut,
+    QuestionCheck,
     ReadingSummaryOut,
     SpreadOut,
 )
@@ -208,6 +214,32 @@ def list_cards(session: Session = Depends(get_session)) -> list[CardOut]:
         select(TarotCard).where(TarotCard.is_active.is_(True)).order_by(TarotCard.id)
     )
     return [CardOut.model_validate(card) for card in cards]
+
+
+IDENTIFIER_NOTICE = "질문에 이메일·전화번호·주민등록번호·링크는 빼고 적어주세요."
+
+
+@router.post("/questions/check")
+async def check_question(payload: QuestionCheck) -> Response:
+    """카드를 뽑기 전에 최초 질문을 검사한다. 통과하면 204, 아니면 사유를 알려 준다."""
+    question = payload.question.strip()
+    if not question:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if contains_direct_identifier(question):
+        raise HTTPException(status_code=400, detail=IDENTIFIER_NOTICE)
+
+    decision = await screen_question("tarot", question)
+    if decision is None:
+        raise HTTPException(
+            status_code=503,
+            detail="지금은 질문을 확인하지 못했어요. 잠시 후 다시 시도하거나 질문 없이 진행해 주세요.",
+        )
+    # 카드도 이력도 없는 시점이라 out_of_scope는 판단 근거가 없다. 유해 판정만 막는다.
+    if decision.decision == "crisis":
+        raise HTTPException(status_code=400, detail=CRISIS[decision.crisis_kind])
+    if decision.decision == "restrict":
+        raise HTTPException(status_code=400, detail=RESTRICT)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/readings", response_model=ReadingOut, status_code=status.HTTP_201_CREATED)

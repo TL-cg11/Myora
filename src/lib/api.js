@@ -91,6 +91,9 @@ const faceRequest = (path, options) => request('/api/face', path, options);
 
 export const listSpreads = () => tarotRequest('/spreads');
 
+export const checkQuestion = (question) =>
+  tarotRequest('/questions/check', { method: 'POST', body: { question } });
+
 export const createReading = ({ spreadCode, topic, question }) =>
   tarotRequest('/readings', {
     method: 'POST',

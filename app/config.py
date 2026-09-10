@@ -57,7 +57,10 @@ class Settings:
     deepseek_face_model: str = os.getenv("DEEPSEEK_FACE_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
     ai_request_timeout: float = float(os.getenv("AI_REQUEST_TIMEOUT", os.getenv("LLM_TIMEOUT", "20")))
     ai_connect_timeout: float = float(os.getenv("AI_CONNECT_TIMEOUT", "5"))
-    ai_total_timeout: float = float(os.getenv("AI_TOTAL_TIMEOUT", "25"))
+    # 검사 호출은 JSON 판정만 받으므로 생성보다 짧게 잡는다. 정상 상담은 검사 2회와
+    # 생성 1회를 순차로 하므로 전체 제한은 그 합보다 커야 한다(__post_init__에서 검증).
+    ai_check_timeout: float = float(os.getenv("AI_CHECK_TIMEOUT", "10"))
+    ai_total_timeout: float = float(os.getenv("AI_TOTAL_TIMEOUT", "45"))
     ai_max_tokens: int = int(os.getenv("AI_MAX_TOKENS", "700"))
     ai_check_max_tokens: int = int(os.getenv("AI_CHECK_MAX_TOKENS", "250"))
     ai_history_limit: int = int(os.getenv("AI_HISTORY_LIMIT", "10"))
@@ -68,12 +71,21 @@ class Settings:
     ai_guardrail_model: str = os.getenv("AI_GUARDRAIL_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
 
     def __post_init__(self):
-        for name in ("ai_request_timeout", "ai_connect_timeout", "ai_total_timeout", "ai_max_tokens",
+        for name in ("ai_request_timeout", "ai_connect_timeout", "ai_check_timeout",
+                     "ai_total_timeout", "ai_max_tokens",
                      "ai_check_max_tokens", "ai_history_limit", "ai_message_max_chars",
                      "ai_context_max_chars", "ai_answer_max_chars", "chat_question_limit"):
             value = getattr(self, name)
             if not 0 < value < float("inf"):
                 raise ValueError(f"{name} must be finite and positive")
+        # 예산이 모자라면 개별 호출은 정상인데 전체가 시간 초과로 죽는다. 그 상태에서는
+        # 정상 질문도 장애 응답만 받으므로 조용히 넘기지 않고 시작 시점에 알린다.
+        sequential = self.ai_check_timeout * 2 + self.ai_request_timeout
+        if self.ai_total_timeout < sequential:
+            raise ValueError(
+                "AI_TOTAL_TIMEOUT must cover AI_CHECK_TIMEOUT*2 + AI_REQUEST_TIMEOUT "
+                f"({self.ai_total_timeout} < {sequential})"
+            )
 
     @property
     def tarot_llm_enabled(self) -> bool:

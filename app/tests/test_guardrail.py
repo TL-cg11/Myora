@@ -71,6 +71,53 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.answer, g.RESTRICT)
         self.assertEqual(call.await_count, 2)
 
+    async def test_out_of_scope_is_answered_in_persona_after_output_check(self):
+        result, call = await self.run_with([
+            '{"decision":"out_of_scope","rules":["G01"],"crisis_kind":"none"}',
+            '저는 타로 보는 고양이 묘라예요. 카드에 대해 물어봐 주세요.',
+            '{"decision":"allow","rules":[]}',
+        ], question='오늘 역삼동 날씨 어때?')
+        self.assertIn('묘라', result.answer)
+        self.assertTrue(result.generated)
+        self.assertEqual(call.await_count, 3)
+        # 생성 모델에게 범위 밖이라는 사실과 답하지 말라는 지시가 함께 전달된다.
+        self.assertIn('상담 범위 밖', call.await_args_list[1].args[0][0]['content'])
+        # 유해하지 않으므로 질문 원문을 지우지 않는다.
+        self.assertEqual(result.question, '오늘 역삼동 날씨 어때?')
+
+    async def test_out_of_scope_answer_still_passes_output_check(self):
+        result, _ = await self.run_with([
+            '{"decision":"out_of_scope","rules":["G01"],"crisis_kind":"none"}',
+            '역삼동은 오늘 맑아요.',
+            '{"decision":"block","rules":["G01"]}',
+        ], question='오늘 역삼동 날씨 어때?')
+        self.assertNotIn('맑아요', result.answer)
+
+    async def test_out_of_scope_failure_falls_back_to_reviewed_notice(self):
+        result, _ = await self.run_with([
+            '{"decision":"out_of_scope","rules":["G01"],"crisis_kind":"none"}',
+            TimeoutError(),
+        ], question='오늘 역삼동 날씨 어때?')
+        self.assertEqual(result.answer, g.OUT_OF_SCOPE)
+
+    async def test_restrict_still_skips_generation(self):
+        result, call = await self.run_with(
+            ['{"decision":"restrict","rules":["G03"],"crisis_kind":"none"}'],
+            question='내가 언제 죽어?')
+        self.assertEqual(result.answer, g.RESTRICT)
+        self.assertEqual(call.await_count, 1)
+        self.assertNotIn('죽어', result.question)
+
+    async def test_checker_is_told_that_self_introduction_is_in_scope(self):
+        """완화 지시문이 사라지면 '니 이름 뭐야?'가 다시 범위 밖으로 막힌다."""
+        _, call = await self.run_with(['{"decision":"allow","rules":[],"crisis_kind":"none"}',
+                                       '묘라예요', '{"decision":"allow","rules":[]}'],
+                                      question='니 이름 뭐야?')
+        instruction = call.await_args_list[0].args[0][0]['content']
+        self.assertIn('이름, 정체, 할 수 있는 일, 이용 방법', instruction)
+        self.assertIn('역할극 우회가 아닙니다', instruction)
+        self.assertIn('페르소나로 자연스럽게 답하세요', instruction)
+
     async def test_missing_key_never_calls_provider(self):
         with patch.object(g, 'settings', replace(g.settings, deepseek_face_api_key='')):
             result, call = await self.run_with([])
@@ -106,6 +153,23 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
                       '1995년생인데 올해 흐름이 궁금해요'):
             self.assertFalse(g.contains_direct_identifier(value), value)
 
+    async def test_check_calls_use_the_shorter_check_timeout(self):
+        import httpx
+        seen = []
+        original = httpx.AsyncClient
+
+        def client(**kw):
+            seen.append(kw['timeout'].read)
+            return original(transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, json={'choices': [
+                    {'finish_reason': 'stop', 'message': {'content': '{}'}}]})), **kw)
+
+        with patch.object(ai_client.httpx, 'AsyncClient', client):
+            await ai_client.completion([], 'fake', 'model', check=True)
+            await ai_client.completion([], 'fake', 'model')
+        self.assertEqual(seen, [ai_client.settings.ai_check_timeout,
+                                ai_client.settings.ai_request_timeout])
+
     async def test_transport_rejects_truncated_response_and_uses_common_settings(self):
         import httpx
         captured = []
@@ -122,3 +186,19 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured[0]['max_tokens'], ai_client.settings.ai_max_tokens)
         self.assertEqual(calls[0]['phase'], 'generation')
         self.assertFalse(calls[0]['success'])
+
+
+class TimeoutBudgetTests(unittest.TestCase):
+    """개별 호출이 정상인데 전체 예산이 모자라 장애 응답만 나오는 상황을 막는다."""
+
+    def test_default_budget_covers_two_checks_and_one_generation(self):
+        s = ai_client.settings
+        self.assertGreaterEqual(
+            s.ai_total_timeout, s.ai_check_timeout * 2 + s.ai_request_timeout
+        )
+
+    def test_startup_rejects_a_budget_that_cannot_finish(self):
+        from app.config import Settings
+        with self.assertRaises(ValueError) as raised:
+            Settings(ai_check_timeout=10, ai_request_timeout=20, ai_total_timeout=25)
+        self.assertIn('AI_TOTAL_TIMEOUT', str(raised.exception))

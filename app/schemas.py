@@ -96,6 +96,12 @@ class ReadingCreate(BaseModel):
 
 
 
+class QuestionCheck(BaseModel):
+    """리딩을 만들기 전에 최초 질문만 따로 검사할 때 쓴다."""
+
+    question: str = Field(min_length=1, max_length=255)
+
+
 class ChatCreate(BaseModel):
     message: str = Field(min_length=1, max_length=settings.ai_message_max_chars)
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
-import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
+import { checkQuestion, createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE, maskForDisplay } from '../../lib/privacy.js';
 import '../fortune/fortune-experience.css';
@@ -302,10 +302,22 @@ export default function TarotPage() {
 
   /** 질문은 STEP 1에서 적고 서버 요청은 STEP 2에서 나간다. 여기서 먼저 걸러야
    *  사용자가 입력창이 있는 화면에서 바로 고칠 수 있다. 최종 판정은 서버가 한다. */
-  function goToPick() {
-    if (hasDirectIdentifier(setup.question)) {
+  async function goToPick() {
+    const question = setup.question?.trim() ?? '';
+    if (hasDirectIdentifier(question)) {
       setError(DIRECT_IDENTIFIER_MESSAGE);
       return;
+    }
+    if (question) {
+      setLoading(true);
+      try {
+        await checkQuestion(question);
+      } catch (cause) {
+        setError(cause.message);
+        return;
+      } finally {
+        setLoading(false);
+      }
     }
     setPicked([]);
     setError('');
