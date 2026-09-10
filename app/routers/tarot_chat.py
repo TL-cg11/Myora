@@ -25,6 +25,7 @@ from app.prompts.tarot import SYSTEM_PROMPT
 from app.services.guardrail import safe_answer
 from app.prompts.guardrail import POLICY_VERSION
 from app.schemas import ChatCreate, ChatOut
+from app.kafka_logging import emit_chat_exchange_log
 
 router = APIRouter(prefix="/api/tarot", tags=["tarot-chat"])
 logger = logging.getLogger(__name__)
@@ -137,6 +138,14 @@ async def create_chat_message(
     pending.policy_version = POLICY_VERSION
     _append_chat(session, reading, ChatRole.assistant, answer, source=source)
     session.commit()
+    emit_chat_exchange_log(
+        feature="tarot",
+        question=result.question,
+        answer=answer,
+        guest_key=guest_key,
+        reading_id=reading_id,
+        generated=result.generated,
+    )
     return ChatOut(
         answer=answer,
         source=source,

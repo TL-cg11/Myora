@@ -131,8 +131,9 @@ async def inspect_input(data: dict, key: str) -> InputDecision:
 있는지를 우선 고려하세요. 명백히 무관한 질문에만 G01을 적용하세요.
 위기 > 금지 > 범위 밖 > 일반 상담 순서입니다. 규칙 ID는 G01 범위, G02 사실성,
 G03 운명, G04 전문판단, G05 관상추론, G06 미성년자, G07 위기, G08 의존,
-G09 유해행위, G10 개인정보, G11 우회입니다. 불필요한 개인 식별정보나 민감한
-세부정보가 질문에 남아 있으면 G10 restrict로 처리하세요.
+G09 유해행위, G10 개인정보, G11 우회입니다. 개인 식별정보가 질문에 있어도 운세
+상담과 관련된 정상 질문이면 입력을 허용하되 답변에서 식별정보를 반복하지 마세요.
+개인정보 탈취·추적·공개 요청이나 제3자의 민감정보 악용 요청에만 G10 restrict를 적용하세요.
 JSON만 반환: {"decision":"allow|restrict|crisis|out_of_scope", "rules":[],
 "crisis_kind":"none|self_harm|abuse|violence"}. allow이면 rules는 빈 배열,
 나머지는 관련 ID를 포함하며 crisis에는 G07과 해당 crisis_kind가 필요합니다."""
@@ -185,8 +186,6 @@ async def safe_answer(
     history: tuple | list = (),
 ) -> SafeAnswer:
     key = getattr(settings, f"deepseek_{service}_api_key")
-    original_question = question
-    question = redact(question)
     safe_question = "[안전 검사로 저장하지 않은 질문]"
     decision = None
 
@@ -198,9 +197,6 @@ async def safe_answer(
                 or len(question) > settings.ai_message_max_chars
             ):
                 raise ValueError("invalid input or unavailable provider")
-
-            if question != original_question:
-                _emit_decision(service, "input", "redact", ["G10"])
 
             data = {
                 "service": service,

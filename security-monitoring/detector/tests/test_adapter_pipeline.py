@@ -90,6 +90,25 @@ class WasLogTest(unittest.TestCase):
         )
         self.assertEqual(len(event["body_hash"]), 64)
 
+    def test_chat_question_and_answer_are_both_masked(self):
+        record = example("was-api-request.json")
+        record["event_type"] = "chat_exchange"
+        record["input"] = {"question": "제 번호는 010-1234-5678이에요"}
+        record["output"] = {"answer": "답변은 hong@example.com으로 보냈어요"}
+
+        result = run(self.pipeline, record)
+
+        self.assertFalse(result.failed)
+        masked = by_topic(result, "myohan.masked-logs").value
+        self.assertNotIn("010-1234-5678", masked["masked_message"])
+        self.assertNotIn("hong@example.com", masked["masked_message"])
+        self.assertIn("010-****-5678", masked["masked_message"])
+        self.assertIn("h***@example.com", masked["masked_message"])
+        self.assertEqual(
+            sorted(masked["safe_metadata"]["detected_rules"]),
+            ["EMAIL_ADDRESS", "PHONE_NUMBER"],
+        )
+
     def test_ner_recognizer_is_applied_through_the_adapter(self):
         def inference(text):
             if "김민수" not in text:

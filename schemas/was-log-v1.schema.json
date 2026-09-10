@@ -34,7 +34,7 @@
     "source": {"const": "was"},
     "service": {"const": "luck-was"},
     "feature": {"type": "string", "enum": ["saju", "tarot", "face"]},
-    "event_type": {"type": "string", "enum": ["api_request", "ai_request"]},
+    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_exchange"]},
     "ai_call_id": {"type": "string", "format": "uuid"},
     "user_id": {"type": ["integer", "null"], "minimum": 1},
     "guest_key": {"type": ["string", "null"], "format": "uuid"},
@@ -49,6 +49,13 @@
       "properties": {
         "topic": {"type": "string"},
         "question": {"type": "string"}
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "answer": {"type": "string"}
       }
     },
     "ai": {
@@ -70,7 +77,11 @@
         "question_sequence": {"type": "integer", "minimum": 1},
         "message_count": {"type": "integer", "minimum": 1},
         "context_length": {"type": "integer", "minimum": 0},
-        "prompt_length": {"type": "integer", "minimum": 0}
+        "prompt_length": {"type": "integer", "minimum": 0},
+        "answer_length": {"type": "integer", "minimum": 0},
+        "generated": {"type": "boolean"},
+        "phase": {"type": "string"},
+        "policy_version": {"type": "string"}
       }
     }
   },
@@ -98,9 +109,19 @@
         "required": ["event_type"]
       },
       "then": {
-        "required": ["ai_call_id", "ai", "input", "metadata"],
+        "required": ["ai_call_id", "ai", "input", "metadata"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_exchange"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["input", "output", "metadata"],
         "properties": {
-          "input": {"required": ["question"]}
+          "input": {"required": ["question"]},
+          "output": {"required": ["answer"]}
         }
       }
     }
