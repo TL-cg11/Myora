@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
 import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
+import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE } from '../../lib/privacy.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -299,6 +300,18 @@ export default function TarotPage() {
     });
   }
 
+  /** 질문은 STEP 1에서 적고 서버 요청은 STEP 2에서 나간다. 여기서 먼저 걸러야
+   *  사용자가 입력창이 있는 화면에서 바로 고칠 수 있다. 최종 판정은 서버가 한다. */
+  function goToPick() {
+    if (hasDirectIdentifier(setup.question)) {
+      setError(DIRECT_IDENTIFIER_MESSAGE);
+      return;
+    }
+    setPicked([]);
+    setError('');
+    setStep('pick');
+  }
+
   async function submitReading() {
     setLoading(true);
     setError('');
@@ -309,6 +322,8 @@ export default function TarotPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (cause) {
       setError(cause.message);
+      // 최초 질문이 반려되면 카드 고르기 화면에는 고칠 입력창이 없다. 입력 화면으로 되돌린다.
+      if (cause.status === 400) setStep('setup');
     } finally {
       setLoading(false);
     }
@@ -341,10 +356,10 @@ export default function TarotPage() {
               : <SetupStep
                   spreads={spreads}
                   value={setup}
-                  onChange={setSetup}
+                  onChange={(next) => { setSetup(next); if (error) setError(''); }}
                   loading={loading}
                   error={error}
-                  onSubmit={() => { setPicked([]); setError(''); setStep('pick'); }}
+                  onSubmit={goToPick}
                 />
         )}
 
