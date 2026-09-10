@@ -12,6 +12,11 @@
       "detectors": ["email", "phone", "person_name", "birth_date", "address", "credential"],
       "prompt_injection_detection": true
     },
+    "output.answer": {
+      "pii": true,
+      "action": "detect_and_mask",
+      "detectors": ["email", "phone", "person_name", "birth_date", "address", "credential"]
+    },
     "input.topic": {"pii": false, "action": "pass", "detectors": []}
   },
   "default": {

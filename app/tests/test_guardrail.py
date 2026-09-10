@@ -17,10 +17,18 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             return result, call
 
     async def test_approved_answer_requires_three_calls(self):
-        result, call = await self.run_with(['{"decision":"allow","rules":[],"crisis_kind":"none"}', '얼굴 비율 설명입니다.', '{"decision":"allow","rules":[]}'])
+        question = '제 연락처는 010-1234-5678이고 관상이 궁금해요'
+        result, call = await self.run_with(
+            ['{"decision":"allow","rules":[],"crisis_kind":"none"}', '얼굴 비율 설명입니다.', '{"decision":"allow","rules":[]}'],
+            question=question,
+        )
         self.assertTrue(result.generated)
         self.assertEqual(call.await_count, 3)
+        inspected = call.await_args_list[0].args[0][1]['content']
         messages = call.await_args_list[1].args[0]
+        self.assertIn('010-1234-5678', inspected)
+        self.assertIn(question, messages[1]['content'])
+        self.assertEqual(result.question, question)
         self.assertNotIn('aspect_ratio', messages[0]['content'])
         self.assertEqual(messages[1]['role'], 'user')
 

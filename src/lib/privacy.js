@@ -19,3 +19,20 @@ export const DIRECT_IDENTIFIER_MESSAGE =
 export function hasDirectIdentifier(text) {
   return typeof text === 'string' && DIRECT_IDENTIFIER_PATTERNS.some((pattern) => pattern.test(text));
 }
+
+/** 서버로 보내는 원문은 바꾸지 않고 사용자 말풍선에 표시할 문자열만 가린다. */
+export function maskForDisplay(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, (value) => {
+      const [local, domain] = value.split('@');
+      return `${local.slice(0, 1)}***@${domain}`;
+    })
+    .replace(/(?<!\d)\d{6}\s*-\s*[1-4]\d{6}(?!\d)/g, '******-*******')
+    .replace(/(?<!\d)(?:\+82[- .]?)?0?1[016789][- .]?\d{3,4}[- .]?\d{4}(?!\d)/g, (value) => {
+      const digits = value.replace(/\D/g, '').replace(/^82/, '0');
+      return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+    })
+    .replace(/https?:\/\/\S+/g, '[비공개 링크]')
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[비공개 키]');
+}

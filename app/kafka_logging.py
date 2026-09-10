@@ -75,6 +75,25 @@ def _request_data(body: bytes) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _question_from_data(data: dict[str, Any]) -> str | None:
+    """지원하는 API payload에서 실제 사용자 질문 하나만 꺼낸다."""
+    for key in ("question", "message"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+    messages = data.get("messages")
+    if isinstance(messages, list):
+        for message in reversed(messages):
+            if (
+                isinstance(message, dict)
+                and message.get("role") == "user"
+                and isinstance(message.get("content"), str)
+                and message["content"]
+            ):
+                return message["content"]
+    return None
+
+
 def _timestamp() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -110,11 +129,14 @@ def build_api_request_log(
     """허용된 요청 필드만 사용해 api_request 이벤트를 만든다."""
     data = _request_data(body)
     query_guest_key = request.query_params.get("guest_key")
-    input_data = {
+    input_data: dict[str, str] = {
         key: data[key]
         for key in ("topic",)
         if isinstance(data.get(key), str)
     }
+    question = _question_from_data(data)
+    if question is not None:
+        input_data["question"] = question
     severity = "ERROR" if response.status_code >= 500 else "WARNING" if response.status_code >= 400 else "INFO"
 
     event = _common_log(
@@ -219,6 +241,41 @@ def build_guardrail_decision_log(
     return event
 
 
+def build_chat_exchange_log(
+    *,
+    feature: str,
+    question: str,
+    answer: str,
+    guest_key: Any = None,
+    reading_id: int | None = None,
+    generated: bool | None = None,
+) -> dict[str, Any]:
+    """사용자에게 확정해서 돌려준 질문·답변 한 쌍을 기록한다."""
+    event = _common_log(
+        feature=feature,
+        event_type="chat_exchange",
+        request_id=_current_request_id.get() or uuid4().hex,
+        guest_key=guest_key,
+    )
+    event.update(
+        {
+            "input": {"question": question},
+            "output": {"answer": answer},
+            "metadata": {
+                key: value
+                for key, value in {
+                    "reading_id": reading_id,
+                    "prompt_length": len(question),
+                    "answer_length": len(answer),
+                    "generated": generated,
+                }.items()
+                if value is not None
+            },
+        }
+    )
+    return event
+
+
 def _get_producer() -> Any:
     global _producer
     if _producer is None:
@@ -266,6 +323,10 @@ def emit_ai_request_log(**kwargs: Any) -> str:
 
 def emit_guardrail_decision_log(**kwargs: Any) -> None:
     emit_was_log(build_guardrail_decision_log(**kwargs))
+
+
+def emit_chat_exchange_log(**kwargs: Any) -> None:
+    emit_was_log(build_chat_exchange_log(**kwargs))
 
 
 def flush_was_logs(timeout: float = 10.0) -> None:

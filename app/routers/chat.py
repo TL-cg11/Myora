@@ -12,6 +12,7 @@ from app.prompts import FACE_PERSONA
 from app.prompts.guardrail import POLICY_VERSION
 from app.services.chat_context import load_context
 from app.services.guardrail import safe_answer
+from app.kafka_logging import emit_chat_exchange_log
 
 router = APIRouter(prefix='/api', tags=['chat'])
 
@@ -58,6 +59,14 @@ async def reading_chat(service, persona, request, session, user):
         )
     )
     session.commit()
+    emit_chat_exchange_log(
+        feature=service,
+        question=result.question,
+        answer=result.answer,
+        guest_key=request.guest_key,
+        reading_id=request.reading_id,
+        generated=result.generated,
+    )
     return ChatResponse(answer=result.answer, questions_used=asked+1)
 
 @router.post('/face/chat', response_model=ChatResponse)

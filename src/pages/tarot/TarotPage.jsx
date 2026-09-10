@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
 import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
-import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE } from '../../lib/privacy.js';
+import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE, maskForDisplay } from '../../lib/privacy.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -169,7 +169,7 @@ function ChatPanel({ reading }) {
   async function send(text) {
     const question = text.trim();
     if (!question || loading || limitReached) return;
-    setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: question }]);
+    setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: maskForDisplay(question) }]);
     setInput('');
     setLoading(true);
     try {
@@ -201,7 +201,7 @@ function ChatPanel({ reading }) {
       <div className="chat-messages" ref={listRef} aria-live="polite">
         {messages.map((message) => (
           <div key={message.seq} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>
-            {message.content}
+            {message.role === 'user' ? maskForDisplay(message.content) : message.content}
           </div>
         ))}
         {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}

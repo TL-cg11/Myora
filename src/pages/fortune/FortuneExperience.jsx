@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { sendReadingChat } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
+import { maskForDisplay } from '../../lib/privacy.js';
 import './fortune-experience.css';
 
 const configs = {
@@ -32,7 +33,7 @@ function ChatPanel({ readingId, fortuneType }) {
   async function sendMessage(text) {
     const question = text.trim();
     if (!question || loading || limitReached) return;
-    const next = [...messages, { role: 'user', content: question }];
+    const next = [...messages, { role: 'user', content: maskForDisplay(question) }];
     setMessages(next);
     setInput('');
     setLoading(true);

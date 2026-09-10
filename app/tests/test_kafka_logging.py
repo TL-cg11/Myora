@@ -76,7 +76,7 @@ class WasLoggingTest(unittest.TestCase):
         self.assertEqual(event["feature"], "tarot")
         self.assertEqual(event["event_type"], "api_request")
         self.assertEqual(event["client_ip"], "203.0.113.10")
-        self.assertEqual(event["input"], {"topic": "love"})
+        self.assertEqual(event["input"], {"topic": "love", "question": "제 연애운이 어떻게 될까요?"})
         self.assertNotIn("password", json.dumps(event, ensure_ascii=False))
 
     @patch("app.kafka_logging.emit_was_log")
@@ -123,6 +123,29 @@ class WasLoggingTest(unittest.TestCase):
         self.assertEqual(event["input"], {})
         self.assertEqual(event["metadata"]["context_length"], 1200)
         self.assertNotIn("context", event["input"])
+
+    @patch("app.kafka_logging.emit_was_log")
+    def test_chat_payload_and_final_answer_are_logged(self, emit) -> None:
+        response = self.client.post(
+            "/api/face/chat-test",
+            json={"message": "관상 질문"},
+            headers={"X-Request-ID": "chat-request-id"},
+        )
+        self.assertEqual(response.status_code, 200)
+        api_event = emit.call_args_list[-1].args[0]
+        self.assertEqual(api_event["input"]["question"], "관상 질문")
+
+        event = kafka_logging.build_chat_exchange_log(
+            feature="face",
+            question="관상 질문",
+            answer="답변에 010-1234-5678이 있습니다.",
+            reading_id=7,
+            generated=True,
+        )
+        self.assertEqual(event["event_type"], "chat_exchange")
+        self.assertEqual(event["input"], {"question": "관상 질문"})
+        self.assertEqual(event["output"], {"answer": "답변에 010-1234-5678이 있습니다."})
+        self.assertEqual(event["metadata"]["answer_length"], len(event["output"]["answer"]))
 
     def test_guardrail_decision_log_has_no_content(self) -> None:
         event = kafka_logging.build_guardrail_decision_log(

@@ -158,7 +158,10 @@ def normalize_was_log(
     raw_input = event.get("input") or {}
     if not isinstance(raw_input, dict):
         raise AdapterError("INVALID_INPUT_OBJECT")
-    skipped = WAS_CONSUMED_FIELDS | {"input"}
+    raw_output = event.get("output") or {}
+    if not isinstance(raw_output, dict):
+        raise AdapterError("INVALID_OUTPUT_OBJECT")
+    skipped = WAS_CONSUMED_FIELDS | {"input", "output"}
     payload = {name: value for name, value in event.items() if name not in skipped}
     attributes, free_text, dropped, injection = _apply_policy(payload, policy, pseudonym_key)
     input_attributes, input_text, input_dropped, input_injection = _apply_policy(
@@ -166,6 +169,11 @@ def normalize_was_log(
     )
     if input_attributes:
         attributes["input"] = input_attributes
+    output_attributes, output_text, output_dropped, _ = _apply_policy(
+        raw_output, policy, pseudonym_key, prefix="output."
+    )
+    if output_attributes:
+        attributes["output"] = output_attributes
 
     event_type = str(event.get("event_type") or "log")
     feature = str(event.get("feature") or "unknown")
@@ -179,14 +187,14 @@ def normalize_was_log(
         "source_type": safe_identity(event_type, 64) or "log",
         "event_name": safe_identity(feature + "." + event_type, 128),
         "severity": _severity(event.get("severity")),
-        "body": "\n".join(free_text + input_text),
+        "body": "\n".join(free_text + input_text + output_text),
         "attributes": attributes,
     }
     return NormalizedInput(
         log=log,
         source_kind="was",
         prompt_injection=injection or input_injection,
-        dropped_fields=tuple(dropped + input_dropped),
+        dropped_fields=tuple(dropped + input_dropped + output_dropped),
     )
 
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import { sendReadingChat } from '../../lib/api.js';
+import { maskForDisplay } from '../../lib/privacy.js';
 
 const suggestions = ['오늘의 흐름을 설명해줘', '내 사주에서 강점은 뭐야?', '앞으로 어떤 점을 조심할까?'];
 
@@ -15,7 +16,7 @@ export default function SajuChat({ result }) {
   async function sendMessage(value) {
     const text = value.trim();
     if (!text || loading || limitReached) return;
-    const next = [...messages, { role: 'user', content: text }];
+    const next = [...messages, { role: 'user', content: maskForDisplay(text) }];
     setMessages(next); setQuestion(''); setLoading(true);
     try {
       const data = await sendReadingChat('saju', result.reading_id, text);
