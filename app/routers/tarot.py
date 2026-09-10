@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.prompts.guardrail import POLICY_VERSION
+from app.services.guardrail import contains_direct_identifier
 from app.db import get_session
 from app.auth import optional_user
 from app.models import (
@@ -215,6 +216,15 @@ def create_reading(
     session: Session = Depends(get_session),
     user: AppUser | None = Depends(optional_user),
 ) -> ReadingOut:
+    # 최초 질문은 이후 모든 추가질문의 컨텍스트로 반복 전달되고 결과 화면에 그대로
+    # 남는다. 저장한 뒤 마스킹하면 사용자가 쓴 문장을 되돌릴 수 없으므로 저장 전에
+    # 돌려보내고 직접 고치게 한다.
+    if payload.question and contains_direct_identifier(payload.question):
+        raise HTTPException(
+            status_code=400,
+            detail="질문에 이메일·전화번호·주민등록번호·링크는 빼고 적어주세요.",
+        )
+
     spread = get_spread(session, payload.spread_code)
     if spread is None:
         raise HTTPException(status_code=404, detail="스프레드를 찾을 수 없어요.")

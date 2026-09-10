@@ -24,6 +24,18 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('aspect_ratio', messages[0]['content'])
         self.assertEqual(messages[1]['role'], 'user')
 
+    async def test_inspectors_explicitly_allow_safe_fortune_conversation(self):
+        _, call = await self.run_with([
+            '{"decision":"allow","rules":[],"crisis_kind":"none"}',
+            '관계의 흐름을 천천히 돌아보세요.',
+            '{"decision":"allow","rules":[]}',
+        ], question='그럼 연애 쪽은 어때?')
+        input_instruction = call.await_args_list[0].args[0][0]['content']
+        output_instruction = call.await_args_list[2].args[0][0]['content']
+        self.assertIn('가벼운\n자기성찰 조언은 허용', input_instruction)
+        self.assertIn('미래형 표현', output_instruction)
+        self.assertIn('단어만으로 차단하지 말고', output_instruction)
+
     async def test_blocked_output_is_never_returned(self):
         unsafe = '당신은 일찍 죽을 가능성이 있어요. 재미로 보세요.'
         result, _ = await self.run_with(['{"decision":"allow","rules":[],"crisis_kind":"none"}', unsafe, '{"decision":"block","rules":["G03"]}'])
@@ -68,6 +80,24 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(g.risk_level('block', ['G03']), 'HIGH')
         self.assertEqual(g.risk_level('crisis', ['G07']), 'CRITICAL')
 
+    def test_existing_redaction_does_not_hide_birth_datetime(self):
+        private_values = (
+            'person@example.com', '900101-1234567', '010-1234-5678',
+            'https://example.com/private', 'sk-test_secret',
+        )
+        for value in private_values:
+            self.assertNotIn(value, g.redact(f'값은 {value} 입니다'))
+        birth_context = '생년월일 1995-05-15, 출생 시각 12:30, 일주 甲子'
+        self.assertEqual(g.redact(birth_context), birth_context)
+
+    def test_direct_identifier_detection_matches_redact_scope(self):
+        for value in ('person@example.com', '900101-1234567', '010-1234-5678',
+                      'https://example.com/private', 'sk-test_secret'):
+            self.assertTrue(g.contains_direct_identifier(f'질문에 {value} 포함'), value)
+        for value in ('지금 이 일을 계속 해도 될까요?', '대운은 1 11 21 31 41 51 61 71 순서인가요?',
+                      '1995년생인데 올해 흐름이 궁금해요'):
+            self.assertFalse(g.contains_direct_identifier(value), value)
+
     async def test_transport_rejects_truncated_response_and_uses_common_settings(self):
         import httpx
         captured = []
@@ -77,7 +107,10 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json={'choices':[{'finish_reason':'length','message':{'content':'partial'}}]})
         original = httpx.AsyncClient
         with patch.object(ai_client.httpx, 'AsyncClient', lambda **kw: original(transport=httpx.MockTransport(handler), **kw)):
-            with self.assertRaises(ValueError):
-                await ai_client.completion([], 'fake', 'model')
+            with ai_client.capture_ai_calls() as calls:
+                with self.assertRaises(ValueError):
+                    await ai_client.completion([], 'fake', 'model')
         self.assertFalse(captured[0]['stream'])
         self.assertEqual(captured[0]['max_tokens'], ai_client.settings.ai_max_tokens)
+        self.assertEqual(calls[0]['phase'], 'generation')
+        self.assertFalse(calls[0]['success'])

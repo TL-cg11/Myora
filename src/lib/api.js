@@ -78,7 +78,10 @@ export async function request(basePath, path, { method = 'GET', body } = {}) {
       setAuthToken(null);
       globalThis.dispatchEvent?.(new Event('myohan-auth-expired'));
     }
-    throw new Error(await readError(response));
+    // 호출부가 상태 코드로 분기할 수 있게 남긴다(예: 400 이면 입력 화면으로 되돌리기).
+    const failure = new Error(await readError(response));
+    failure.status = response.status;
+    throw failure;
   }
   return response.status === 204 ? null : response.json();
 }
