@@ -93,6 +93,23 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.security_events_topic, "myohan.security-events")
         self.assertFalse(settings.consumer_config()["enable.auto.commit"])
         self.assertTrue(settings.producer_config()["enable.idempotence"])
+        self.assertFalse(settings.ner_enabled)
+        self.assertEqual(settings.ner_threshold, 0.85)
+
+    def test_ner_settings_are_validated(self):
+        base = {"MASKING_PSEUDONYM_KEY": KEY.decode("utf-8")}
+        settings = load_settings({**base, "DETECTOR_NER_ENABLED": "true",
+                                  "DETECTOR_NER_THRESHOLD": "0.9",
+                                  "DETECTOR_NER_LOCAL_FILES_ONLY": "yes"})
+        self.assertTrue(settings.ner_enabled)
+        self.assertTrue(settings.ner_local_files_only)
+        self.assertEqual(settings.ner_threshold, 0.9)
+        with self.assertRaises(ConfigError):
+            load_settings({**base, "DETECTOR_NER_THRESHOLD": "1.1"})
+        with self.assertRaises(ConfigError):
+            load_settings({**base, "DETECTOR_NER_THRESHOLD": "high"})
+        with self.assertRaises(ConfigError):
+            load_settings({**base, "DETECTOR_NER_ENABLED": "sometimes"})
 
 
 if __name__ == "__main__":

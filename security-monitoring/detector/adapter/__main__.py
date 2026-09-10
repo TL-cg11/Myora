@@ -10,6 +10,7 @@ from adapter.config import ConfigError, load_settings
 from adapter.kafka_runner import KafkaBridge, PublishError, build_clients
 from adapter.pipeline import MaskingPipeline
 from adapter.policy import PolicyError, load_policy
+from app.rules.ner import NERConfigurationError
 
 
 # .env는 선택 사항이다. python-dotenv가 없으면 환경변수만 사용한다.
@@ -69,8 +70,11 @@ def main() -> int:
     except (ConfigError, PolicyError) as error:
         print(f"CONFIG_ERROR: {error}", file=sys.stderr)
         return 2
-
-    pipeline = MaskingPipeline(settings, policy)
+    try:
+        pipeline = MaskingPipeline(settings, policy)
+    except NERConfigurationError as error:
+        print(f"CONFIG_ERROR: {error}", file=sys.stderr)
+        return 2
     if args.dry_run is not None:
         try:
             return dry_run(pipeline, args.dry_run, args.dry_run_topic)

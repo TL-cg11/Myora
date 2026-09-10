@@ -6,6 +6,7 @@ import unittest
 from adapter.config import load_settings
 from adapter.pipeline import MaskingPipeline
 from adapter.policy import load_policy
+from app.rules.ner import TransformersNERRecognizer
 
 ROOT = Path(__file__).resolve().parents[1]
 ENVIRONMENT = {
@@ -88,6 +89,26 @@ class WasLogTest(unittest.TestCase):
             ["EMAIL_ADDRESS", "PHONE_NUMBER"],
         )
         self.assertEqual(len(event["body_hash"]), 64)
+
+    def test_ner_recognizer_is_applied_through_the_adapter(self):
+        def inference(text):
+            if "김민수" not in text:
+                return []
+            start = text.index("김민수")
+            return [{"entity_group": "PS", "score": 0.98,
+                     "start": start, "end": start + 3}]
+
+        recognizer = TransformersNERRecognizer("fake", inference=inference)
+        pipeline = MaskingPipeline(
+            load_settings(ENVIRONMENT), load_policy(), ner_recognizer=recognizer
+        )
+        record = example("was-ai-request.json")
+        record["input"]["question"] = "김민수의 오늘 운세를 알려줘"
+        result = run(pipeline, record)
+        masked = by_topic(result, "myohan.masked-logs").value
+        event = by_topic(result, "myohan.security-events").value
+        self.assertEqual(masked["masked_message"], "[REDACTED_PERSON]의 오늘 운세를 알려줘")
+        self.assertEqual(event["detections"][0]["rule_id"], "PERSON_NAME")
 
     def test_prompt_injection_is_reported_without_changing_the_body(self):
         record = example("was-ai-request.json")

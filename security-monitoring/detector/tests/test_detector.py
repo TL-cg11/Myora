@@ -13,6 +13,7 @@ from app.evaluation import evaluate
 from app.hashing import fingerprint
 from app.masking import mask
 from app.models import Detection, NormalizedLog
+from app.rules.ner import TransformersNERRecognizer
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures/cases.json").read_text(encoding="utf-8"))
 
@@ -60,6 +61,67 @@ class FixtureTests(unittest.TestCase):
 
 # 처리 엔진의 오류·보안·재처리 동작 테스트.
 class EngineTests(unittest.TestCase):
+    def test_ner_masks_free_text_person_and_location(self):
+        text = "김민수는 서울역에서 기다립니다"
+
+        def inference(chunk):
+            return [
+                {"entity_group": "PS", "score": 0.98,
+                 "start": chunk.index("김민수"), "end": chunk.index("김민수") + 3},
+                {"entity_group": "LC", "score": 0.96,
+                 "start": chunk.index("서울역"), "end": chunk.index("서울역") + 3},
+            ]
+
+        recognizer = TransformersNERRecognizer("fake", inference=inference)
+        data = sample()
+        data["body"] = text
+        result = process_log(data, ner_recognizer=recognizer)
+        self.assertIsNone(result.failure)
+        self.assertEqual(
+            result.masked_log.body_masked,
+            "[REDACTED_PERSON]는 [REDACTED_LOCATION]에서 기다립니다",
+        )
+        self.assertEqual(
+            result.masked_log.detected_rules, ["LOCATION", "PERSON_NAME"]
+        )
+
+    def test_ner_threshold_and_unknown_labels_are_ignored(self):
+        def inference(_):
+            return [
+                {"entity_group": "PS", "score": 0.70, "start": 0, "end": 3},
+                {"entity_group": "OG", "score": 0.99, "start": 4, "end": 7},
+            ]
+
+        recognizer = TransformersNERRecognizer(
+            "fake", threshold=0.85, inference=inference
+        )
+        self.assertEqual(recognizer.detect("김민수 회사원"), [])
+
+    def test_ner_does_not_remask_existing_redaction_marker(self):
+        text = "고객 [REDACTED_PERSON] 확인"
+
+        def inference(chunk):
+            start = chunk.index("REDACTED_PERSON")
+            return [{"entity_group": "PS", "score": 0.99,
+                     "start": start, "end": start + len("REDACTED_PERSON")}]
+
+        recognizer = TransformersNERRecognizer("fake", inference=inference)
+        self.assertEqual(recognizer.detect(text), [])
+
+    def test_ner_failure_fails_closed_without_raw_output(self):
+        secret_name = "김민수"
+
+        def inference(_):
+            raise RuntimeError(secret_name)
+
+        data = sample()
+        data["body"] = f"고객은 {secret_name}입니다"
+        recognizer = TransformersNERRecognizer("fake", inference=inference)
+        result = process_log(data, ner_recognizer=recognizer)
+        self.assertIsNone(result.masked_log)
+        self.assertEqual(result.failure.error_code, "PROCESSING_ERROR")
+        self.assertNotIn(secret_name, json.dumps(result.to_dict(), ensure_ascii=False))
+
     # 재처리 ID 유지, UTC 변환, 같은 규칙의 탐지 묶음 및 C용 필드를 확인한다.
     def test_stable_ids_and_schema_mapping(self):
         data = sample()

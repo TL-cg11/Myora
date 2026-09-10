@@ -154,6 +154,10 @@ Grafana 화면에서 보이는 시점은 C의 sink가 함께 떠 있을 때다.
 | `KAFKA_AUTO_OFFSET_RESET` | `earliest` | 저장된 offset이 없을 때 시작 위치 |
 | `ADAPTER_PUBLISH_ATTEMPTS` | `3` | 결과 발행 재시도 횟수 |
 | `ADAPTER_POLL_TIMEOUT` / `ADAPTER_FLUSH_TIMEOUT` | `1.0` / `10.0` | poll·flush 대기 시간(초) |
+| `DETECTOR_NER_ENABLED` | `false` | 자유 텍스트 인명·장소 NER 활성화 |
+| `DETECTOR_NER_MODEL` | `Leo97/KoELECTRA-small-v3-modu-ner` | Hugging Face 모델 ID 또는 로컬 모델 경로 |
+| `DETECTOR_NER_THRESHOLD` | `0.85` | NER 마스킹 최소 신뢰도(0~1) |
+| `DETECTOR_NER_LOCAL_FILES_ONLY` | `false` | `true`이면 캐시에 있는 모델만 사용 |
 | `KAFKA_SECURITY_PROTOCOL` 등 | 없음 | SASL/TLS 옵션. luck-nginx sink와 같은 이름을 쓴다 |
 
 `MASKING_PSEUDONYM_KEY`가 없거나 짧으면 프로세스가 시작하지 않는다. 키 없이 만든 가명은

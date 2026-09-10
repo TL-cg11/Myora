@@ -12,6 +12,7 @@ from app import jsonio
 from app.engine import process_log
 from app.hashing import stable_id
 from app.models import ProcessingFailure
+from app.rules.ner import NERRecognizer, TransformersNERRecognizer
 from adapter import outbound, prompt_injection
 from adapter.config import Settings
 from adapter.normalize import AdapterError, normalize_nginx_log, normalize_was_log
@@ -48,9 +49,17 @@ def payload_hash(raw: bytes) -> str:
 class MaskingPipeline:
     """원본 로그 → 정책 적용 → 탐지·마스킹 → 결과 계약 메시지."""
 
-    def __init__(self, settings: Settings, policy: MaskingPolicy) -> None:
+    def __init__(self, settings: Settings, policy: MaskingPolicy,
+                 *, ner_recognizer: NERRecognizer | None = None) -> None:
         self._settings = settings
         self._policy = policy
+        self._ner_recognizer = ner_recognizer
+        if self._ner_recognizer is None and settings.ner_enabled:
+            self._ner_recognizer = TransformersNERRecognizer(
+                settings.ner_model,
+                threshold=settings.ner_threshold,
+                local_files_only=settings.ner_local_files_only,
+            )
 
     # 한 메시지를 처리한다. 어느 단계에서 실패해도 부분 결과를 발행하지 않는다.
     def handle(
@@ -77,7 +86,9 @@ class MaskingPipeline:
             normalized = self._normalize(record, topic, digest)
 
             result = process_log(
-                normalized.log, fingerprint_key=self._settings.fingerprint_key
+                normalized.log,
+                fingerprint_key=self._settings.fingerprint_key,
+                ner_recognizer=self._ner_recognizer,
             )
             if result.failure is not None:
                 return self._dead_letter(

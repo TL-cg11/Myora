@@ -11,9 +11,10 @@ from .models import (Detection, InputError, MaskedLog, NormalizedLog,
                      ProcessingFailure, ProcessingResult, SecurityEvent)
 from .risk import calculate_risk
 from .rules import pii, secrets
+from .rules.ner import NERRecognizer
 
 # 규칙/정책 변경 시 버전을 올려 재처리 결과와 변경 이력을 구분한다.
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 POLICY_VERSION = "1"
 # 구분자와 대소문자를 정규화한 필드명 → (규칙, 분류, 점수).
 # 이름처럼 문장 패턴만으로 찾기 어려운 정보도 알려진 필드에 있으면 전체를 가린다.
@@ -38,19 +39,23 @@ SENSITIVE_KEYS = {
 
 
 # 개인정보·비밀정보 규칙을 합치고 DB URL 내부 이메일 후보의 중복 집계를 제외한다.
-def detect(text: str) -> list[Detection]:
+def detect(text: str, ner_recognizer: NERRecognizer | None = None) -> list[Detection]:
     secret_matches = secrets.detect(text)
     # URL credentials look like email addresses; classify them as the enclosing
     # database secret to avoid inflating PII counts.
     containers = [d for d in secret_matches if d.rule_id in {"DB_CONNECTION_STRING", "PRIVATE_KEY"}]
-    pii_matches = [d for d in pii.detect(text)
+    pii_matches = pii.detect(text)
+    if ner_recognizer is not None:
+        pii_matches += ner_recognizer.detect(text)
+    pii_matches = [d for d in pii_matches
                    if not any(c.start <= d.start and d.end <= c.end for c in containers)]
     return pii_matches + secret_matches
 
 
 # 한 건의 입력을 끝까지 처리한다. 어느 단계든 실패하면 원문/부분 성공 결과를 반환하지 않는다.
 def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = None,
-                detected_at: datetime | None = None) -> ProcessingResult:
+                detected_at: datetime | None = None,
+                ner_recognizer: NERRecognizer | None = None) -> ProcessingResult:
     """Pure processing boundary: failures never return a partial/raw output."""
     stage = "VALIDATE"
     try:
@@ -81,7 +86,7 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
 
         # 한 문자열에 규칙을 적용하고 발견 위치를 기록한 뒤 마스킹 문자열을 반환한다.
         def text_value(value: str, path: str):
-            detected = detect(value)
+            detected = detect(value, ner_recognizer)
             for d in detected:
                 remember(d, value, path)
             return mask(value, detected)

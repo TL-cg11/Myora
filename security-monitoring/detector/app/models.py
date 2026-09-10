@@ -158,7 +158,7 @@ class ProcessingFailure:
     error_code: str  # 원문을 포함하지 않는 고정 오류 코드
     failure_stage: str  # 실패한 처리 단계
     retryable: bool  # 원인 해결 후 재시도할 수 있는 오류인지 표시
-    detector_version: str = "1.0.0"  # 탐지 프로그램 버전
+    detector_version: str = "1.1.0"  # 탐지 프로그램 버전
 
 
 @dataclass(frozen=True)
