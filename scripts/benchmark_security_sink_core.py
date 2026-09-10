@@ -32,10 +32,10 @@ def main() -> int:
     security = load_fixture("luck.security-events.normal.json")
     masked = load_fixture("luck.masked-logs.normal.json")
     db_rate, db_p95, db_count = measure_for_duration(
-        lambda _sequence: validate("luck.security-events", security), args.duration
+        lambda _sequence: validate("myohan.security-events", security), args.duration
     )
     loki_rate, loki_p95, loki_count = measure_for_duration(
-        lambda _sequence: validate("luck.masked-logs", masked), args.duration
+        lambda _sequence: validate("myohan.masked-logs", masked), args.duration
     )
     core_rate = min(db_rate, loki_rate)
     checks = {

@@ -45,7 +45,7 @@ sink는 메시지를 처리하기 전에 topic에 대응하는 JSON Schema와 `s
 
 재시도 대기 시간은 1초부터 시작해 최대 30초로 제한한다. DLQ 메시지에는 원문 대신 원본 topic·partition·offset, message key, payload hash, schema version, 오류 코드와 마스킹된 오류 설명만 기록한다.
 
-`luck.masked-logs`의 일시 장애가 재시도를 소진하면 schema와 마스킹 안전성 검사를 통과한 payload를 권한 0600의 filesystem buffer에 원자 저장한 뒤 sink DLQ로 보낸다. buffer는 주기적으로 Loki에 재전송하고 성공한 파일만 삭제하며, 제한 용량을 넘으면 source offset을 commit하지 않아 유실 대신 backpressure를 선택한다.
+`myohan.masked-logs`의 일시 장애가 재시도를 소진하면 schema와 마스킹 안전성 검사를 통과한 payload를 권한 0600의 filesystem buffer에 원자 저장한 뒤 sink DLQ로 보낸다. buffer는 주기적으로 Loki에 재전송하고 성공한 파일만 삭제하며, 제한 용량을 넘으면 source offset을 commit하지 않아 유실 대신 backpressure를 선택한다.
 
 Loki push와 DB·Kafka offset commit은 하나의 transaction이 될 수 없으므로 masked-log sink는 at-least-once를 보장한다. Loki 성공 후 프로세스가 중단되면 같은 로그가 재전송될 수 있으며, 운영 조회에서는 log line의 `event_id`로 중복을 식별한다.
 
@@ -55,7 +55,13 @@ Loki push와 DB·Kafka offset commit은 하나의 transaction이 될 수 없으�
 
 | Source | Sink DLQ | Owner |
 |---|---|---|
-| `luck.security-events` | `luck.security-events.sink-dlq` | C |
-| `luck.masked-logs` | `luck.masked-logs.sink-dlq` | C |
+| `myohan.security-events` | `myohan.security-events.sink-dlq` | C |
+| `myohan.masked-logs` | `myohan.masked-logs.sink-dlq` | C |
 
 B의 탐지·마스킹 처리 중 발생한 실패는 B의 retry/DLQ 범위이며 sink DLQ와 섞지 않는다. C의 consumer group은 `security-event-sink`와 `masked-log-sink`를 사용하고 각 그룹에는 source topic consume 및 해당 sink DLQ produce 권한만 부여한다.
+
+## Kafka topic ownership
+
+Kafka 담당이 제공하는 `myohan.was.app`, `myohan.nginx.access`는 detector 입력이고, detector가 발행하는 `myohan.security-events`, `myohan.masked-logs`, `myohan.dead-letter`를 연동 기준으로 사용한다. Sink는 detector 출력 두 topic만 소비하고 저장 실패는 각각 `myohan.security-events.sink-dlq`, `myohan.masked-logs.sink-dlq`로 분리한다.
+
+Suricata IDS는 현재 `/var/log/luck-security/ids-events.jsonl`을 기준으로 동작하며 Kafka topic은 아직 확정하지 않는다. 향후 연결할 때는 기존 입력·출력·DLQ를 재사용하지 않고 별도의 `myohan.*` source topic과 계약·담당자를 먼저 확정한다.

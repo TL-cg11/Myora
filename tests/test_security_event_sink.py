@@ -22,7 +22,7 @@ def fixture() -> dict:
 def metadata(*, offset: int = 7) -> KafkaMetadata:
     return KafkaMetadata(
         consumer_group="security-event-sink",
-        topic="luck.security-events",
+        topic="myohan.security-events",
         partition=2,
         offset=offset,
         key="sec_evt_fixture_0001",

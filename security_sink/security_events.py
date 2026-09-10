@@ -1,4 +1,4 @@
-"""Persist validated ``luck.security-events`` messages in MariaDB."""
+"""Persist validated ``myohan.security-events`` messages in MariaDB."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from security_sink.notifications import INSERT_NOTIFICATION
 from scripts.mock_security_producer import validate
 
 
-TOPIC = "luck.security-events"
+TOPIC = "myohan.security-events"
 CREATED_ACTOR_TYPE = "SYSTEM"
 CREATED_ACTOR_ID = "security-event-sink"
 

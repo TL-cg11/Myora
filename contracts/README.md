@@ -4,8 +4,8 @@
 
 | Topic | Schema | Producer | Consumer destination |
 |---|---|---|---|
-| `luck.security-events` | `luck.security-events.v1.schema.json` | 보안 탐지·마스킹 담당(B) | `security_monitoring` DB |
-| `luck.masked-logs` | `luck.masked-logs.v1.schema.json` | 보안 탐지·마스킹 담당(B) | Loki |
+| `myohan.security-events` | `luck.security-events.v1.schema.json` | 보안 탐지·마스킹 담당(B) | `security_monitoring` DB |
+| `myohan.masked-logs` | `luck.masked-logs.v1.schema.json` | 보안 탐지·마스킹 담당(B) | Loki |
 
 `source_event_id`는 원본 로그 수집 담당(A)이 만든 ID를 B가 보안 이벤트에 전달한다. `event_id`와 `detection_id`는 B가 생성하며 각각 보안 이벤트와 개별 탐지에서 전역적으로 중복되지 않아야 한다. 시간 필드는 UTC ISO 8601(`Z`)을 사용하고 현재 지원 버전은 `schema_version=1.0`이다.
 
@@ -18,9 +18,9 @@ DB의 내부 PK, 처리 상태, 담당자, 해결 사유와 생성·수정 시�
 Kafka 없이 계약 메시지를 확인하려면 저장소 루트에서 실행한다.
 
 ```bash
-python scripts/mock_security_producer.py --topic luck.security-events --fixture fixtures/luck.security-events.normal.json
-python scripts/mock_security_producer.py --topic luck.security-events --fixture fixtures/luck.security-events.duplicate.json --repeat 2
-python scripts/mock_security_producer.py --topic luck.masked-logs --fixture fixtures/luck.masked-logs.normal.json --output tmp/masked-logs.jsonl
+python scripts/mock_security_producer.py --topic myohan.security-events --fixture fixtures/luck.security-events.normal.json
+python scripts/mock_security_producer.py --topic myohan.security-events --fixture fixtures/luck.security-events.duplicate.json --repeat 2
+python scripts/mock_security_producer.py --topic myohan.masked-logs --fixture fixtures/luck.masked-logs.normal.json --output tmp/masked-logs.jsonl
 ```
 
 기본 동작은 topic의 JSON Schema 파일을 읽어 현재 계약이 사용하는 type, required, additionalProperties, const, enum, 길이, 정규식, 범위, 배열, 로컬 `$ref`, UTC date-time 규칙을 검증한 뒤 JSONL envelope를 출력하는 것이다. 의도적인 오류 fixture는 `--no-validate`를 붙여 DLQ 테스트 입력으로 생성한다.

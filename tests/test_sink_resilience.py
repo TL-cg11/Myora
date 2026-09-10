@@ -17,7 +17,7 @@ from security_sink.resilience import (
 )
 
 
-def metadata(topic: str = "luck.masked-logs") -> KafkaMetadata:
+def metadata(topic: str = "myohan.masked-logs") -> KafkaMetadata:
     return KafkaMetadata(
         consumer_group="masked-log-sink",
         topic=topic,
@@ -152,7 +152,7 @@ class ResilientProcessorTests(unittest.TestCase):
 
         self.assertEqual(result.duplicate, "dlq")
         self.assertEqual(len(sent), 1)
-        self.assertEqual(sent[0][0], "luck.masked-logs.sink-dlq")
+        self.assertEqual(sent[0][0], "myohan.masked-logs.sink-dlq")
         envelope = json.loads(sent[0][2])
         self.assertNotIn("raw_value", envelope)
         self.assertNotIn("sk-not-in-dlq", sent[0][2].decode())
@@ -167,7 +167,7 @@ class ResilientProcessorTests(unittest.TestCase):
         processor = self.make_processor(failures, terminal, sent)
         sensitive_metadata = KafkaMetadata(
             consumer_group="masked-log-sink",
-            topic="luck.masked-logs",
+            topic="myohan.masked-logs",
             partition=1,
             offset=24,
             key="api_key=sk-sensitive-key-value",

@@ -20,8 +20,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 TOPICS = {
-    "luck.security-events": ROOT / "contracts" / "luck.security-events.v1.schema.json",
-    "luck.masked-logs": ROOT / "contracts" / "luck.masked-logs.v1.schema.json",
+    "myohan.security-events": ROOT / "contracts" / "luck.security-events.v1.schema.json",
+    "myohan.masked-logs": ROOT / "contracts" / "luck.masked-logs.v1.schema.json",
 }
 
 

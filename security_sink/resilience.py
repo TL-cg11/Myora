@@ -22,8 +22,8 @@ from security_sink.common import (
 
 
 DLQ_TOPICS = {
-    "luck.security-events": "luck.security-events.sink-dlq",
-    "luck.masked-logs": "luck.masked-logs.sink-dlq",
+    "myohan.security-events": "myohan.security-events.sink-dlq",
+    "myohan.masked-logs": "myohan.masked-logs.sink-dlq",
 }
 
 UPSERT_FAILURE = """
