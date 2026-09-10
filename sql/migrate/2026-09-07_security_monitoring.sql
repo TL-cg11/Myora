@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS notification_log (
     dedup_key VARCHAR(255) NOT NULL,
     event_id VARCHAR(64) NULL,
     alert_type VARCHAR(64) NOT NULL,
-    channel ENUM('SLACK','EMAIL') NOT NULL,
+    channel ENUM('DISCORD','SLACK','EMAIL') NOT NULL,
     status ENUM('PENDING','SENDING','SENT','FAILED','SUPPRESSED') NOT NULL DEFAULT 'PENDING',
     retry_count INT UNSIGNED NOT NULL DEFAULT 0,
     next_retry_at DATETIME(3) NULL,
