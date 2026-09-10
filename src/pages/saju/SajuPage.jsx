@@ -36,7 +36,7 @@ export default function SajuPage() {
         birthTime: form.birth_time,
         gender: form.gender,
       });
-      setResult(data.reading);
+      setResult({ ...data.reading, reading_id: data.reading_id });
     } catch (caught) {
       setError(caught.message);
     } finally {

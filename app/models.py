@@ -252,6 +252,8 @@ class TarotChatMessage(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    policy_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
     reading: Mapped[TarotReading] = relationship(back_populates="messages")
 
 
@@ -377,3 +379,16 @@ class FaceReading(Base):
     coverage: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
     roll_degrees: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     nose_offset: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
+
+
+class ReadingChatMessage(Base):
+    __tablename__ = "chat_message"
+    __table_args__ = (UniqueConstraint("reading_id", "seq", name="uk_chat_message_seq"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reading_id: Mapped[int] = mapped_column(ForeignKey("reading.id", ondelete="CASCADE"))
+    seq: Mapped[int] = mapped_column(SmallInteger)
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    policy_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

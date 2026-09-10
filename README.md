@@ -212,19 +212,23 @@ POST·PUT·PATCH·DELETE는 405로 거부되고 DB API 계정에도 action UPDAT
 
 ### 결과 채팅 (DeepSeek)
 
-`.env` 에 키를 넣으면 켜지고, 비워두면 카드에서 바로 끌어오는 규칙 기반 답변으로
-동작합니다. 호출이 실패해도 같은 답변으로 되돌아가므로 채팅이 끊기지는 않습니다.
+`.env`의 공통 키와 모델 설정은 사주·타로·관상 생성 및 가드레일 검사가 함께
+사용합니다. 키가 없거나 입력·출력 검사가 실패하면 미검증 답변을 노출하지 않고
+검수된 고정 안내를 반환합니다.
 
 ```
-DEEPSEEK_TAROT_API_KEY=sk-...
-DEEPSEEK_TAROT_MODEL=deepseek-v4-flash
-LLM_TIMEOUT=20
+DEEPSEEK_API_KEY=발급받은_API_키
+DEEPSEEK_MODEL=deepseek-v4-flash
+AI_REQUEST_TIMEOUT=20
+AI_TOTAL_TIMEOUT=25
+CHAT_QUESTION_LIMIT=5
 ```
 
 응답의 `source` 가 이번 답변을 무엇으로 만들었는지 알려줍니다(`llm` / `rule`).
 화면에서는 채팅 패널 오른쪽 위 배지로 보입니다.
 
-`DEEPSEEK_BASE_URL` 은 관상 채팅과 공용입니다.
+전체 설정은 `.env.example`을 참고하세요. 기존 서비스별 키·모델 환경변수도 호환을
+위해 지원하지만, 공통값과 다를 때만 사용합니다.
 
 리딩 요약은 LLM 을 쓰지 않습니다. 카드를 뽑는 순간에 외부 API 를 기다리게 하지
 않으려는 것이고, 바꾸려면 `app/routers/tarot.py` 의 주석을 보세요.

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+# 아래 세 파일은 기존 배포 환경과의 호환을 위해 계속 읽는다.
 load_dotenv(BASE_DIR / ".env.deepseek.face")
 load_dotenv(BASE_DIR / ".env.deepseek.saju")
 load_dotenv(BASE_DIR / ".env.deepseek.tarot")
@@ -43,27 +44,36 @@ class Settings:
     security_db_password: str = os.getenv("SECURITY_DB_PASSWORD", "")
     # {"<sha256 hex>": "actor-id"} 형태. 원문 Bearer token은 저장하지 않는다.
     security_auth_token_hashes: str = os.getenv("SECURITY_AUTH_TOKEN_HASHES", "{}")
-    
-    deepseek_saju_api_key: str = os.getenv("DEEPSEEK_SAJU_API_KEY", "")
-    deepseek_tarot_api_key: str = os.getenv("DEEPSEEK_TAROT_API_KEY", "")
-    deepseek_face_api_key: str = os.getenv("DEEPSEEK_FACE_API_KEY", "")
-    
-    deepseek_saju_model: str = os.getenv("DEEPSEEK_SAJU_MODEL", "deepseek-v4-flash")
-    deepseek_tarot_model: str = os.getenv("DEEPSEEK_TAROT_MODEL", "deepseek-v4-flash")
-    deepseek_face_model: str = os.getenv("DEEPSEEK_FACE_MODEL", "deepseek-v4-flash")
-    
+
+    # AI 공통 설정: 서비스별 키/모델은 기존 환경변수로 재정의할 수 있다.
+    deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-
-    # 타로 채팅용. 키가 없으면 LLM 을 호출하지 않고 규칙 기반 답변만 쓴다.
-    deepseek_tarot_enabled: bool = bool(os.getenv("DEEPSEEK_TAROT_API_KEY"))
-    
-    # 사용자가 채팅 앞에서 기다리는 시간이라 넉넉하게 잡지 않는다.
-    llm_timeout: float = float(os.getenv("LLM_TIMEOUT", "20"))
-
-    # 결과 화면 채팅에서 물어볼 수 있는 횟수. 사주·관상·타로가 같은 값을 쓴다.
-    # 화면에도 같은 숫자가 필요한데 브라우저는 이 파일을 못 읽으므로
-    # /api/config 가 내려준다(app/main.py).
+    deepseek_saju_api_key: str = os.getenv("DEEPSEEK_SAJU_API_KEY", os.getenv("DEEPSEEK_API_KEY", ""))
+    deepseek_tarot_api_key: str = os.getenv("DEEPSEEK_TAROT_API_KEY", os.getenv("DEEPSEEK_API_KEY", ""))
+    deepseek_face_api_key: str = os.getenv("DEEPSEEK_FACE_API_KEY", os.getenv("DEEPSEEK_API_KEY", ""))
+    deepseek_saju_model: str = os.getenv("DEEPSEEK_SAJU_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+    deepseek_tarot_model: str = os.getenv("DEEPSEEK_TAROT_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+    deepseek_face_model: str = os.getenv("DEEPSEEK_FACE_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+    ai_request_timeout: float = float(os.getenv("AI_REQUEST_TIMEOUT", os.getenv("LLM_TIMEOUT", "20")))
+    ai_connect_timeout: float = float(os.getenv("AI_CONNECT_TIMEOUT", "5"))
+    ai_total_timeout: float = float(os.getenv("AI_TOTAL_TIMEOUT", "25"))
+    ai_max_tokens: int = int(os.getenv("AI_MAX_TOKENS", "700"))
+    ai_check_max_tokens: int = int(os.getenv("AI_CHECK_MAX_TOKENS", "250"))
+    ai_history_limit: int = int(os.getenv("AI_HISTORY_LIMIT", "10"))
+    ai_message_max_chars: int = int(os.getenv("AI_MESSAGE_MAX_CHARS", "1500"))
+    ai_context_max_chars: int = int(os.getenv("AI_CONTEXT_MAX_CHARS", "8000"))
+    ai_answer_max_chars: int = int(os.getenv("AI_ANSWER_MAX_CHARS", "4000"))
     chat_question_limit: int = int(os.getenv("CHAT_QUESTION_LIMIT", "5"))
+    ai_guardrail_model: str = os.getenv("AI_GUARDRAIL_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+
+    def __post_init__(self):
+        for name in ("ai_request_timeout", "ai_connect_timeout", "ai_total_timeout", "ai_max_tokens",
+                     "ai_check_max_tokens", "ai_history_limit", "ai_message_max_chars",
+                     "ai_context_max_chars", "ai_answer_max_chars", "chat_question_limit"):
+            value = getattr(self, name)
+            if not 0 < value < float("inf"):
+                raise ValueError(f"{name} must be finite and positive")
 
     @property
     def tarot_llm_enabled(self) -> bool:

@@ -58,7 +58,10 @@ def api_config() -> dict:
     채팅 질문 한도 같은 숫자를 프론트에 하드코딩하면 서버만 바꿨을 때
     안내 문구와 실제 동작이 어긋난다. config.py 를 유일한 출처로 둔다.
     """
-    return {"chat_question_limit": settings.chat_question_limit}
+    return {
+        "chat_question_limit": settings.chat_question_limit,
+        "ai_message_max_chars": settings.ai_message_max_chars,
+    }
 
 
 app.include_router(chat_router)

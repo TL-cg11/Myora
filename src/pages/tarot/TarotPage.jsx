@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
 import { createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
-import { useChatLimit } from '../../lib/useChatLimit.js';
+import { useAiConfig } from '../../lib/useChatLimit.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -156,7 +156,7 @@ function ChatPanel({ reading }) {
 
   // 관상(FortuneExperience)은 별도 카운터를 두지만, 타로는 대화가 서버에 저장되고
   // 응답으로 전체가 돌아오므로 실제 메시지에서 센다. 새로고침해도 값이 어긋나지 않는다.
-  const questionLimit = useChatLimit();
+  const { chatQuestionLimit: questionLimit, messageMaxChars } = useAiConfig();
   const usedQuestions = messages.filter((message) => message.role === 'user').length;
   const remainingQuestions = Math.max(0, questionLimit - usedQuestions);
   const limitReached = remainingQuestions === 0;
@@ -211,7 +211,7 @@ function ChatPanel({ reading }) {
         ))}
       </div>
       <form className="chat-form" onSubmit={(event) => { event.preventDefault(); send(input); }}>
-        <input value={input} maxLength={1000} disabled={limitReached}
+        <input value={input} maxLength={messageMaxChars} disabled={limitReached}
                onChange={(event) => setInput(event.target.value)}
                placeholder={limitReached ? `질문 ${questionLimit}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'}
                aria-label="채팅 질문"/>
