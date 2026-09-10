@@ -112,7 +112,7 @@ def build_api_request_log(
     query_guest_key = request.query_params.get("guest_key")
     input_data = {
         key: data[key]
-        for key in ("topic", "question")
+        for key in ("topic",)
         if isinstance(data.get(key), str)
     }
     severity = "ERROR" if response.status_code >= 500 else "WARNING" if response.status_code >= 400 else "INFO"
@@ -147,6 +147,8 @@ def build_ai_request_log(
     question_sequence: int | None = None,
     message_count: int | None = None,
     context_length: int | None = None,
+    phase: str | None = None,
+    policy_version: str | None = None,
 ) -> dict[str, Any]:
     """DeepSeek 호출 직전에 기록할 ai_request 이벤트를 만든다."""
     event = _common_log(
@@ -163,7 +165,7 @@ def build_ai_request_log(
                 "model": model,
                 "timeout_seconds": timeout_seconds,
             },
-            "input": {"question": question},
+            "input": {},
             "metadata": {
                 key: value
                 for key, value in {
@@ -172,8 +174,45 @@ def build_ai_request_log(
                     "message_count": message_count,
                     "context_length": context_length,
                     "prompt_length": len(question),
+                    "phase": phase,
+                    "policy_version": policy_version,
                 }.items()
                 if value is not None
+            },
+        }
+    )
+    return event
+
+
+def build_guardrail_decision_log(
+    *,
+    feature: str,
+    decision: str,
+    risk_level: str,
+    rules: list[str],
+    policy_version: str,
+    phase: str,
+) -> dict[str, Any]:
+    """사용자 원문이나 모델 답변 없이 가드레일 판정만 기록한다."""
+    event = _common_log(
+        feature=feature,
+        event_type="ai_guardrail_decision",
+        request_id=_current_request_id.get() or uuid4().hex,
+    )
+    event.update(
+        {
+            "severity": {
+                "LOW": "INFO",
+                "MEDIUM": "INFO",
+                "HIGH": "WARNING",
+                "CRITICAL": "WARNING",
+            }.get(risk_level, "WARNING"),
+            "guardrail": {
+                "policy_version": policy_version,
+                "phase": phase,
+                "decision": decision,
+                "risk_level": risk_level,
+                "rules": rules,
             },
         }
     )
@@ -223,6 +262,10 @@ def emit_ai_request_log(**kwargs: Any) -> str:
     event = build_ai_request_log(**kwargs)
     emit_was_log(event)
     return event["ai_call_id"]
+
+
+def emit_guardrail_decision_log(**kwargs: Any) -> None:
+    emit_was_log(build_guardrail_decision_log(**kwargs))
 
 
 def flush_was_logs(timeout: float = 10.0) -> None:

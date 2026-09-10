@@ -26,14 +26,14 @@ npm install
 npm run dev
 ```
 
-관상용 DeepSeek 채팅 키는 `.env.deepseek.face.example`을 복사한 `.env.deepseek.face` 파일에 입력합니다. 실제 키 파일은 Git에서 제외되며 키가 브라우저 번들에 포함되지 않습니다.
+DeepSeek 채팅 키는 프로젝트 루트의 `.env.example`을 참고해 `.env`에 공통으로 입력합니다. 실제 키 파일은 Git에서 제외되며 키가 브라우저 번들에 포함되지 않습니다.
 
 ```dotenv
-DEEPSEEK_FACE_API_KEY=발급받은_관상용_API_키
-DEEPSEEK_FACE_MODEL=deepseek-v4-flash
+DEEPSEEK_API_KEY=발급받은_API_키
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
-키를 입력하거나 변경한 뒤에는 `sudo systemctl restart luck-was`로 WAS를 재시작합니다. `scripts/install.sh`로 설치하면 관상 키 파일이 없을 때 예제 파일을 복사하고 소유자만 읽고 쓸 수 있게 설정합니다.
+키를 입력하거나 변경한 뒤에는 `sudo systemctl restart luck-was`로 WAS를 재시작합니다.
 
 개발 환경에서는 `vite.config.js`가 `/api` 요청을 `http://127.0.0.1:8000`의 WAS로 전달합니다. 따라서 FastAPI와 `npm run dev`를 함께 실행하면 됩니다. 다른 WAS 주소를 사용할 때만 `VITE_FACE_CHAT_API_URL`에 전체 `/api/face/chat` 주소를 지정하세요.
 

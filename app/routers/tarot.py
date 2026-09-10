@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.prompts.guardrail import POLICY_VERSION
 from app.db import get_session
 from app.auth import optional_user
 from app.models import (
@@ -170,7 +171,7 @@ def _to_reading_out(reading: TarotReading) -> ReadingOut:
         created_at=reading.created_at,
         messages=[
             ChatMessageOut.model_validate(message)
-            for message in sorted(reading.messages, key=lambda m: m.seq)
+            for message in sorted(reading.messages, key=lambda m: m.seq) if message.policy_version == POLICY_VERSION
         ],
         cards=[
             ReadingCardOut(

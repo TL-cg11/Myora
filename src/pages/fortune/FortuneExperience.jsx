@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useChatLimit } from '../../lib/useChatLimit.js';
+import { sendReadingChat } from '../../lib/api.js';
+import { useAiConfig } from '../../lib/useChatLimit.js';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
 import './fortune-experience.css';
 
@@ -16,10 +17,9 @@ const configs = {
   },
 };
 
-function ChatPanel({ context, fortuneType }) {
+function ChatPanel({ readingId, fortuneType }) {
   const isFaceChat = fortuneType === 'face';
-  const serverLimit = useChatLimit();
-  const questionLimit = isFaceChat ? serverLimit : Number.POSITIVE_INFINITY;
+  const { chatQuestionLimit: questionLimit, messageMaxChars } = useAiConfig();
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
@@ -27,7 +27,7 @@ function ChatPanel({ context, fortuneType }) {
   const [loading, setLoading] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
   const remainingQuestions = Math.max(0, questionLimit - questionCount);
-  const limitReached = isFaceChat && remainingQuestions === 0;
+  const limitReached = remainingQuestions === 0;
 
   async function sendMessage(text) {
     const question = text.trim();
@@ -36,23 +36,16 @@ function ChatPanel({ context, fortuneType }) {
     setMessages(next);
     setInput('');
     setLoading(true);
-    if (isFaceChat) setQuestionCount((current) => current + 1);
+
 
     try {
-      const chatApiUrl = isFaceChat
-        ? (import.meta.env.VITE_FACE_CHAT_API_URL || '/api/face/chat')
-        : (import.meta.env.VITE_CHAT_API_URL || '/api/chat');
-      const response = await fetch(chatApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, messages: next }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || 'AI 응답 서버에 연결할 수 없어요.');
+      const data = await sendReadingChat(fortuneType, readingId, question);
+      setQuestionCount(data.questions_used);
       const answer = data.answer || data.message?.content || data.content;
       if (!answer) throw new Error('응답 형식을 확인해 주세요.');
       setMessages((current) => [...current, { role: 'assistant', content: answer }]);
     } catch (error) {
+      if (error.message.includes('모두 사용')) setQuestionCount(questionLimit);
       setMessages((current) => [...current, {
         role: 'assistant',
         content: `${error.message} 채팅 서버가 연결되면 이 결과를 바탕으로 바로 답변해 드릴게요.`,
@@ -69,16 +62,16 @@ function ChatPanel({ context, fortuneType }) {
 
   return <section className="result-chat" aria-label="운세 결과 AI 채팅">
     <div className="chat-heading"><span className="chat-avatar">✦</span><div><b>묘라에게 더 물어보기</b><small>현재 결과를 기억하고 답변해요</small></div><i>AI</i></div>
-    {isFaceChat && <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
+    <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
       {limitReached ? `AI 질문 ${questionLimit}회를 모두 사용했어요.` : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
-    </p>}
+    </p>
     <div className="chat-messages" aria-live="polite">
       {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{message.content}</div>)}
       {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}
     </div>
     <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" disabled={loading || limitReached} onClick={() => sendMessage(item)}>{item}</button>)}</div>
     <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(input); }}>
-      <input value={input} disabled={limitReached} onChange={(event) => setInput(event.target.value)} placeholder={limitReached ? `질문 ${questionLimit}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'} aria-label="채팅 질문"/>
+      <input value={input} maxLength={messageMaxChars} disabled={limitReached} onChange={(event) => setInput(event.target.value)} placeholder={limitReached ? `질문 ${questionLimit}회를 모두 사용했어요` : '결과에 관해 궁금한 점을 물어보세요'} aria-label="채팅 질문"/>
       <button type="submit" disabled={!input.trim() || loading || limitReached}>보내기</button>
     </form>
     <p className="chat-notice">AI 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>
@@ -106,11 +99,10 @@ export default function FortuneExperience({ type, image }) {
     return config.result;
   }, [config.result, inputSummary, type]);
   const resultTitle = type === 'face' && typeof inputSummary === 'object' ? inputSummary.title : config.resultTitle;
-  const summaryText = typeof inputSummary === 'object' ? inputSummary.summary : inputSummary;
   const resultKeywords = type === 'face' && typeof inputSummary === 'object'
     ? inputSummary.keywords
     : ['#오늘의흐름', '#나를위한조언', '#다정한운세'];
-  const context = `${config.title} 결과. 입력/선택: ${summaryText}. 결과 제목: ${resultTitle}. 해석: ${resultText}`;
+
 
   useEffect(() => {
     if (!inputSummary || !resultText) return;
@@ -124,7 +116,7 @@ export default function FortuneExperience({ type, image }) {
     <section className="fortune-intro"><div><span>{config.kicker}</span><h1>{config.title}</h1><p>{config.intro}</p></div><img src={image} alt={`${config.title} 고양이 묘라`}/></section>
     <section className="fortune-workspace">
       {!inputSummary ? <div className="input-card"><div className="step-label">STEP 1 · 정보 선택</div>{type === 'saju' && <SajuInput onComplete={setInputSummary}/>} {type === 'face' && <FaceReadingInput onComplete={setInputSummary}/>}</div>
-      : <><article className="fortune-result"><div className="step-label">RESULT · 묘라의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel context={context} fortuneType={type}/></>}
+      : <><article className="fortune-result"><div className="step-label">RESULT · 묘라의 해석</div><span className="result-symbol">☾</span><h2>{resultTitle}</h2><p>{resultText}</p><div className="result-keywords">{resultKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}</div><button type="button" onClick={() => setInputSummary('')}>다시 알아보기</button></article><ChatPanel readingId={inputSummary.id} fortuneType={type}/></>}
     </section>
   </main>;
 }

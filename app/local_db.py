@@ -6,16 +6,16 @@ from sqlalchemy import Integer, MetaData, select
 from sqlalchemy.orm import Session
 
 from app.db import engine
-from app.models import AppUser, AuthSession, Reading, SajuChart, SajuReading, SajuTerm, SajuNarrativeRule
+from app.models import AppUser, AuthSession, Reading, ReadingChatMessage, SajuChart, SajuReading, SajuTerm, SajuNarrativeRule
 
 
 def initialize(local_engine=engine):
     if local_engine.dialect.name != "sqlite":
         raise RuntimeError("SQLite 전용 초기화입니다. 운영 DB는 SQL 파일로 적용하세요.")
     metadata = MetaData()
-    for model in (AppUser, AuthSession, Reading, SajuChart, SajuReading, SajuTerm, SajuNarrativeRule):
+    for model in (AppUser, AuthSession, Reading, ReadingChatMessage, SajuChart, SajuReading, SajuTerm, SajuNarrativeRule):
         table = model.__table__.to_metadata(metadata)
-        if model in (AppUser, AuthSession, Reading, SajuChart):
+        if model in (AppUser, AuthSession, Reading, ReadingChatMessage, SajuChart):
             # SQLite는 INTEGER PRIMARY KEY만 자동 증가한다. 원본 ORM은 유지한다.
             table.c.id.type = Integer()
     metadata.create_all(local_engine)

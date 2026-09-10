@@ -76,7 +76,7 @@ class WasLoggingTest(unittest.TestCase):
         self.assertEqual(event["feature"], "tarot")
         self.assertEqual(event["event_type"], "api_request")
         self.assertEqual(event["client_ip"], "203.0.113.10")
-        self.assertEqual(event["input"], {"topic": "love", "question": "제 연애운이 어떻게 될까요?"})
+        self.assertEqual(event["input"], {"topic": "love"})
         self.assertNotIn("password", json.dumps(event, ensure_ascii=False))
 
     @patch("app.kafka_logging.emit_was_log")
@@ -120,9 +120,25 @@ class WasLoggingTest(unittest.TestCase):
         self.assertEqual(event["feature"], "face")
         self.assertEqual(event["event_type"], "ai_request")
         self.assertEqual(event["ai"]["provider"], "deepseek")
-        self.assertEqual(event["input"], {"question": "제 관상을 설명해 주세요"})
+        self.assertEqual(event["input"], {})
         self.assertEqual(event["metadata"]["context_length"], 1200)
         self.assertNotIn("context", event["input"])
+
+    def test_guardrail_decision_log_has_no_content(self) -> None:
+        event = kafka_logging.build_guardrail_decision_log(
+            feature="saju",
+            decision="restrict",
+            risk_level="HIGH",
+            rules=["G04"],
+            policy_version="1.1",
+            phase="input",
+        )
+
+        self.assertEqual(event["event_type"], "ai_guardrail_decision")
+        self.assertEqual(event["severity"], "WARNING")
+        self.assertEqual(event["guardrail"]["rules"], ["G04"])
+        self.assertNotIn("input", event)
+        self.assertNotIn("content", json.dumps(event, ensure_ascii=False))
 
     @patch("app.kafka_logging.emit_was_log")
     def test_api_and_ai_events_share_request_id(self, emit) -> None:

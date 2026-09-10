@@ -1,123 +1,65 @@
-import logging
-from typing import Literal
-
-import httpx
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field, model_validator
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.auth import optional_user
+from app.db import get_session
+from app.models import AppUser, ReadingChatMessage
 from app.prompts import FACE_PERSONA
-from app.kafka_logging import emit_ai_request_log
+from app.prompts.guardrail import POLICY_VERSION
+from app.services.chat_context import load_context
+from app.services.guardrail import safe_answer
 
-
-router = APIRouter(prefix="/api", tags=["chat"])
-logger = logging.getLogger(__name__)
-
-
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=1_500)
-
+router = APIRouter(prefix='/api', tags=['chat'])
 
 class ChatRequest(BaseModel):
-    context: str = Field(min_length=1, max_length=8_000)
-    messages: list[ChatMessage] = Field(min_length=1, max_length=10)
-
-    @model_validator(mode="after")
-    def limit_user_questions(self):
-        question_count = sum(message.role == "user" for message in self.messages)
-        if question_count > settings.chat_question_limit:
-            raise ValueError(
-                f"관상 AI 질문은 최대 {settings.chat_question_limit}회까지 가능해요."
-            )
-        return self
-
+    model_config = ConfigDict(extra='forbid')
+    reading_id: int = Field(gt=0)
+    guest_key: UUID
+    message: str = Field(min_length=1, max_length=settings.ai_message_max_chars)
 
 class ChatResponse(BaseModel):
     answer: str
+    questions_used: int
 
-
-def build_deepseek_messages(request: ChatRequest) -> list[dict[str, str]]:
-    return [
-        {
-            "role": "system",
-            "content": f"{FACE_PERSONA}\n\n[현재 관상 결과]\n{request.context}",
-        },
-        *(message.model_dump() for message in request.messages),
-    ]
-
-
-@router.post("/face/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
-    if not settings.deepseek_face_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="관상 페이지의 DeepSeek API 키가 설정되지 않았어요.",
-        )
-
-    payload = {
-        "model": settings.deepseek_face_model,
-        "messages": build_deepseek_messages(request),
-        "thinking": {"type": "disabled"},
-        "max_tokens": 700,
-        "stream": False,
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.deepseek_face_api_key}",
-        "Content-Type": "application/json",
-    }
-    endpoint = f"{settings.deepseek_base_url.rstrip('/')}/chat/completions"
-    user_messages = [message.content for message in request.messages if message.role == "user"]
-    question = user_messages[-1] if user_messages else ""
-    emit_ai_request_log(
-        feature="face",
-        question=question,
-        model=settings.deepseek_face_model,
-        timeout_seconds=45.0,
-        question_sequence=len(user_messages),
-        message_count=len(payload["messages"]),
-        context_length=len(request.context),
+async def reading_chat(service, persona, request, session, user):
+    context = load_context(session, service, request.reading_id, request.guest_key, user)
+    rows = list(session.scalars(select(ReadingChatMessage).where(ReadingChatMessage.reading_id == request.reading_id).order_by(ReadingChatMessage.seq)))
+    asked = sum(row.role == 'user' for row in rows)
+    if asked >= settings.chat_question_limit:
+        raise HTTPException(429, f'AI 질문 {settings.chat_question_limit}회를 모두 사용했어요.')
+    history = [{'role':r.role,'content':r.content} for r in rows if r.policy_version == POLICY_VERSION][-settings.ai_history_limit:]
+    seq = max((r.seq for r in rows), default=0)
+    pending = ReadingChatMessage(
+        reading_id=request.reading_id,
+        seq=seq + 1,
+        role='user',
+        content='[검사 중인 질문]',
+        policy_version=None,
     )
+    session.add(pending)
+    # 질문 자리를 먼저 예약해 동시 요청도 공통 횟수 제한을 넘지 못하게 한다.
+    session.commit()
 
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as client:
-            response = await client.post(endpoint, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-    except httpx.TimeoutException as error:
-        logger.warning("DeepSeek request timed out: %s", error)
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="AI 답변 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.",
-        ) from error
-    except httpx.HTTPStatusError as error:
-        logger.warning("DeepSeek returned HTTP %s", error.response.status_code)
-        if error.response.status_code == status.HTTP_401_UNAUTHORIZED:
-            detail = "DeepSeek API 키가 올바르지 않아요. 서버 설정을 확인해 주세요."
-        elif error.response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
-            detail = "AI 요청이 많거나 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요."
-        else:
-            detail = "AI 서비스가 응답하지 않았어요. 잠시 후 다시 시도해 주세요."
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail) from error
-    except (httpx.RequestError, ValueError) as error:
-        logger.warning("DeepSeek request failed: %s", error)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
-        ) from error
-
-    try:
-        answer = data["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError, TypeError, AttributeError) as error:
-        logger.warning("DeepSeek returned an unexpected response shape")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 응답 형식을 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
-        ) from error
-
-    if not answer:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI가 빈 답변을 보냈어요. 질문을 바꿔 다시 시도해 주세요.",
+    result = await safe_answer(service, persona, context, request.message, history)
+    pending.content = result.question
+    pending.policy_version = POLICY_VERSION
+    session.add(
+        ReadingChatMessage(
+            reading_id=request.reading_id,
+            seq=seq + 2,
+            role='assistant',
+            content=result.answer,
+            policy_version=POLICY_VERSION,
+            source='llm' if result.generated else 'rule',
         )
-    return ChatResponse(answer=answer)
+    )
+    session.commit()
+    return ChatResponse(answer=result.answer, questions_used=asked+1)
+
+@router.post('/face/chat', response_model=ChatResponse)
+async def chat(request: ChatRequest, session: Session = Depends(get_session), user: AppUser | None = Depends(optional_user)):
+    return await reading_chat('face', FACE_PERSONA, request, session, user)

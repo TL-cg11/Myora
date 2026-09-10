@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from app.config import settings
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import InterpretationSource, Orientation, ReadingStatus, Topic
@@ -95,7 +97,7 @@ class ReadingCreate(BaseModel):
 
 
 class ChatCreate(BaseModel):
-    message: str = Field(min_length=1, max_length=1000)
+    message: str = Field(min_length=1, max_length=settings.ai_message_max_chars)
 
 
 class ChatOut(BaseModel):

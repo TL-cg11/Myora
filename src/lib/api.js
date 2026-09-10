@@ -162,3 +162,9 @@ export const loginAccount = ({ loginId, password }) =>
 
 export const getMe = () => request('/api/auth', '/me');
 export const logoutAccount = () => request('/api/auth', '/logout', { method: 'POST' });
+
+
+export const sendReadingChat = (service, readingId, message) =>
+  request(`/api/${service}`, '/chat', {
+    method: 'POST', body: { reading_id: readingId, guest_key: getGuestKey(), message },
+  });
