@@ -28,6 +28,15 @@ bash scripts/apply-security-monitoring-migration.sh
 
 The migration account is intentionally restricted to `localhost`. Re-running the bootstrap is idempotent for tables, roles, permissions, and role seed data; it also rotates each supplied service-account password. It does not alter an already-existing incompatible table definition.
 
+Existing installations must apply the additive Discord channel migration once:
+
+```bash
+sudo mysql -uroot < sql/migrate/2026-09-10_notification_discord.sql
+```
+
+It preserves legacy `SLACK` and `EMAIL` history while allowing all new
+notification rows to use `DISCORD`.
+
 The verification script also confirms that `security_monitoring_api` can only
 `SELECT` and `INSERT` rows in `security_event_action`; `UPDATE` and `DELETE` are
 intentionally absent so audit history remains append-only even if an API bug is introduced.
