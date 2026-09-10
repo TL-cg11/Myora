@@ -11,12 +11,7 @@ import time
 from typing import Any
 
 from security_sink.notification_policy import RISK_ORDER, NotificationPolicy, configured_channels
-from security_sink.notifications import (
-    EmailSender,
-    NotificationRepository,
-    NotificationService,
-    SlackWebhookSender,
-)
+from security_sink.notifications import DiscordWebhookSender, NotificationRepository, NotificationService
 from security_sink.runtime import mysql_connection, required
 
 
@@ -28,10 +23,6 @@ def _integer(name: str, default: int, minimum: int = 1) -> int:
     if value < minimum:
         raise ValueError(f"{name} must be at least {minimum}")
     return value
-
-
-def _boolean(name: str, default: bool = False) -> bool:
-    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def policy_from_environment() -> NotificationPolicy:
@@ -55,25 +46,9 @@ def policy_from_environment() -> NotificationPolicy:
 def senders_from_environment(channels: tuple[str, ...]) -> dict[str, Any]:
     senders: dict[str, Any] = {}
     timeout = float(os.getenv("NOTIFICATION_DELIVERY_TIMEOUT_SECONDS", "10"))
-    if "SLACK" in channels:
-        senders["SLACK"] = SlackWebhookSender(
-            required("SLACK_WEBHOOK_URL"), timeout_seconds=timeout
-        )
-    if "EMAIL" in channels:
-        recipients = tuple(
-            address.strip()
-            for address in required("SMTP_RECIPIENTS").split(",")
-            if address.strip()
-        )
-        senders["EMAIL"] = EmailSender(
-            required("SMTP_HOST"),
-            int(os.getenv("SMTP_PORT", "587")),
-            os.getenv("SMTP_USERNAME", ""),
-            os.getenv("SMTP_PASSWORD", ""),
-            required("SMTP_FROM"),
-            recipients,
-            use_ssl=_boolean("SMTP_USE_SSL"),
-            timeout_seconds=timeout,
+    if "DISCORD" in channels:
+        senders["DISCORD"] = DiscordWebhookSender(
+            required("DISCORD_WEBHOOK_URL"), timeout_seconds=timeout
         )
     return senders
 

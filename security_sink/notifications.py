@@ -1,14 +1,12 @@
-"""Durable, grouped Slack and email delivery for security notifications."""
+"""Durable, grouped Discord delivery for security notifications."""
 
 from __future__ import annotations
 
 import json
-import smtplib
-import ssl
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from email.message import EmailMessage
 from typing import Any, Callable, Iterable, Protocol
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from security_sink.common import validate_masking_safety
@@ -209,60 +207,47 @@ class NotificationRepository:
             connection.close()
 
 
-class SlackWebhookSender:
+class DiscordWebhookSender:
     def __init__(self, webhook_url: str, timeout_seconds: float = 10.0) -> None:
-        if not webhook_url.startswith("https://"):
-            raise ValueError("Slack webhook URL must use HTTPS")
-        self.webhook_url = webhook_url
+        parsed = urlsplit(webhook_url)
+        allowed_hosts = {"discord.com", "www.discord.com", "canary.discord.com", "ptb.discord.com"}
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname not in allowed_hosts
+            or not parsed.path.startswith("/api/webhooks/")
+        ):
+            raise ValueError("Discord webhook URL must use the official HTTPS endpoint")
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query["wait"] = "true"
+        self.webhook_url = urlunsplit(parsed._replace(query=urlencode(query)))
         self.timeout_seconds = timeout_seconds
 
     def send(self, subject: str, body: str) -> None:
-        payload = json.dumps({"text": f"*{subject}*\n{body}"}).encode("utf-8")
-        request = Request(
-            self.webhook_url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urlopen(request, timeout=self.timeout_seconds) as response:
-            if not 200 <= response.status < 300:
-                raise RuntimeError("Slack delivery returned a non-success status")
+        header = f"**{subject}**"
+        chunks: list[str] = []
+        current = header
+        for line in body.splitlines():
+            candidate = f"{current}\n{line}"
+            if len(candidate) <= 2000:
+                current = candidate
+                continue
+            chunks.append(current)
+            current = f"{header}\n{line}"
+        chunks.append(current)
 
-
-class EmailSender:
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        username: str,
-        password: str,
-        sender: str,
-        recipients: Iterable[str],
-        *,
-        use_ssl: bool = False,
-        timeout_seconds: float = 10.0,
-    ) -> None:
-        self.host, self.port = host, port
-        self.username, self.password = username, password
-        self.sender, self.recipients = sender, tuple(recipients)
-        self.use_ssl, self.timeout_seconds = use_ssl, timeout_seconds
-        if not self.recipients:
-            raise ValueError("at least one email recipient is required")
-
-    def send(self, subject: str, body: str) -> None:
-        message = EmailMessage()
-        message["Subject"] = subject
-        message["From"] = self.sender
-        message["To"] = ", ".join(self.recipients)
-        message.set_content(body)
-        context = ssl.create_default_context()
-        smtp_class = smtplib.SMTP_SSL if self.use_ssl else smtplib.SMTP
-        with smtp_class(self.host, self.port, timeout=self.timeout_seconds) as smtp:
-            if not self.use_ssl:
-                smtp.starttls(context=context)
-            if self.username:
-                smtp.login(self.username, self.password)
-            smtp.send_message(message)
+        for content in chunks:
+            payload = json.dumps(
+                {"content": content, "allowed_mentions": {"parse": []}}
+            ).encode("utf-8")
+            request = Request(
+                self.webhook_url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                if not 200 <= response.status < 300:
+                    raise RuntimeError("Discord delivery returned a non-success status")
 
 
 def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:

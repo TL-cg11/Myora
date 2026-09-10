@@ -24,6 +24,20 @@ if [[ "$(stat -c '%a' /etc/luck-security-notifier.env)" != '600' ]]; then
   exit 1
 fi
 
+set -a
+source /etc/luck-security-notifier.env
+set +a
+cd "$ROOT_DIR"
+"$ROOT_DIR/.venv-security-sink/bin/python" -c '
+from security_sink.notification_policy import configured_channels
+from security_sink.notifier_worker import senders_from_environment
+
+channels = configured_channels()
+if channels != ("DISCORD",):
+    raise SystemExit("Only the DISCORD notification channel may be enabled.")
+senders_from_environment(channels)
+'
+
 install -m 0644 "$ROOT_DIR/observability/systemd/security-notifier.service" \
   /etc/systemd/system/security-notifier.service
 systemctl daemon-reload

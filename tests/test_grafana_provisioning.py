@@ -62,8 +62,11 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertIn('up{job="luck-security-sinks"}', self.alerts)
         self.assertIn("contactPoints:", self.alerts)
         self.assertIn("Luck Security Operations", self.alerts)
-        self.assertIn("$GRAFANA_SLACK_WEBHOOK_URL", self.alerts)
-        self.assertIn("$GRAFANA_ALERT_EMAIL_ADDRESSES", self.alerts)
+        self.assertIn("uid: luck-security-discord", self.alerts)
+        self.assertIn("type: discord", self.alerts)
+        self.assertIn("$GRAFANA_DISCORD_WEBHOOK_URL", self.alerts)
+        self.assertNotIn("type: slack", self.alerts)
+        self.assertNotIn("type: email", self.alerts)
         self.assertIn("group_wait: 30s", self.alerts)
         self.assertIn("repeat_interval: 4h", self.alerts)
 

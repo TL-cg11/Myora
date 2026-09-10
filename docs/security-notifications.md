@@ -32,17 +32,18 @@ Provider exception text is not persisted, and notifications contain only event
 identifiers, safe classification fields, and `masked_excerpt` after a second
 sensitive-data check.
 
-## Slack and email
+## Discord
 
-Slack uses an HTTPS incoming webhook. Email uses SMTP with implicit TLS when
-`SMTP_USE_SSL=true`; otherwise it requires STARTTLS. Secrets are loaded from
-`/etc/luck-security-notifier.env`, mode `0600`, and are never committed. Copy
-`security_notifier.env.example` outside the repository, fill in the real values,
-and enable only configured channels in `SECURITY_NOTIFICATION_CHANNELS`.
+Discord uses an official HTTPS incoming webhook with `wait=true`, so the worker
+confirms that Discord accepted each message before marking rows `SENT`. Mentions
+are disabled and messages longer than Discord's 2,000-character content limit
+are split. The webhook is loaded from `/etc/luck-security-notifier.env`, mode
+`0600`, and is never committed. `SECURITY_NOTIFICATION_CHANNELS` accepts only
+`DISCORD`; Slack and email are disabled.
 
 Grafana uses its own provisioned `Luck Security Operations` contact point with
-Slack and email receivers. Its notification policy is appropriate because this
-is a dedicated project Grafana instance; deploying it to a shared Grafana would
+a Discord receiver. Its notification policy is appropriate because this is a
+dedicated project Grafana instance; deploying it to a shared Grafana would
 replace that organization policy tree and must be reviewed first.
 
 ## Local and server verification

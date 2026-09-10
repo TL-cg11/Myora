@@ -110,7 +110,7 @@ python scripts/benchmark_security_sink_core.py --duration 60
 
 `security_sink.notifier_worker` sends HIGH/CRITICAL, repeated-behavior, and
 long-unresolved event notifications through the durable `notification_log`
-queue. Slack, SMTP, grouping, retry, deduplication, and native systemd setup are
+queue. Discord Webhook, grouping, retry, deduplication, and native systemd setup are
 documented in [`docs/security-notifications.md`](docs/security-notifications.md).
 
 benchmark는 network I/O를 제외한 local core 회귀 검사입니다. 실제 DB·Loki latency, Kafka lag와 60초 운영 처리량은 서버 적용 후 별도로 검증해야 합니다.

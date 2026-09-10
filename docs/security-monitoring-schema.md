@@ -129,7 +129,7 @@ server; `luck-nginx` retains the contract and design documentation.
 | `dedup_key` | VARCHAR(255) | N | UNIQUE | `event_id+alert_type+channel` |
 | `event_id` | VARCHAR(64) | Y | INDEX | 관련 이벤트 ID |
 | `alert_type` | VARCHAR(64) | N |  | 알림 유형 |
-| `channel` | ENUM('SLACK','EMAIL') | N |  | 발송 채널 |
+| `channel` | ENUM('DISCORD','SLACK','EMAIL') | N |  | 신규 발송은 Discord만 사용하며 Slack·Email은 기존 이력 호환용 |
 | `status` | ENUM('PENDING','SENDING','SENT','FAILED','SUPPRESSED') | N | DEFAULT PENDING | 발송 상태 |
 | `retry_count` | INT UNSIGNED | N | DEFAULT 0 | 재시도 횟수 |
 | `next_retry_at` | DATETIME(3) | Y | INDEX | 다음 재시도 시각 |

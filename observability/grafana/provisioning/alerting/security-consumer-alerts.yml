@@ -236,23 +236,22 @@ groups:
           runbook_url: docs/security-monitoring-operations.md
         labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
 
+deleteContactPoints:
+  - orgId: 1
+    uid: luck-security-slack
+  - orgId: 1
+    uid: luck-security-email
+
 contactPoints:
   - orgId: 1
     name: Luck Security Operations
     receivers:
-      - uid: luck-security-slack
-        type: slack
+      - uid: luck-security-discord
+        type: discord
         disableResolveMessage: false
         settings:
-          url: $GRAFANA_SLACK_WEBHOOK_URL
-          recipient: $GRAFANA_SLACK_RECIPIENT
-          username: luck-security-monitor
-      - uid: luck-security-email
-        type: email
-        disableResolveMessage: false
-        settings:
-          addresses: $GRAFANA_ALERT_EMAIL_ADDRESSES
-          singleEmail: true
+          url: $GRAFANA_DISCORD_WEBHOOK_URL
+          use_discord_username: true
 
 policies:
   - orgId: 1

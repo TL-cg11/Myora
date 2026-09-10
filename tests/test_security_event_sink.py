@@ -110,7 +110,7 @@ class SecurityEventSinkTests(unittest.TestCase):
         self.assertTrue(connection.committed)
         self.assertFalse(connection.rolled_back)
         self.assertTrue(connection.closed)
-        self.assertEqual(len(connection.executions), 11)
+        self.assertEqual(len(connection.executions), 9)
         self.assertIn("FROM kafka_consumption", connection.executions[0][0])
         self.assertIn("FROM security_event WHERE", connection.executions[1][0])
         self.assertIn("INSERT INTO security_event (", connection.executions[2][0])
@@ -118,16 +118,16 @@ class SecurityEventSinkTests(unittest.TestCase):
         self.assertIn("security_event_detection", connection.executions[4][0])
         self.assertIn("security_event_action", connection.executions[5][0])
         self.assertEqual(connection.executions[5][1], (41, "SYSTEM", "security-event-sink"))
-        notifications = connection.executions[6:10]
+        notifications = connection.executions[6:8]
         self.assertTrue(all("INSERT IGNORE INTO notification_log" in sql for sql, _ in notifications))
         self.assertEqual(
             {values[2] for _, values in notifications},
             {"RISK_HIGH", "REPEATED_BEHAVIOR"},
         )
-        self.assertEqual({values[3] for _, values in notifications}, {"SLACK", "EMAIL"})
-        self.assertIn("INSERT INTO kafka_consumption", connection.executions[10][0])
-        self.assertEqual(connection.executions[10][1][0:4], metadata().identity_values())
-        self.assertEqual(len(str(connection.executions[10][1][5])), 64)
+        self.assertEqual({values[3] for _, values in notifications}, {"DISCORD"})
+        self.assertIn("INSERT INTO kafka_consumption", connection.executions[8][0])
+        self.assertEqual(connection.executions[8][1][0:4], metadata().identity_values())
+        self.assertEqual(len(str(connection.executions[8][1][5])), 64)
 
     def test_duplicate_offset_skips_all_writes(self) -> None:
         connection = FakeConnection(consumed=True)
