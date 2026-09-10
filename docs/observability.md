@@ -16,13 +16,7 @@ sudo env GRAFANA_ADMIN_USER=admin \
   GRAFANA_SECURITY_DB_PORT='3306' \
   GRAFANA_SECURITY_DB_USER='security_grafana' \
   GRAFANA_SECURITY_DB_PASSWORD='replace-with-the-readonly-db-password' \
-  GRAFANA_SLACK_WEBHOOK_URL='https://hooks.slack.com/services/replace-me' \
-  GRAFANA_SLACK_RECIPIENT='security-alerts' \
-  GRAFANA_ALERT_EMAIL_ADDRESSES='security-team@example.com' \
-  GRAFANA_SMTP_HOST='smtp.example.com:587' \
-  GRAFANA_SMTP_USER='security-monitoring@example.com' \
-  GRAFANA_SMTP_PASSWORD='replace-with-the-smtp-password' \
-  GRAFANA_SMTP_FROM_ADDRESS='security-monitoring@example.com' \
+  GRAFANA_DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/replace-me' \
   bash scripts/observability-install.sh
 
 sudo bash scripts/observability-test.sh
@@ -44,9 +38,9 @@ is stored only in `/etc/luck-observability.env` with mode `0600`.
 
 Grafana provisions Prometheus, Loki, and the read-only security MariaDB
 datasource automatically. It also provisions the security-event and consumer
-dashboards plus lag, DLQ, and scrape-target alert rules. The provisioned Slack
-and email contact point groups matching alerts for 30 seconds and repeats an
-unchanged firing alert after four hours.
+dashboards plus lag, DLQ, and scrape-target alert rules. The provisioned Discord
+contact point groups matching alerts for 30 seconds and repeats an unchanged
+firing alert after four hours. Slack and SMTP are disabled.
 
 ## Service operations
 

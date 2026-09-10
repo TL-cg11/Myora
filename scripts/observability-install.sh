@@ -10,16 +10,10 @@ fi
 : "${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD before installation}"
 : "${GRAFANA_SECURITY_DB_HOST:?Set GRAFANA_SECURITY_DB_HOST before installation}"
 : "${GRAFANA_SECURITY_DB_PASSWORD:?Set GRAFANA_SECURITY_DB_PASSWORD before installation}"
-: "${GRAFANA_SLACK_WEBHOOK_URL:?Set GRAFANA_SLACK_WEBHOOK_URL before installation}"
-: "${GRAFANA_ALERT_EMAIL_ADDRESSES:?Set GRAFANA_ALERT_EMAIL_ADDRESSES before installation}"
-: "${GRAFANA_SMTP_HOST:?Set GRAFANA_SMTP_HOST before installation}"
-: "${GRAFANA_SMTP_USER:?Set GRAFANA_SMTP_USER before installation}"
-: "${GRAFANA_SMTP_PASSWORD:?Set GRAFANA_SMTP_PASSWORD before installation}"
-: "${GRAFANA_SMTP_FROM_ADDRESS:?Set GRAFANA_SMTP_FROM_ADDRESS before installation}"
+: "${GRAFANA_DISCORD_WEBHOOK_URL:?Set GRAFANA_DISCORD_WEBHOOK_URL before installation}"
 GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
 GRAFANA_SECURITY_DB_PORT=${GRAFANA_SECURITY_DB_PORT:-3306}
 GRAFANA_SECURITY_DB_USER=${GRAFANA_SECURITY_DB_USER:-security_grafana}
-GRAFANA_SLACK_RECIPIENT=${GRAFANA_SLACK_RECIPIENT:-security-alerts}
 if [[ "$GRAFANA_ADMIN_PASSWORD" == 'replace-with-a-strong-password' ]]; then
   echo 'Set a real GRAFANA_ADMIN_PASSWORD; do not use the example value.' >&2
   exit 1
@@ -28,22 +22,15 @@ if [[ "$GRAFANA_SECURITY_DB_PASSWORD" == 'replace-with-the-readonly-db-password'
   echo 'Set the real read-only Grafana database password.' >&2
   exit 1
 fi
-if [[ "$GRAFANA_SLACK_WEBHOOK_URL" != https://* \
-   || "$GRAFANA_SLACK_WEBHOOK_URL" == *replace-me* ]]; then
-  echo 'Set a real HTTPS GRAFANA_SLACK_WEBHOOK_URL.' >&2
-  exit 1
-fi
-if [[ "$GRAFANA_SMTP_PASSWORD" == 'replace-with-the-smtp-password' ]]; then
-  echo 'Set the real Grafana SMTP password.' >&2
+if [[ "$GRAFANA_DISCORD_WEBHOOK_URL" != https://discord.com/api/webhooks/* \
+   || "$GRAFANA_DISCORD_WEBHOOK_URL" == *replace-me* ]]; then
+  echo 'Set a real official HTTPS GRAFANA_DISCORD_WEBHOOK_URL.' >&2
   exit 1
 fi
 if [[ "$GRAFANA_ADMIN_PASSWORD" == *$'\n'* || "$GRAFANA_ADMIN_USER" == *$'\n'* \
    || "$GRAFANA_SECURITY_DB_HOST" == *$'\n'* || "$GRAFANA_SECURITY_DB_PORT" == *$'\n'* \
    || "$GRAFANA_SECURITY_DB_USER" == *$'\n'* || "$GRAFANA_SECURITY_DB_PASSWORD" == *$'\n'* \
-   || "$GRAFANA_SLACK_WEBHOOK_URL" == *$'\n'* || "$GRAFANA_SLACK_RECIPIENT" == *$'\n'* \
-   || "$GRAFANA_ALERT_EMAIL_ADDRESSES" == *$'\n'* \
-   || "$GRAFANA_SMTP_HOST" == *$'\n'* || "$GRAFANA_SMTP_USER" == *$'\n'* \
-   || "$GRAFANA_SMTP_PASSWORD" == *$'\n'* || "$GRAFANA_SMTP_FROM_ADDRESS" == *$'\n'* ]]; then
+   || "$GRAFANA_DISCORD_WEBHOOK_URL" == *$'\n'* ]]; then
   echo 'Grafana environment values must not contain a newline.' >&2
   exit 1
 fi
@@ -121,15 +108,8 @@ install -d -m 0755 /etc/systemd/system/grafana-server.service.d
   printf 'GRAFANA_SECURITY_DB_PORT=%q\n' "$GRAFANA_SECURITY_DB_PORT"
   printf 'GRAFANA_SECURITY_DB_USER=%q\n' "$GRAFANA_SECURITY_DB_USER"
   printf 'GRAFANA_SECURITY_DB_PASSWORD=%q\n' "$GRAFANA_SECURITY_DB_PASSWORD"
-  printf 'GRAFANA_SLACK_WEBHOOK_URL=%q\n' "$GRAFANA_SLACK_WEBHOOK_URL"
-  printf 'GRAFANA_SLACK_RECIPIENT=%q\n' "$GRAFANA_SLACK_RECIPIENT"
-  printf 'GRAFANA_ALERT_EMAIL_ADDRESSES=%q\n' "$GRAFANA_ALERT_EMAIL_ADDRESSES"
-  printf '%s\n' 'GF_SMTP_ENABLED=true'
-  printf 'GF_SMTP_HOST=%q\n' "$GRAFANA_SMTP_HOST"
-  printf 'GF_SMTP_USER=%q\n' "$GRAFANA_SMTP_USER"
-  printf 'GF_SMTP_PASSWORD=%q\n' "$GRAFANA_SMTP_PASSWORD"
-  printf 'GF_SMTP_FROM_ADDRESS=%q\n' "$GRAFANA_SMTP_FROM_ADDRESS"
-  printf '%s\n' 'GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS'
+  printf 'GRAFANA_DISCORD_WEBHOOK_URL=%q\n' "$GRAFANA_DISCORD_WEBHOOK_URL"
+  printf '%s\n' 'GF_SMTP_ENABLED=false'
   printf '%s\n' 'GF_USERS_ALLOW_SIGN_UP=false'
   printf '%s\n' 'GF_AUTH_ANONYMOUS_ENABLED=false'
 } > /etc/luck-observability.env

@@ -48,8 +48,11 @@ contact_points=$(curl --fail --silent --show-error \
   --user "${GF_SECURITY_ADMIN_USER}:${GF_SECURITY_ADMIN_PASSWORD}" \
   http://127.0.0.1:3000/api/v1/provisioning/contact-points)
 grep -q '"name":"Luck Security Operations"' <<<"$contact_points"
-grep -q '"uid":"luck-security-slack"' <<<"$contact_points"
-grep -q '"uid":"luck-security-email"' <<<"$contact_points"
+grep -q '"uid":"luck-security-discord"' <<<"$contact_points"
+if grep -qE '"uid":"luck-security-(slack|email)"' <<<"$contact_points"; then
+  echo 'Legacy Slack or email contact point is still provisioned.' >&2
+  exit 1
+fi
 
 python3 "$ROOT_DIR/scripts/verify_loki_security.py" --allow-empty
 

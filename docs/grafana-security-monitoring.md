@@ -24,9 +24,9 @@ metrics: consumer lag, DLQ occurrence, and unavailable scrape targets. Security
 event notifications based on risk level, repeated behavior, or long-unresolved
 state belong to the application notifier because they
 require `event_id` deduplication and a durable `notification_log` transaction.
-The `Luck Security Operations` contact point routes infrastructure alerts to
-Slack and email with 30-second grouping and a four-hour repeat interval. Secrets
-are injected from `/etc/luck-observability.env`.
+The `Luck Security Operations` contact point routes infrastructure alerts only
+to Discord with 30-second grouping and a four-hour repeat interval. The webhook
+is injected from `/etc/luck-observability.env`; Slack and SMTP are disabled.
 
 ## Server prerequisites
 
@@ -41,5 +41,5 @@ SET DEFAULT ROLE security_monitoring_readonly FOR 'security_grafana'@'100.%';
 Supply `GRAFANA_SECURITY_DB_HOST`, `GRAFANA_SECURITY_DB_PORT`,
 `GRAFANA_SECURITY_DB_USER`, and `GRAFANA_SECURITY_DB_PASSWORD` when running the
 observability installer. After Grafana restarts, confirm that both dashboards
-load and that Alerting lists all five `luck-security-*` rules and both contact
-point receivers.
+load and that Alerting lists all five `luck-security-*` rules and the
+`luck-security-discord` contact point receiver.

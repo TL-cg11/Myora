@@ -9,7 +9,7 @@ from typing import Any, Iterable
 
 
 RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
-VALID_CHANNELS = ("SLACK", "EMAIL")
+VALID_CHANNELS = ("DISCORD",)
 
 
 @dataclass(frozen=True)
@@ -42,10 +42,10 @@ DEFAULT_POLICY = NotificationPolicy()
 
 
 def configured_channels(raw: str | None = None) -> tuple[str, ...]:
-    value = raw if raw is not None else os.getenv("SECURITY_NOTIFICATION_CHANNELS", "SLACK,EMAIL")
+    value = raw if raw is not None else os.getenv("SECURITY_NOTIFICATION_CHANNELS", "DISCORD")
     channels = tuple(dict.fromkeys(item.strip().upper() for item in value.split(",") if item.strip()))
     if not channels or any(channel not in VALID_CHANNELS for channel in channels):
-        raise ValueError("SECURITY_NOTIFICATION_CHANNELS must contain SLACK and/or EMAIL")
+        raise ValueError("SECURITY_NOTIFICATION_CHANNELS must contain only DISCORD")
     return channels
 
 
