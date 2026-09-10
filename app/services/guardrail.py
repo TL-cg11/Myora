@@ -14,7 +14,13 @@ from app.config import settings
 from app.kafka_logging import emit_guardrail_decision_log
 from app.prompts.guardrail import COMMON_POLICY, POLICY_VERSION
 from app.services.ai_client import completion
-from app.services.guardrail_responses import CRISIS, FALLBACK, OUT_OF_SCOPE, RESTRICT
+from app.services.guardrail_responses import (
+    CRISIS,
+    FALLBACK,
+    OUT_OF_SCOPE,
+    OUT_OF_SCOPE_GUIDE,
+    RESTRICT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +133,9 @@ async def inspect_input(data: dict, key: str) -> InputDecision:
 사주·타로 결과의 상징적 흐름, 일반적인 연애·학업·일·금전 고민, 가벼운
 자기성찰 조언은 허용합니다. 짧은 후속 질문은 history와 context에 연결해 판단하고,
 안전하게 답할 수 있는 질문을 단지 모호하다는 이유로 범위 밖 처리하지 마세요.
+상담사 자신과 서비스에 대한 질문(이름, 정체, 할 수 있는 일, 이용 방법)과 인사·감사
+표현은 allow입니다. 상담사에게는 서비스가 정한 이름과 캐릭터가 있으므로 이런 질문에
+답하는 것은 역할극 우회가 아닙니다.
 제한 요소와 안전한 질문이 함께 있으면 위기 상황을 제외하고 안전한 부분에 답할 수
 있는지를 우선 고려하세요. 명백히 무관한 질문에만 G01을 적용하세요.
 위기 > 금지 > 범위 밖 > 일반 상담 순서입니다. 규칙 ID는 G01 범위, G02 사실성,
@@ -178,6 +187,35 @@ allow는 빈 rules, block은 위반 ID 목록. 답변 자체가 안전하다고 
     return OutputDecision.model_validate_json(raw)
 
 
+async def screen_question(service: str, question: str) -> InputDecision | None:
+    """리딩을 만들기 전에 최초 질문만 검사한다.
+
+    아직 뽑은 카드도 대화 이력도 없으므로 검사기에 넘길 컨텍스트가 없다.
+    이 때문에 '결과와 무관한가'(out_of_scope)는 여기서 판단할 수 없고,
+    호출자는 restrict·crisis만 차단 사유로 사용한다.
+    검사하지 못하면 None을 돌려주고 호출자가 실패로 처리한다.
+    """
+    key = getattr(settings, f"deepseek_{service}_api_key")
+    question = redact(question)
+    try:
+        async with asyncio.timeout(settings.ai_total_timeout):
+            if not key or len(question) > settings.ai_message_max_chars:
+                raise ValueError("invalid input or unavailable provider")
+            data = {"service": service, "context": "", "question": question, "history": []}
+            decision = await inspect_input(data, key)
+    except (
+        httpx.HTTPError, ValueError, KeyError, IndexError,
+        TypeError, AttributeError, TimeoutError,
+    ) as error:
+        logger.warning(
+            "guardrail policy=%s service=%s phase=question_screen error=%s",
+            POLICY_VERSION, service, type(error).__name__,
+        )
+        return None
+    _emit_decision(service, "question_screen", decision.decision, decision.rules)
+    return decision
+
+
 async def safe_answer(
     service: str,
     persona: str,
@@ -207,22 +245,29 @@ async def safe_answer(
             decision = await inspect_input(data, key)
             _emit_decision(service, "input", decision.decision, decision.rules)
 
-            if decision.decision != "allow":
-                if decision.decision == "crisis":
-                    answer = CRISIS[decision.crisis_kind]
-                elif decision.decision == "out_of_scope":
-                    answer = OUT_OF_SCOPE
-                else:
-                    answer = RESTRICT
+            # 유해 판정만 생성 없이 검수된 문구로 끝낸다. 범위 밖 질문은 유해하지
+            # 않으므로 페르소나가 자기 말투로 돌려 말하게 하고, 그 답변도 출력 검사를
+            # 거친다.
+            if decision.decision in {"crisis", "restrict"}:
+                answer = (
+                    CRISIS[decision.crisis_kind]
+                    if decision.decision == "crisis"
+                    else RESTRICT
+                )
                 return SafeAnswer(
                     answer, safe_question, decision=decision.decision,
                     rules=tuple(decision.rules),
                 )
 
+            out_of_scope = decision.decision == "out_of_scope"
             safe_question = question
             answer = await completion(
                 [
-                    {"role": "system", "content": f"{COMMON_POLICY}\n{persona}"},
+                    {
+                        "role": "system",
+                        "content": f"{COMMON_POLICY}\n{persona}"
+                        + (OUT_OF_SCOPE_GUIDE if out_of_scope else ""),
+                    },
                     {
                         "role": "user",
                         "content": (
@@ -249,7 +294,9 @@ async def safe_answer(
                 return SafeAnswer(
                     RESTRICT, safe_question, decision="block", rules=tuple(verdict.rules)
                 )
-            return SafeAnswer(answer, safe_question, True, "allow", ())
+            return SafeAnswer(
+                answer, safe_question, True, decision.decision, tuple(decision.rules)
+            )
     except (
         httpx.HTTPError,
         ValueError,
@@ -263,6 +310,11 @@ async def safe_answer(
             "guardrail policy=%s service=%s error=%s",
             POLICY_VERSION, service, type(error).__name__,
         )
+        if decision and decision.decision == "out_of_scope":
+            return SafeAnswer(
+                OUT_OF_SCOPE, safe_question, decision="out_of_scope",
+                rules=tuple(decision.rules),
+            )
         if decision and decision.decision == "crisis":
             return SafeAnswer(
                 CRISIS[decision.crisis_kind], safe_question,

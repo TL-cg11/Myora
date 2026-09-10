@@ -63,7 +63,7 @@ async def completion(
     )
 
     timeout = httpx.Timeout(
-        settings.ai_request_timeout,
+        settings.ai_check_timeout if check else settings.ai_request_timeout,
         connect=settings.ai_connect_timeout,
     )
     try:
