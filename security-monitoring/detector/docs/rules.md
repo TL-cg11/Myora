@@ -1,4 +1,4 @@
-# 탐지·마스킹 정책 1 / detector 1.0.0
+# 탐지·마스킹 정책 1 / detector 1.1.0
 
 <!-- 문서 역할: pii.py, secrets.py, engine.py, risk.py의 정책을 사람이 검토하는 기준표. -->
 
@@ -7,7 +7,8 @@
 | EMAIL_ADDRESS | 이메일 패턴, email 필드 | 30 | 본문은 첫 글자+`***`+도메인, 구조화 필드는 전체 |
 | PHONE_NUMBER | 한국 휴대전화 패턴, phone 필드 | 50 | 본문은 `010-****-5678`, 구조화 필드는 전체 |
 | BIRTH_DATE | 생년월일 키워드 뒤 날짜, birth_date/dob 필드 | 50 | 전체 |
-| PERSON_NAME | name/customer_name/full_name/이름/성명 필드 | 50 | 전체 |
+| PERSON_NAME | name/customer_name/full_name/이름/성명 필드 또는 NER PS/PER/PERSON | 50 | 전체 또는 `[REDACTED_PERSON]` |
+| LOCATION | NER LC/LOC/LOCATION(신뢰도 기본 0.85 이상) | 40 | `[REDACTED_LOCATION]` |
 | KR_RRN | 날짜가 유효한 13자리 주민번호 후보, rrn 필드 | 85 | 전체 |
 | JWT | eyJ로 시작하는 3구간 JWT 후보 | 85 | 전체 |
 | AUTHORIZATION | Bearer/Basic, authorization/cookie 필드 | 90 | 전체 |
@@ -20,7 +21,9 @@
 탐지가 없으면 LOW/0이며 SecurityEvent를 생성하지 않는다.
 이름과 생년월일이 같은 로그에서 탐지되면 사건 점수를 최소 75로 올린다.
 그 외에는 가장 높은 규칙 점수를 사용한다. confidence는 규칙 신뢰도 초기값이며
-통계적으로 보정된 확률이 아니다. 자유 문장의 이름/주소 NER는 구현 범위에서 제외했다.
+통계적으로 보정된 확률이 아니다. NER는 자유 문장의 인명과 지역·장소를 탐지하며,
+세부 도로명 주소 전체를 항상 찾는다고 보장하지 않는다. 조직명(OG)은 일반 서비스명과
+회사명 오탐을 줄이기 위해 마스킹 대상에서 제외한다.
 
 주민번호 후보는 날짜 검증만 하며 체크섬 불일치를 이유로 마스킹을 건너뛰지 않는다.
 테스트 주민번호 모양 값은 합성 예시이며 실제 발급 여부를 확인하거나 인증에 사용하지 않는다.

@@ -7,7 +7,8 @@
 현재 업무의 완료·부분 완료·미구현 상태와 항목별 코드는
 [B 담당 업무 상세 문서](docs/tasks/README.md)에서 확인한다.
 
-Python 3.11 이상에서 표준 라이브러리만으로 실행한다. A의 정규화 로그를 입력받아
+Python 3.11 이상에서 실행한다. 기본 정규식 엔진은 표준 라이브러리만 사용하며,
+선택형 한국어 NER는 Transformers/PyTorch를 사용한다. A의 정규화 로그를 입력받아
 마스킹 로그, C용 보안 이벤트, 원문 없는 실패 결과를 생성한다.
 
 Kafka 연결은 `adapter/` 패키지가 담당한다. `myohan.was.app`과 `myohan.nginx.access`를
@@ -66,6 +67,7 @@ else:
 | `app/models.py` | 입력 검증 및 결과 모델 |
 | `app/engine.py` | 재귀 탐지·마스킹·이벤트 생성 |
 | `app/rules/pii.py` | 전화번호·이메일·주민번호 후보·문맥 생년월일 |
+| `app/rules/ner.py` | 자유 텍스트 한국어 인명·장소 NER 및 안전한 탐지 구간 변환 |
 | `app/rules/secrets.py` | JWT·인증 헤더·API 키·비밀번호·DB URL·개인키 |
 | `app/masking.py` | 겹친 구간 병합 및 치환 |
 | `app/risk.py` | 위험등급과 점수 계산 |
@@ -88,9 +90,24 @@ else:
 
 ## 구현 범위와 한계
 
-정규식과 구조화 필드 기반 MVP다. 합성 fixture 통과는 운영 로그의 완전한 비식별화를
+정규식·구조화 필드와 선택형 NER를 함께 지원한다. NER를 사용하려면 다음과 같이
+추가 의존성을 설치하고 어댑터 환경변수를 켠다.
+
+```powershell
+python -m pip install -r requirements-ner.txt
+$env:DETECTOR_NER_ENABLED="true"
+```
+
+기본 모델은 `Leo97/KoELECTRA-small-v3-modu-ner`이며 `PS`(인명)는
+`[REDACTED_PERSON]`, `LC`(장소)는 `[REDACTED_LOCATION]`으로 가린다.
+신뢰도 기준은 `DETECTOR_NER_THRESHOLD`(기본 0.85)로 조정한다. 운영에서는 모델을
+미리 캐시에 받은 뒤 `DETECTOR_NER_LOCAL_FILES_ONLY=true`로 두는 것을 권장한다.
+NER가 활성화된 상태에서 모델 로딩에 실패하면 어댑터는 시작하지 않고, 추론 중 오류가
+발생하면 해당 원문을 출력하지 않은 채 dead-letter로 보낸다.
+
+합성 fixture 통과는 운영 로그의 완전한 비식별화를
 보장하지 않는다. 별도 검증 데이터로 규칙별 미탐·오탐을 평가한 뒤 실제 연결한다.
-자유 문장의 이름/주소, 카드/계좌번호, 내부 URL 단독 탐지, 임의 인코딩 비밀정보,
+세부 도로명 주소, 카드/계좌번호, 내부 URL 단독 탐지, 임의 인코딩 비밀정보,
 공급자 형식이 없는 무문맥 키, 시간 윈도우 행동 탐지는 후속 범위다.
 구조화 `name`, `birth_date` 등은 지금도 마스킹한다. 원본에 비밀정보를 일부러 기록하지 않는다.
 

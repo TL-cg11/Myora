@@ -56,6 +56,25 @@ def _secret(env: Mapping[str, str], name: str, *, required: bool) -> bytes | Non
     return key
 
 
+def _boolean(env: Mapping[str, str], name: str, default: bool = False) -> bool:
+    raw = (env.get(name) or str(default)).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ConfigError(f"{name}는 true 또는 false여야 합니다.")
+
+
+def _ratio(env: Mapping[str, str], name: str, default: str) -> float:
+    try:
+        value = float(_text(env, name, default))
+    except ValueError:
+        raise ConfigError(f"{name}는 0 이상 1 이하의 숫자여야 합니다.") from None
+    if not 0 <= value <= 1:
+        raise ConfigError(f"{name}는 0 이상 1 이하여야 합니다.")
+    return value
+
+
 @dataclass(frozen=True)
 # 어댑터 한 프로세스의 실행 설정. 생성 후에는 변경하지 않는다.
 class Settings:
@@ -75,6 +94,10 @@ class Settings:
     flush_timeout: float  # 발행 완료 대기 시간(초)
     publish_attempts: int  # 발행 재시도 횟수
     client_options: dict[str, Any]  # 인증 등 공통 Kafka 옵션
+    ner_enabled: bool  # 자유 텍스트 이름·장소 NER 활성화 여부
+    ner_model: str  # Hugging Face token-classification 모델 또는 로컬 경로
+    ner_threshold: float  # 이 신뢰도 이상인 개체만 마스킹
+    ner_local_files_only: bool  # 운영 서버에서 원격 모델 다운로드를 금지할지 여부
 
     # consumer는 결과 발행이 끝난 뒤 직접 commit하므로 자동 commit을 끈다.
     def consumer_config(self) -> dict[str, Any]:
@@ -118,6 +141,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     attempts = int(_text(env, "ADAPTER_PUBLISH_ATTEMPTS", "3"))
     if attempts < 1:
         raise ConfigError("ADAPTER_PUBLISH_ATTEMPTS는 1 이상이어야 합니다.")
+    ner_threshold = _ratio(env, "DETECTOR_NER_THRESHOLD", "0.85")
     client_options = {
         key: env[name]
         for key, name in OPTIONAL_CLIENT_KEYS.items()
@@ -142,4 +166,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         flush_timeout=float(_text(env, "ADAPTER_FLUSH_TIMEOUT", "10.0")),
         publish_attempts=attempts,
         client_options=client_options,
+        ner_enabled=_boolean(env, "DETECTOR_NER_ENABLED", False),
+        ner_model=_text(
+            env, "DETECTOR_NER_MODEL", "Leo97/KoELECTRA-small-v3-modu-ner"
+        ),
+        ner_threshold=ner_threshold,
+        ner_local_files_only=_boolean(env, "DETECTOR_NER_LOCAL_FILES_ONLY", False),
     )
