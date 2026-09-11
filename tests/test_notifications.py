@@ -282,6 +282,16 @@ class DeliveryAdapterTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 DiscordWebhookSender(url)
 
+    def test_discord_sender_accepts_legacy_discordapp_webhook_url(self):
+        sender = DiscordWebhookSender(
+            "https://discordapp.com/api/webhooks/123/token"
+        )
+
+        self.assertEqual(
+            sender.webhook_url,
+            "https://discordapp.com/api/webhooks/123/token?wait=true",
+        )
+
     def test_discord_sender_splits_messages_at_2000_characters(self):
         requests = []
 

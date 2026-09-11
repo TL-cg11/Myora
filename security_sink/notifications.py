@@ -210,7 +210,14 @@ class NotificationRepository:
 class DiscordWebhookSender:
     def __init__(self, webhook_url: str, timeout_seconds: float = 10.0) -> None:
         parsed = urlsplit(webhook_url)
-        allowed_hosts = {"discord.com", "www.discord.com", "canary.discord.com", "ptb.discord.com"}
+        allowed_hosts = {
+            "discord.com",
+            "www.discord.com",
+            "canary.discord.com",
+            "ptb.discord.com",
+            "discordapp.com",
+            "www.discordapp.com",
+        }
         if (
             parsed.scheme != "https"
             or parsed.hostname not in allowed_hosts

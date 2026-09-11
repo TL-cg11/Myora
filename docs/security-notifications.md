@@ -34,7 +34,8 @@ sensitive-data check.
 
 ## Discord
 
-Discord uses an official HTTPS incoming webhook with `wait=true`, so the worker
+Discord uses an official HTTPS incoming webhook with `wait=true`, accepting both
+the current `discord.com` host and Discord-issued legacy `discordapp.com` URLs, so the worker
 confirms that Discord accepted each message before marking rows `SENT`. Mentions
 are disabled and messages longer than Discord's 2,000-character content limit
 are split. The webhook is loaded from `/etc/luck-security-notifier.env`, mode
