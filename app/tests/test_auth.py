@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import get_session
 from app.local_db import initialize
 from app.main import app
-from app.models import AppUser, AuthSession, Reading
+from app.models import AppUser, AppUserRole, AuthSession, Reading
 
 
 class AuthTests(unittest.TestCase):
@@ -47,8 +47,11 @@ class AuthTests(unittest.TestCase):
 
     def test_register_me_logout_and_password_is_hashed(self):
         result = self.register()
+        self.assertEqual(result["user"]["role"], "user")
         headers = {"Authorization": f"Bearer {result['access_token']}"}
-        self.assertEqual(self.client.get("/api/auth/me", headers=headers).status_code, 200)
+        me = self.client.get("/api/auth/me", headers=headers)
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.json()["role"], "user")
         with Session(self.engine) as session:
             user = session.scalar(select(AppUser))
             self.assertNotEqual(user.password_hash, "safe-password-123")
@@ -56,6 +59,41 @@ class AuthTests(unittest.TestCase):
             self.assertEqual(session.query(AuthSession).count(), 1)
         self.assertEqual(self.client.post("/api/auth/logout", headers=headers).status_code, 200)
         self.assertEqual(self.client.get("/api/auth/me", headers=headers).status_code, 401)
+
+    def test_login_and_me_return_the_current_database_role(self):
+        registered = self.register()
+        with Session(self.engine) as session:
+            session.execute(
+                update(AppUser)
+                .where(AppUser.username == "myohan_user")
+                .values(role=AppUserRole.admin)
+            )
+            session.commit()
+        login = self.client.post(
+            "/api/auth/login",
+            json={"login_id": "myohan_user", "password": "safe-password-123"},
+        )
+        self.assertEqual(login.status_code, 200, login.text)
+        self.assertEqual(login.json()["user"]["role"], "admin")
+        headers = {"Authorization": f"Bearer {registered['access_token']}"}
+        self.assertEqual(self.client.get("/api/auth/me", headers=headers).json()["role"], "admin")
+
+    def test_register_ignores_role_field_in_request(self):
+        """RegisterIn에 role 필드가 없어 무시되지만, 필드가 추가되는 순간 셀프
+        관리자 승격이 될 수 있다. 그 회귀를 여기서 잡는다."""
+        response = self.client.post(
+            "/api/auth/register",
+            json={
+                "username": "sneaky_user",
+                "name": "테스트",
+                "password": "safe-password-123",
+                "email": "sneaky@example.com",
+                "guest_key": str(uuid4()),
+                "role": "admin",
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(response.json()["user"]["role"], "user")
 
     def test_duplicate_and_wrong_password_are_rejected(self):
         self.register()

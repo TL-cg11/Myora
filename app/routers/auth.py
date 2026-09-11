@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import bearer_token, create_session, current_user, hash_password, token_digest, utc_now, verify_password
 from app.config import settings
 from app.db import get_session
-from app.models import AppUser, AuthSession, Reading, TarotReading
+from app.models import AppUser, AppUserRole, AuthSession, Reading, TarotReading
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -23,6 +23,7 @@ class UserOut(BaseModel):
     username: str
     name: str
     email: str
+    role: AppUserRole
 
 
 class RegisterIn(BaseModel):
@@ -60,7 +61,13 @@ class AuthOut(BaseModel):
 
 
 def user_out(user: AppUser) -> UserOut:
-    return UserOut(id=user.id, username=user.username, name=user.name, email=user.email)
+    return UserOut(
+        id=user.id,
+        username=user.username,
+        name=user.name,
+        email=user.email,
+        role=user.role,
+    )
 
 
 def claim_guest_readings(session: Session, user: AppUser, guest_key: UUID | None) -> None:

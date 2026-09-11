@@ -103,3 +103,13 @@ def current_user(user: AppUser | None = Depends(optional_user)) -> AppUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def require_admin(user: AppUser = Depends(current_user)) -> AppUser:
+    """로그인은 했지만 관리자가 아닌 계정은 403으로 거부한다."""
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요해요.",
+        )
+    return user

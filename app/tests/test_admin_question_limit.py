@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, update
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.auth import question_limit_for
+from app.auth import current_user, question_limit_for, require_admin
 from app.config import settings
 from app.db import get_session
 from app.local_db import initialize
@@ -42,6 +42,22 @@ class QuestionLimitHelperTests(unittest.TestCase):
         self.assertGreaterEqual(
             settings.chat_question_limit_admin, settings.chat_question_limit
         )
+
+
+class AdminAuthorizationTests(unittest.TestCase):
+    def test_unauthenticated_request_is_401(self):
+        with self.assertRaises(HTTPException) as raised:
+            current_user(None)
+        self.assertEqual(raised.exception.status_code, 401)
+
+    def test_regular_user_is_403(self):
+        with self.assertRaises(HTTPException) as raised:
+            require_admin(AppUser(role=AppUserRole.user))
+        self.assertEqual(raised.exception.status_code, 403)
+
+    def test_admin_is_returned(self):
+        admin = AppUser(role=AppUserRole.admin)
+        self.assertIs(require_admin(admin), admin)
 
 
 class AdminReadingChatTests(unittest.IsolatedAsyncioTestCase):
