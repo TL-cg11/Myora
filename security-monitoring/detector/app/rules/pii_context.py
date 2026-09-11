@@ -50,23 +50,57 @@ class TransformersPIICandidateVerifier:
             return
         try:
             from transformers import (AutoModelForSequenceClassification,
-                                      AutoTokenizer, pipeline)
+                                      AutoTokenizer)
+            import torch
 
-            tokenizer = AutoTokenizer.from_pretrained(
+            self._tokenizer = AutoTokenizer.from_pretrained(
                 model_name, local_files_only=local_files_only
             )
-            model = AutoModelForSequenceClassification.from_pretrained(
+            self._model = AutoModelForSequenceClassification.from_pretrained(
                 model_name, local_files_only=local_files_only
             )
-            self._inference = pipeline(
-                "zero-shot-classification",
-                model=model,
-                tokenizer=tokenizer,
-                device=-1,
+            label2id = {
+                str(label).lower(): int(index)
+                for label, index in self._model.config.label2id.items()
+            }
+            self._entailment_id = next(
+                index for label, index in label2id.items()
+                if label.startswith("entail")
             )
+            self._torch = torch
+            self._model.eval()
+            self._inference = self._model_inference
         except Exception as exc:
             # 모델 경로·토큰 같은 세부 정보가 로그에 섞이지 않게 고정 코드만 노출한다.
             raise PIIContextConfigurationError("PII_CONTEXT_MODEL_LOAD_FAILED") from exc
+
+    def _model_inference(
+        self,
+        context: str,
+        *,
+        candidate_labels: list[str],
+        hypothesis_template: str,
+        multi_label: bool,
+    ) -> dict[str, Any]:
+        """RoBERTa의 단일 token type 제약을 지키며 zero-shot 점수를 계산한다."""
+        if multi_label or not candidate_labels:
+            raise RuntimeError("INVALID_PII_CONTEXT_REQUEST")
+        separator = self._tokenizer.sep_token or "[SEP]"
+        sequences = [
+            f"{context} {separator} {hypothesis_template.format(label)}"
+            for label in candidate_labels
+        ]
+        encoded = self._tokenizer(
+            sequences,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+        )
+        with self._torch.inference_mode():
+            logits = self._model(**encoded).logits[:, self._entailment_id]
+            scores = self._torch.softmax(logits, dim=0).tolist()
+        return {"labels": candidate_labels, "scores": scores}
 
     def _marked_context(self, text: str, candidate: Detection) -> str:
         left = max(0, candidate.start - self.context_chars)
