@@ -125,6 +125,18 @@ class LokiRuntimeVerificationTests(unittest.TestCase):
         self.assertEqual(result.log_count, 1)
         self.assertEqual(result.retention_hours, 720)
 
+    def test_runtime_normalized_30d_retention_passes(self) -> None:
+        result = verify_loki_runtime(
+            "http://127.0.0.1:3100",
+            now_ns=NOW_NS,
+            require_logs=False,
+            fetch_text=lambda url, timeout: runtime_fetch(
+                url, timeout, retention="30d"
+            ),
+        )
+
+        self.assertEqual(result.retention_hours, 720)
+
     def test_unmasked_loki_content_fails_verification(self) -> None:
         unsafe = json.loads(valid_log_line())
         unsafe["safe_metadata"] = {"db": "http://100.104.124.29:3306"}
