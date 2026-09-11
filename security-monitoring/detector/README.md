@@ -114,7 +114,7 @@ $env:DETECTOR_PII_CONTEXT_ENABLED="true"
 
 기본 모델은 한국어 KLUE-NLI 기반
 [`Huffon/klue-roberta-base-nli`](https://huggingface.co/Huffon/klue-roberta-base-nli)다.
-전화·이메일 후보만 주변 절과 함께 비교하며, 비개인정보 점수가 기본 0.90 이상일 때만
+전화·이메일 후보만 주변 절과 함께 비교하며, 비개인정보 점수가 기본 0.70 이상일 때만
 마스킹에서 제외한다. 주민번호·비밀정보·구조화 필드는 이 모델로 제외하지 않는다.
 승인된 값의 SHA-256을 함께 받은 후단 안전검사만 해당 값을 통과시키고, 보안 이벤트의
 발췌문은 알림 안전성을 위해 계속 마스킹한다. 운영 데이터로 threshold를 조정하기 전에는

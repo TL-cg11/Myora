@@ -10,8 +10,13 @@ from ..models import Detection
 
 DEFAULT_MODEL = "Huffon/klue-roberta-base-nli"
 VERIFIABLE_RULES = frozenset({"PHONE_NUMBER", "EMAIL_ADDRESS"})
-SENSITIVE_LABEL = "실제 개인의 연락처 개인정보"
-NON_PII_LABEL = "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드"
+RULE_LABELS = {
+    "PHONE_NUMBER": ("사람의 전화번호", "주문번호 또는 시스템 식별번호"),
+    "EMAIL_ADDRESS": (
+        "사람의 이메일 주소",
+        "예시 또는 테스트용 문자열이나 시스템 주소",
+    ),
+}
 
 
 class PIICandidateVerifier(Protocol):
@@ -31,7 +36,7 @@ class TransformersPIICandidateVerifier:
         self,
         model_name: str = DEFAULT_MODEL,
         *,
-        non_pii_threshold: float = 0.90,
+        non_pii_threshold: float = 0.70,
         local_files_only: bool = False,
         context_chars: int = 160,
         inference: Callable[[str], dict[str, Any]] | None = None,
@@ -127,10 +132,11 @@ class TransformersPIICandidateVerifier:
             + text[candidate.end:right]
         )
 
-    def _non_pii_score(self, context: str) -> float:
+    def _non_pii_score(self, context: str, rule_id: str) -> float:
+        sensitive_label, non_pii_label = RULE_LABELS[rule_id]
         result = self._inference(
             context,
-            candidate_labels=[SENSITIVE_LABEL, NON_PII_LABEL],
+            candidate_labels=[sensitive_label, non_pii_label],
             hypothesis_template="이 문장에서 [후보]로 표시한 값은 {}이다.",
             multi_label=False,
         )
@@ -140,10 +146,10 @@ class TransformersPIICandidateVerifier:
         scores = result.get("scores")
         if not isinstance(labels, list) or not isinstance(scores, list):
             raise RuntimeError("INVALID_PII_CONTEXT_RESULT")
-        if len(labels) != len(scores) or NON_PII_LABEL not in labels:
+        if len(labels) != len(scores) or non_pii_label not in labels:
             raise RuntimeError("INVALID_PII_CONTEXT_RESULT")
         try:
-            score = float(scores[labels.index(NON_PII_LABEL)])
+            score = float(scores[labels.index(non_pii_label)])
         except (TypeError, ValueError, OverflowError) as exc:
             raise RuntimeError("INVALID_PII_CONTEXT_RESULT") from exc
         if not 0 <= score <= 1:
@@ -158,6 +164,6 @@ class TransformersPIICandidateVerifier:
                 kept.append(candidate)
                 continue
             context = self._marked_context(text, candidate)
-            if self._non_pii_score(context) < self.non_pii_threshold:
+            if self._non_pii_score(context, candidate.rule_id) < self.non_pii_threshold:
                 kept.append(candidate)
         return kept

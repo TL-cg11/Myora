@@ -147,7 +147,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         raise ConfigError("ADAPTER_PUBLISH_ATTEMPTS는 1 이상이어야 합니다.")
     ner_threshold = _ratio(env, "DETECTOR_NER_THRESHOLD", "0.85")
     pii_context_threshold = _ratio(
-        env, "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD", "0.90"
+        env, "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD", "0.70"
     )
     if pii_context_threshold < 0.5:
         raise ConfigError(

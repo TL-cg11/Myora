@@ -160,7 +160,7 @@ Grafana 화면에서 보이는 시점은 C의 sink가 함께 떠 있을 때다.
 | `DETECTOR_NER_LOCAL_FILES_ONLY` | `false` | `true`이면 캐시에 있는 모델만 사용 |
 | `DETECTOR_PII_CONTEXT_ENABLED` | `false` | 전화·이메일 정규식 후보의 한국어 문맥 재검증 활성화 |
 | `DETECTOR_PII_CONTEXT_MODEL` | `Huffon/klue-roberta-base-nli` | Hugging Face 한국어 NLI 모델 또는 로컬 경로 |
-| `DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD` | `0.90` | 후보를 비개인정보로 승인할 최소 점수(0.5~1) |
+| `DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD` | `0.70` | 후보를 비개인정보로 승인할 최소 점수(0.5~1) |
 | `DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY` | `false` | `true`이면 캐시에 있는 문맥 모델만 사용 |
 | `KAFKA_SECURITY_PROTOCOL` 등 | 없음 | SASL/TLS 옵션. luck-nginx sink와 같은 이름을 쓴다 |
 
