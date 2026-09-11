@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.auth import optional_user
+from app.auth import optional_user, question_limit_for
 from app.db import get_session
 from app.models import AppUser, ReadingChatMessage
 from app.prompts import PERSONA
@@ -30,8 +30,9 @@ async def reading_chat(service, persona, request, session, user):
     context = load_context(session, service, request.reading_id, request.guest_key, user)
     rows = list(session.scalars(select(ReadingChatMessage).where(ReadingChatMessage.reading_id == request.reading_id).order_by(ReadingChatMessage.seq)))
     asked = sum(row.role == 'user' for row in rows)
-    if asked >= settings.chat_question_limit:
-        raise HTTPException(429, f'AI 질문 {settings.chat_question_limit}회를 모두 사용했어요.')
+    limit = question_limit_for(user)
+    if asked >= limit:
+        raise HTTPException(429, f'AI 질문 {limit}회를 모두 사용했어요.')
     history = [{'role':r.role,'content':r.content} for r in rows if r.policy_version == POLICY_VERSION][-settings.ai_history_limit:]
     seq = max((r.seq for r in rows), default=0)
     pending = ReadingChatMessage(

@@ -79,6 +79,17 @@ class ReadingStatus(str, enum.Enum):
     failed = "failed"
 
 
+def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
+    return Enum(python_enum, name=name, values_callable=lambda e: [m.value for m in e])
+
+
+class AppUserRole(str, enum.Enum):
+    """가입 계정의 권한 등급. 게스트는 별도 개념이라 여기 포함하지 않는다."""
+
+    user = "user"
+    admin = "admin"
+
+
 class AppUser(Base):
     __tablename__ = "app_user"
 
@@ -88,10 +99,17 @@ class AppUser(Base):
     email: Mapped[str] = mapped_column(String(190), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(12), default="active")
+    role: Mapped[AppUserRole] = mapped_column(
+        _enum(AppUserRole, "app_user_role"), default=AppUserRole.user
+    )
     failed_login_attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == AppUserRole.admin
 
 
 class AuthSession(Base):
@@ -112,10 +130,6 @@ class ChatRole(str, enum.Enum):
     system = "system"
     user = "user"
     assistant = "assistant"
-
-
-def _enum(python_enum: type[enum.Enum], name: str) -> Enum:
-    return Enum(python_enum, name=name, values_callable=lambda e: [m.value for m in e])
 
 
 class TarotCard(Base):

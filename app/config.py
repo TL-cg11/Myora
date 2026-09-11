@@ -68,13 +68,15 @@ class Settings:
     ai_context_max_chars: int = int(os.getenv("AI_CONTEXT_MAX_CHARS", "8000"))
     ai_answer_max_chars: int = int(os.getenv("AI_ANSWER_MAX_CHARS", "4000"))
     chat_question_limit: int = int(os.getenv("CHAT_QUESTION_LIMIT", "5"))
+    chat_question_limit_admin: int = int(os.getenv("CHAT_QUESTION_LIMIT_ADMIN", "20"))
     ai_guardrail_model: str = os.getenv("AI_GUARDRAIL_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
 
     def __post_init__(self):
         for name in ("ai_request_timeout", "ai_connect_timeout", "ai_check_timeout",
                      "ai_total_timeout", "ai_max_tokens",
                      "ai_check_max_tokens", "ai_history_limit", "ai_message_max_chars",
-                     "ai_context_max_chars", "ai_answer_max_chars", "chat_question_limit"):
+                     "ai_context_max_chars", "ai_answer_max_chars", "chat_question_limit",
+                     "chat_question_limit_admin"):
             value = getattr(self, name)
             if not 0 < value < float("inf"):
                 raise ValueError(f"{name} must be finite and positive")
