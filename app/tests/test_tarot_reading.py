@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
+from app.models import Arcana, Base, TarotCard, TarotSpread, TarotSpreadPosition, Topic
+from app.prompts.guardrail import POLICY_VERSION
 from app.routers import tarot
 from app.schemas import ReadingCreate
 from app.services.guardrail import InputDecision
@@ -91,3 +95,45 @@ class QuestionScreenEndpointTests(unittest.IsolatedAsyncioTestCase):
                 await tarot.check_question(self.payload('연락처 010-1234-5678'))
         self.assertEqual(raised.exception.status_code, 400)
         call.assert_not_awaited()
+
+
+class DrawReadingGreetingTests(unittest.TestCase):
+    """카드를 뽑을 때 자동으로 넣는 첫 인사가 policy_version 없이 저장되면
+    상세 조회(_to_reading_out)와 대화 다시보기(get_user_conversation) 양쪽에서
+    조용히 사라진다. 지금까지 그래서 프런트가 하드코딩 기본값으로 땜질해 왔다."""
+
+    def setUp(self):
+        self.engine = create_engine('sqlite://')
+        Base.metadata.create_all(self.engine)
+        self.session = Session(self.engine)
+        self.addCleanup(self.engine.dispose)
+        self.addCleanup(self.session.close)
+
+        spread = TarotSpread(id=1, code='one', name_ko='한 장', description='현재 흐름', card_count=1)
+        self.session.add(spread)
+        self.session.add(TarotSpreadPosition(id=1, spread_id=1, position_no=1, label_ko='오늘'))
+        self.session.add(TarotCard(
+            id=1, code='fool', arcana=Arcana.major, number=0,
+            name_ko='바보', name_en='The Fool',
+            keyword_upright='시작', keyword_reversed='경솔',
+            meaning_upright='새로운 시작', meaning_reversed='성급한 판단',
+        ))
+        self.session.commit()
+        self.spread = spread
+
+    def test_greeting_carries_the_current_policy_version(self) -> None:
+        reading = tarot.draw_reading(
+            self.session, spread=self.spread, guest_key=str(uuid4()),
+            user_id=None, topic=Topic.general, question=None,
+        )
+        greeting = next(m for m in reading.messages if m.seq == 1)
+        self.assertEqual(greeting.policy_version, POLICY_VERSION)
+
+    def test_reading_detail_no_longer_drops_the_greeting(self) -> None:
+        reading = tarot.draw_reading(
+            self.session, spread=self.spread, guest_key=str(uuid4()),
+            user_id=None, topic=Topic.general, question=None,
+        )
+        out = tarot._to_reading_out(reading)
+        self.assertEqual(len(out.messages), 1)
+        self.assertIn('결과를 함께 보고 있어요', out.messages[0].content)

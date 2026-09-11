@@ -9,6 +9,7 @@ from app.db import check_db
 from app.security_auth import SecurityAuthMiddleware, TokenAuthenticator, parse_token_hashes
 from app.security_db import find_security_user
 from app.routers.chat import router as chat_router
+from app.routers.conversations import router as conversations_router
 from app.routers.auth import router as auth_router
 from app.routers.face import router as face_router
 from app.routers.pages import DIST_DIR, router as pages_router
@@ -70,6 +71,7 @@ def api_config(user: AppUser | None = Depends(optional_user)) -> dict:
 
 
 app.include_router(chat_router)
+app.include_router(conversations_router)
 app.include_router(auth_router)
 app.include_router(face_router)
 app.include_router(tarot_router)
