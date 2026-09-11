@@ -95,6 +95,11 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(settings.producer_config()["enable.idempotence"])
         self.assertFalse(settings.ner_enabled)
         self.assertEqual(settings.ner_threshold, 0.85)
+        self.assertFalse(settings.pii_context_enabled)
+        self.assertEqual(settings.pii_context_non_pii_threshold, 0.90)
+        self.assertEqual(
+            settings.pii_context_model, "Huffon/klue-roberta-base-nli"
+        )
 
     def test_ner_settings_are_validated(self):
         base = {"MASKING_PSEUDONYM_KEY": KEY.decode("utf-8")}
@@ -110,6 +115,22 @@ class SettingsTest(unittest.TestCase):
             load_settings({**base, "DETECTOR_NER_THRESHOLD": "high"})
         with self.assertRaises(ConfigError):
             load_settings({**base, "DETECTOR_NER_ENABLED": "sometimes"})
+
+    def test_pii_context_settings_are_validated(self):
+        base = {"MASKING_PSEUDONYM_KEY": KEY.decode("utf-8")}
+        settings = load_settings({
+            **base,
+            "DETECTOR_PII_CONTEXT_ENABLED": "true",
+            "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD": "0.95",
+            "DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY": "yes",
+        })
+        self.assertTrue(settings.pii_context_enabled)
+        self.assertTrue(settings.pii_context_local_files_only)
+        self.assertEqual(settings.pii_context_non_pii_threshold, 0.95)
+        with self.assertRaises(ConfigError):
+            load_settings({
+                **base, "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD": "0.49"
+            })
 
 
 if __name__ == "__main__":

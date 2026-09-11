@@ -158,6 +158,10 @@ Grafana 화면에서 보이는 시점은 C의 sink가 함께 떠 있을 때다.
 | `DETECTOR_NER_MODEL` | `Leo97/KoELECTRA-small-v3-modu-ner` | Hugging Face 모델 ID 또는 로컬 모델 경로 |
 | `DETECTOR_NER_THRESHOLD` | `0.85` | NER 마스킹 최소 신뢰도(0~1) |
 | `DETECTOR_NER_LOCAL_FILES_ONLY` | `false` | `true`이면 캐시에 있는 모델만 사용 |
+| `DETECTOR_PII_CONTEXT_ENABLED` | `false` | 전화·이메일 정규식 후보의 한국어 문맥 재검증 활성화 |
+| `DETECTOR_PII_CONTEXT_MODEL` | `Huffon/klue-roberta-base-nli` | Hugging Face 한국어 NLI 모델 또는 로컬 경로 |
+| `DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD` | `0.90` | 후보를 비개인정보로 승인할 최소 점수(0.5~1) |
+| `DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY` | `false` | `true`이면 캐시에 있는 문맥 모델만 사용 |
 | `KAFKA_SECURITY_PROTOCOL` 등 | 없음 | SASL/TLS 옵션. luck-nginx sink와 같은 이름을 쓴다 |
 
 `MASKING_PSEUDONYM_KEY`가 없거나 짧으면 프로세스가 시작하지 않는다. 키 없이 만든 가명은
@@ -237,7 +241,8 @@ bash security-monitoring/detector/scripts/install-adapter.sh
 
 스크립트가 하는 일은 다음과 같다.
 
-1. `.venv`에 `confluent-kafka`가 없으면 `requirements.txt`로 설치한다.
+1. `.venv`에 `confluent-kafka`가 없으면 `requirements.txt`로 설치하고, NER 또는 PII 문맥
+   분류가 활성화되어 있으면 `requirements-ner.txt`의 Transformers/PyTorch도 설치한다.
 2. `.env`에 `MASKING_PSEUDONYM_KEY`가 없으면 새로 만들어 넣고 mode 0600으로 바꾼다.
    **이미 키가 있으면 절대 덮어쓰지 않는다.**
 3. Kafka에 연결하기 전에 `--dry-run`으로 IP 마스킹이 동작하는지 확인한다.

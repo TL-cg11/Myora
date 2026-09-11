@@ -12,7 +12,9 @@ from typing import Any, Iterable
 
 from app.engine import POLICY_VERSION, VERSION
 from app.hashing import stable_id
+from app.masking import mask
 from app.models import Detection, MaskedLog, ProcessingFailure, SecurityEvent
+from app.rules import pii
 from adapter.policy import MaskingPolicy
 
 CONTRACT_VERSION = "1.0"
@@ -102,6 +104,18 @@ def masked_log_message(
     risk_score: int,
     detected_rules: list[str],
 ) -> dict[str, Any]:
+    safe_metadata = {
+        "source_kind": source_kind,
+        "severity": masked.severity,
+        "event_name": masked.event_name,
+        "risk_level": risk_level,
+        "risk_score": risk_score,
+        "detected_rules": detected_rules,
+        "detector_version": masked.detector_version,
+        "attributes": masked.attributes,
+    }
+    if masked.pii_context_exemptions:
+        safe_metadata["_pii_context_exemptions"] = list(masked.pii_context_exemptions)
     return {
         "event_id": masked.event_id,
         "schema_version": CONTRACT_VERSION,
@@ -113,16 +127,7 @@ def masked_log_message(
         "masking_policy_version": masking_policy_version(policy),
         "masked_message": _clip(masked.body_masked, MAX_MASKED_MESSAGE),
         "body_hash": _hex_digest(masked.body_hash),
-        "safe_metadata": {
-            "source_kind": source_kind,
-            "severity": masked.severity,
-            "event_name": masked.event_name,
-            "risk_level": risk_level,
-            "risk_score": risk_score,
-            "detected_rules": detected_rules,
-            "detector_version": masked.detector_version,
-            "attributes": masked.attributes,
-        },
+        "safe_metadata": safe_metadata,
     }
 
 
@@ -162,7 +167,12 @@ def security_event_message(
         "risk_score": risk_score,
         "detector_version": masked.detector_version[:32],
         "masking_policy_version": masking_policy_version(policy),
-        "masked_excerpt": _clip(masked.body_masked, MAX_MASKED_EXCERPT) or None,
+        # 보안 알림은 exemption 메타데이터 없이 excerpt만 전달될 수 있으므로
+        # 여기서는 승인된 비PII 형식도 다시 가려 안전장치와 알림을 보수적으로 유지한다.
+        "masked_excerpt": _clip(
+            mask(masked.body_masked, pii.detect(masked.body_masked)),
+            MAX_MASKED_EXCERPT,
+        ) or None,
         "body_hash": _hex_digest(masked.body_hash),
         "safe_metadata": {"source_kind": source_kind, "severity": masked.severity},
         "detections": [_contract_detection(item) for item in detections],

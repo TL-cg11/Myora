@@ -126,6 +126,13 @@ class MaskedLog:
     risk_score: int  # 정책에서 정한 0~100 위험 점수
     detector_version: str  # 탐지 프로그램 버전
     masking_policy_version: str  # 마스킹 정책 버전
+    pii_context_exemptions: tuple[str, ...] = ()  # 문맥 모델이 비PII로 승인한 값의 SHA-256
+
+    def to_dict(self) -> dict:
+        """공개 엔진 계약에는 어댑터 내부 안전검사용 해시를 노출하지 않는다."""
+        value = asdict(self)
+        value.pop("pii_context_exemptions", None)
+        return value
 
 
 @dataclass(frozen=True)
@@ -158,7 +165,7 @@ class ProcessingFailure:
     error_code: str  # 원문을 포함하지 않는 고정 오류 코드
     failure_stage: str  # 실패한 처리 단계
     retryable: bool  # 원인 해결 후 재시도할 수 있는 오류인지 표시
-    detector_version: str = "1.1.0"  # 탐지 프로그램 버전
+    detector_version: str = "1.2.0"  # 탐지 프로그램 버전
 
 
 @dataclass(frozen=True)
@@ -170,4 +177,8 @@ class ProcessingResult:
 
     # 중첩 dataclass를 JSON 직렬화 가능한 dict로 변환한다.
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "masked_log": self.masked_log.to_dict() if self.masked_log else None,
+            "security_event": asdict(self.security_event) if self.security_event else None,
+            "failure": asdict(self.failure) if self.failure else None,
+        }

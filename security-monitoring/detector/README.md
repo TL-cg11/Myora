@@ -8,7 +8,7 @@
 [B 담당 업무 상세 문서](docs/tasks/README.md)에서 확인한다.
 
 Python 3.11 이상에서 실행한다. 기본 정규식 엔진은 표준 라이브러리만 사용하며,
-선택형 한국어 NER는 Transformers/PyTorch를 사용한다. A의 정규화 로그를 입력받아
+선택형 한국어 NER와 정규식 후보 문맥 분류는 Transformers/PyTorch를 사용한다. A의 정규화 로그를 입력받아
 마스킹 로그, C용 보안 이벤트, 원문 없는 실패 결과를 생성한다.
 
 Kafka 연결은 `adapter/` 패키지가 담당한다. `myohan.was.app`과 `myohan.nginx.access`를
@@ -68,6 +68,7 @@ else:
 | `app/engine.py` | 재귀 탐지·마스킹·이벤트 생성 |
 | `app/rules/pii.py` | 전화번호·이메일·주민번호 후보·문맥 생년월일 |
 | `app/rules/ner.py` | 자유 텍스트 한국어 인명·장소 NER 및 안전한 탐지 구간 변환 |
+| `app/rules/pii_context.py` | 전화·이메일 정규식 후보를 한국어 NLI로 재검증 |
 | `app/rules/secrets.py` | JWT·인증 헤더·API 키·비밀번호·DB URL·개인키 |
 | `app/masking.py` | 겹친 구간 병합 및 치환 |
 | `app/risk.py` | 위험등급과 점수 계산 |
@@ -104,6 +105,20 @@ $env:DETECTOR_NER_ENABLED="true"
 미리 캐시에 받은 뒤 `DETECTOR_NER_LOCAL_FILES_ONLY=true`로 두는 것을 권장한다.
 NER가 활성화된 상태에서 모델 로딩에 실패하면 어댑터는 시작하지 않고, 추론 중 오류가
 발생하면 해당 원문을 출력하지 않은 채 dead-letter로 보낸다.
+
+정규식 오탐 감소는 같은 ML 의존성을 설치한 뒤 별도로 활성화한다.
+
+```powershell
+$env:DETECTOR_PII_CONTEXT_ENABLED="true"
+```
+
+기본 모델은 한국어 KLUE-NLI 기반
+[`Huffon/klue-roberta-base-nli`](https://huggingface.co/Huffon/klue-roberta-base-nli)다.
+전화·이메일 후보만 주변 절과 함께 비교하며, 비개인정보 점수가 기본 0.90 이상일 때만
+마스킹에서 제외한다. 주민번호·비밀정보·구조화 필드는 이 모델로 제외하지 않는다.
+승인된 값의 SHA-256을 함께 받은 후단 안전검사만 해당 값을 통과시키고, 보안 이벤트의
+발췌문은 알림 안전성을 위해 계속 마스킹한다. 운영 데이터로 threshold를 조정하기 전에는
+기본값보다 낮추지 않는 것을 권장한다.
 
 합성 fixture 통과는 운영 로그의 완전한 비식별화를
 보장하지 않는다. 별도 검증 데이터로 규칙별 미탐·오탐을 평가한 뒤 실제 연결한다.

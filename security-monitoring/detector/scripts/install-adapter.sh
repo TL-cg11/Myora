@@ -57,6 +57,17 @@ EOF
 fi
 chmod 600 "$ENV_FILE"
 
+# 선택형 ML 탐지가 켜져 있으면 어댑터 시작 전에 모델 런타임을 설치한다.
+# 환경 파일 전체를 source하지 않고 허용한 boolean 줄만 검사한다.
+if grep -qiE '^DETECTOR_(NER|PII_CONTEXT)_ENABLED=(1|true|yes|on)[[:space:]]*$' "$ENV_FILE"; then
+  if ! "$PYTHON" -c 'import torch, transformers' >/dev/null 2>&1; then
+    echo '[2/5] Transformers/PyTorch 설치'
+    "$PYTHON" -m pip install --quiet -r "$DETECTOR_DIR/requirements-ner.txt"
+  else
+    echo '[2/5] Transformers/PyTorch 확인 완료'
+  fi
+fi
+
 # Kafka에 연결하기 전에 마스킹 자체가 동작하는지 확인한다.
 echo '[3/5] 마스킹 동작 확인 (Kafka 연결 없음)'
 SAMPLE='{"timestamp":"2026-01-01T00:00:00Z","source":"nginx","request_id":"install-check","client_ip":"203.0.113.45","method":"GET","uri":"/api/health","status":200}'
