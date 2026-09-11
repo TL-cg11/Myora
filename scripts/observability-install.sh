@@ -22,8 +22,17 @@ if [[ "$GRAFANA_SECURITY_DB_PASSWORD" == 'replace-with-the-readonly-db-password'
   echo 'Set the real read-only Grafana database password.' >&2
   exit 1
 fi
-if [[ "$GRAFANA_DISCORD_WEBHOOK_URL" != https://discord.com/api/webhooks/* \
-   || "$GRAFANA_DISCORD_WEBHOOK_URL" == *replace-me* ]]; then
+case "$GRAFANA_DISCORD_WEBHOOK_URL" in
+  https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|\
+  https://canary.discord.com/api/webhooks/*|https://ptb.discord.com/api/webhooks/*|\
+  https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*)
+    ;;
+  *)
+    echo 'Set a real official HTTPS GRAFANA_DISCORD_WEBHOOK_URL.' >&2
+    exit 1
+    ;;
+esac
+if [[ "$GRAFANA_DISCORD_WEBHOOK_URL" == *replace-me* ]]; then
   echo 'Set a real official HTTPS GRAFANA_DISCORD_WEBHOOK_URL.' >&2
   exit 1
 fi
