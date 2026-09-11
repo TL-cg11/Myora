@@ -86,6 +86,9 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "luck-security-dlq-detected", "luck-security-sink-down",
         ):
             self.assertIn(uid, runtime_test)
+        self.assertIn(
+            "https://discordapp.com/api/webhooks/*", self.installer
+        )
 
 
 if __name__ == "__main__":
