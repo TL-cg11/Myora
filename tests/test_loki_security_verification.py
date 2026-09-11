@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import unittest
 from urllib.parse import urlparse
 
@@ -85,6 +86,23 @@ class SensitiveDataSafetyTests(unittest.TestCase):
             "email=[EMAIL] phone=[PHONE_NUMBER] authorization=[AUTHORIZATION]",
             {"upstream": "https://api.deepseek.com/v1", "route": "/api/saju/chat"},
         )
+
+    def test_context_verified_non_pii_hash_allows_only_the_exact_value(self) -> None:
+        order_id = "010-1234-5678"
+        exemption = hashlib.sha256(order_id.encode("utf-8")).hexdigest()
+        validate_masking_safety(
+            {
+                "masked_message": f"주문번호 {order_id}",
+                "safe_metadata": {"_pii_context_exemptions": [exemption]},
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "unmasked sensitive"):
+            validate_masking_safety(
+                {
+                    "masked_message": "전화번호 010-9999-8888",
+                    "safe_metadata": {"_pii_context_exemptions": [exemption]},
+                }
+            )
 
     def test_sensitive_error_message_is_rejected_before_db(self) -> None:
         opened = False

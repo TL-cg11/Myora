@@ -116,5 +116,19 @@ def validate_masking_safety(*values: Any) -> None:
         for value in values
         if value is not None
     )
-    if any(pattern.search(rendered) for pattern in _SENSITIVE_PATTERNS):
-        raise ValueError("payload contains unmasked sensitive information")
+    approved: set[str] = set()
+    for value in values:
+        metadata = value.get("safe_metadata") if isinstance(value, dict) else None
+        if metadata is None and isinstance(value, dict):
+            metadata = value
+        hashes = metadata.get("_pii_context_exemptions") if isinstance(metadata, dict) else None
+        if isinstance(hashes, list):
+            approved.update(
+                item for item in hashes
+                if isinstance(item, str) and re.fullmatch(r"[0-9a-f]{64}", item)
+            )
+    for pattern in _SENSITIVE_PATTERNS:
+        for match in pattern.finditer(rendered):
+            digest = hashlib.sha256(match.group(0).encode("utf-8")).hexdigest()
+            if digest not in approved:
+                raise ValueError("payload contains unmasked sensitive information")
