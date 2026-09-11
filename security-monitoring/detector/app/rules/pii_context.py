@@ -11,7 +11,10 @@ from ..models import Detection
 DEFAULT_MODEL = "Huffon/klue-roberta-base-nli"
 VERIFIABLE_RULES = frozenset({"PHONE_NUMBER", "EMAIL_ADDRESS"})
 RULE_LABELS = {
-    "PHONE_NUMBER": ("사람의 전화번호", "주문번호 또는 시스템 식별번호"),
+    "PHONE_NUMBER": (
+        "사람의 전화번호",
+        "주문번호, 배송 추적번호 또는 시스템 식별번호",
+    ),
     "EMAIL_ADDRESS": (
         "사람의 이메일 주소",
         "예시 또는 테스트용 문자열이나 시스템 주소",
