@@ -146,7 +146,9 @@ function PickStep({ spread, picked, onPick, onSubmit, loading, error }) {
 
 
 function ChatPanel({ reading }) {
-  // 리딩을 만들 때 서버가 넣어둔 첫 인사가 messages 에 이미 있다.
+  // 리딩을 만들 때 서버가 넣어둔 첫 인사가 messages 에 이미 있다. 이 인사말에
+  // policy_version을 채우기 전(과거)에 만들어진 리딩은 서버가 그 메시지를
+  // 걸러내므로 messages가 비어 있을 수 있다 — 그 경우에만 이 기본값을 쓴다.
   const [messages, setMessages] = useState(reading.messages ?? [
     { seq: 1, role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);

@@ -139,6 +139,10 @@ def draw_reading(
             role=ChatRole.assistant,
             content="결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!",
             source=InterpretationSource.rule,
+            # 정책 버전이 없으면 이 인사말이 상세 조회(_to_reading_out)와 대화
+            # 다시보기(get_user_conversation) 양쪽에서 조용히 빠진다. 지금까지는
+            # 그걸 프런트가 하드코딩 기본값으로 땜질해 왔다.
+            policy_version=POLICY_VERSION,
         )
     )
     session.commit()
