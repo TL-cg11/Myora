@@ -269,6 +269,10 @@ class DeliveryAdapterTests(unittest.TestCase):
         self.assertEqual(timeout, 10.0)
         self.assertIn("wait=true", request.full_url)
         self.assertEqual(
+            request.get_header("User-agent"),
+            "DiscordBot (https://github.com/TL-cg11/luck-nginx, 1.0)",
+        )
+        self.assertEqual(
             json.loads(request.data),
             {"content": "**subject**\nbody", "allowed_mentions": {"parse": []}},
         )
@@ -289,7 +293,7 @@ class DeliveryAdapterTests(unittest.TestCase):
 
         self.assertEqual(
             sender.webhook_url,
-            "https://discordapp.com/api/webhooks/123/token?wait=true",
+            "https://discord.com/api/webhooks/123/token?wait=true",
         )
 
     def test_discord_sender_splits_messages_at_2000_characters(self):
