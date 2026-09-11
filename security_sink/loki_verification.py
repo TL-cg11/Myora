@@ -54,8 +54,15 @@ def verify_loki_runtime(
         raise ValueError("Loki is not ready")
 
     rendered_config = fetch_text(base_url + "/config", timeout)
-    retention = re.search(r"(?m)^\s*retention_period:\s*(\d+)h\s*$", rendered_config)
-    if retention is None or int(retention.group(1)) != 720:
+    retention_values = re.findall(
+        r"(?m)^\s*retention_period:\s*(\d+)([dh])(?:0m0s)?\s*$",
+        rendered_config,
+    )
+    retention_hours = {
+        int(amount) * (24 if unit == "d" else 1)
+        for amount, unit in retention_values
+    }
+    if 720 not in retention_hours:
         raise ValueError("Loki retention_period must be 720h (30 days)")
     if re.search(r"(?m)^\s*retention_enabled:\s*true\s*$", rendered_config) is None:
         raise ValueError("Loki compactor retention must be enabled")
