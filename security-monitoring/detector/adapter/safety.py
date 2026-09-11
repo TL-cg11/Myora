@@ -9,6 +9,7 @@ C의 sink가 거절할 메시지를 먼저 걸러 dead-letter로 보내기 위�
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from typing import Any
 
@@ -42,6 +43,21 @@ SENSITIVE_PATTERNS = (
 
 
 # 마스킹이 남지 않은 값이 있는지 확인한다. 원문은 예외 메시지에 넣지 않는다.
+def _approved_hashes(values: tuple[Any, ...]) -> set[str]:
+    approved: set[str] = set()
+    for value in values:
+        metadata = value.get("safe_metadata") if isinstance(value, dict) else None
+        if metadata is None and isinstance(value, dict):
+            metadata = value
+        hashes = metadata.get("_pii_context_exemptions") if isinstance(metadata, dict) else None
+        if isinstance(hashes, list):
+            approved.update(
+                item for item in hashes
+                if isinstance(item, str) and re.fullmatch(r"[0-9a-f]{64}", item)
+            )
+    return approved
+
+
 def contains_sensitive(*values: Any) -> bool:
     rendered = "\n".join(
         value
@@ -50,4 +66,10 @@ def contains_sensitive(*values: Any) -> bool:
         for value in values
         if value is not None
     )
-    return any(pattern.search(rendered) for pattern in SENSITIVE_PATTERNS)
+    approved = _approved_hashes(values)
+    for pattern in SENSITIVE_PATTERNS:
+        for match in pattern.finditer(rendered):
+            digest = hashlib.sha256(match.group(0).encode("utf-8")).hexdigest()
+            if digest not in approved:
+                return True
+    return False

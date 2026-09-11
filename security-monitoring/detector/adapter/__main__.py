@@ -11,6 +11,7 @@ from adapter.kafka_runner import KafkaBridge, PublishError, build_clients
 from adapter.pipeline import MaskingPipeline
 from adapter.policy import PolicyError, load_policy
 from app.rules.ner import NERConfigurationError
+from app.rules.pii_context import PIIContextConfigurationError
 
 
 # .env는 선택 사항이다. python-dotenv가 없으면 환경변수만 사용한다.
@@ -72,7 +73,7 @@ def main() -> int:
         return 2
     try:
         pipeline = MaskingPipeline(settings, policy)
-    except NERConfigurationError as error:
+    except (NERConfigurationError, PIIContextConfigurationError) as error:
         print(f"CONFIG_ERROR: {error}", file=sys.stderr)
         return 2
     if args.dry_run is not None:

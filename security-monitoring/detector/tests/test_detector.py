@@ -14,6 +14,7 @@ from app.hashing import fingerprint
 from app.masking import mask
 from app.models import Detection, NormalizedLog
 from app.rules.ner import TransformersNERRecognizer
+from app.rules.pii_context import TransformersPIICandidateVerifier
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures/cases.json").read_text(encoding="utf-8"))
 
@@ -61,6 +62,59 @@ class FixtureTests(unittest.TestCase):
 
 # 처리 엔진의 오류·보안·재처리 동작 테스트.
 class EngineTests(unittest.TestCase):
+    def test_context_model_removes_only_confident_regex_false_positive(self):
+        def inference(context, **_):
+            non_pii = 0.98 if "주문번호" in context else 0.03
+            return {
+                "labels": [
+                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
+                    "실제 개인의 연락처 개인정보",
+                ],
+                "scores": [non_pii, 1 - non_pii],
+            }
+
+        verifier = TransformersPIICandidateVerifier("fake", inference=inference)
+        data = sample()
+        data["body"] = (
+            "주문번호 010-1111-2222, 고객 전화번호 010-3333-4444로 연락하세요"
+        )
+        result = process_log(data, pii_verifier=verifier)
+        self.assertIsNone(result.failure)
+        self.assertIn("주문번호 010-1111-2222", result.masked_log.body_masked)
+        self.assertIn("전화번호 010-****-4444", result.masked_log.body_masked)
+        self.assertEqual(result.masked_log.detected_rules, ["PHONE_NUMBER"])
+
+    def test_context_model_keeps_ambiguous_candidate_and_never_filters_rrn(self):
+        def inference(_, **__):
+            return {
+                "labels": [
+                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
+                    "실제 개인의 연락처 개인정보",
+                ],
+                "scores": [0.70, 0.30],
+            }
+
+        verifier = TransformersPIICandidateVerifier("fake", inference=inference)
+        data = sample()
+        data["body"] = "값 010-1234-5678, 식별값 900101-1234567"
+        result = process_log(data, pii_verifier=verifier)
+        self.assertEqual(
+            result.masked_log.detected_rules, ["KR_RRN", "PHONE_NUMBER"]
+        )
+        self.assertNotIn("900101-1234567", result.masked_log.body_masked)
+
+    def test_context_model_failure_fails_closed_without_raw_output(self):
+        def inference(*_, **__):
+            raise RuntimeError("010-1234-5678")
+
+        verifier = TransformersPIICandidateVerifier("fake", inference=inference)
+        data = sample()
+        data["body"] = "전화번호 010-1234-5678"
+        result = process_log(data, pii_verifier=verifier)
+        self.assertIsNone(result.masked_log)
+        self.assertEqual(result.failure.error_code, "PROCESSING_ERROR")
+        self.assertNotIn("010-1234-5678", json.dumps(result.to_dict()))
+
     def test_ner_masks_free_text_person_and_location(self):
         text = "김민수는 서울역에서 기다립니다"
 

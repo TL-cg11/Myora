@@ -1,8 +1,10 @@
 # 전체 처리 엔진: 입력 검증 → 재귀 탐지·마스킹 → 위험도 계산 → C용 이벤트 생성.
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
+import hashlib
 import json
 import re
+from collections.abc import Callable
 
 from . import jsonio
 from .hashing import body_hash, fingerprint, stable_id
@@ -12,9 +14,10 @@ from .models import (Detection, InputError, MaskedLog, NormalizedLog,
 from .risk import calculate_risk
 from .rules import pii, secrets
 from .rules.ner import NERRecognizer
+from .rules.pii_context import PIICandidateVerifier
 
 # 규칙/정책 변경 시 버전을 올려 재처리 결과와 변경 이력을 구분한다.
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 POLICY_VERSION = "1"
 # 구분자와 대소문자를 정규화한 필드명 → (규칙, 분류, 점수).
 # 이름처럼 문장 패턴만으로 찾기 어려운 정보도 알려진 필드에 있으면 전체를 가린다.
@@ -39,12 +42,22 @@ SENSITIVE_KEYS = {
 
 
 # 개인정보·비밀정보 규칙을 합치고 DB URL 내부 이메일 후보의 중복 집계를 제외한다.
-def detect(text: str, ner_recognizer: NERRecognizer | None = None) -> list[Detection]:
+def detect(text: str, ner_recognizer: NERRecognizer | None = None,
+           pii_verifier: PIICandidateVerifier | None = None,
+           on_context_exemption: Callable[[str], None] | None = None) -> list[Detection]:
     secret_matches = secrets.detect(text)
     # URL credentials look like email addresses; classify them as the enclosing
     # database secret to avoid inflating PII counts.
     containers = [d for d in secret_matches if d.rule_id in {"DB_CONNECTION_STRING", "PRIVATE_KEY"}]
     pii_matches = pii.detect(text)
+    if pii_verifier is not None:
+        original = pii_matches
+        pii_matches = pii_verifier.verify(text, original)
+        kept = {(d.rule_id, d.start, d.end) for d in pii_matches}
+        if on_context_exemption is not None:
+            for candidate in original:
+                if (candidate.rule_id, candidate.start, candidate.end) not in kept:
+                    on_context_exemption(text[candidate.start:candidate.end])
     if ner_recognizer is not None:
         pii_matches += ner_recognizer.detect(text)
     pii_matches = [d for d in pii_matches
@@ -55,7 +68,8 @@ def detect(text: str, ner_recognizer: NERRecognizer | None = None) -> list[Detec
 # 한 건의 입력을 끝까지 처리한다. 어느 단계든 실패하면 원문/부분 성공 결과를 반환하지 않는다.
 def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = None,
                 detected_at: datetime | None = None,
-                ner_recognizer: NERRecognizer | None = None) -> ProcessingResult:
+                ner_recognizer: NERRecognizer | None = None,
+                pii_verifier: PIICandidateVerifier | None = None) -> ProcessingResult:
     """Pure processing boundary: failures never return a partial/raw output."""
     stage = "VALIDATE"
     try:
@@ -75,6 +89,7 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
         stage = "DETECT_MASK"
         findings: list[Detection] = []
         fingerprints: dict[tuple, str | None] = {}
+        context_exemptions: set[str] = set()
 
         # 원문 대신 탐지 위치와 선택적 HMAC만 보관하고 탐지 건수 상한을 적용한다.
         def remember(d: Detection, value: str, path: str):
@@ -86,7 +101,15 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
 
         # 한 문자열에 규칙을 적용하고 발견 위치를 기록한 뒤 마스킹 문자열을 반환한다.
         def text_value(value: str, path: str):
-            detected = detect(value, ner_recognizer)
+            def exempt(raw: str) -> None:
+                if len(context_exemptions) >= 1000:
+                    raise InputError("DETECTION_LIMIT")
+                context_exemptions.add(hashlib.sha256(raw.encode("utf-8")).hexdigest())
+
+            detected = detect(
+                value, ner_recognizer, pii_verifier,
+                on_context_exemption=exempt,
+            )
             for d in detected:
                 remember(d, value, path)
             return mask(value, detected)
@@ -145,7 +168,8 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
                            log.timestamp, log.environment, log.service, log.source_type,
                            log.event_name, log.severity, masked_body, masked_attributes,
                            digest, sorted({d.rule_id for d in findings}), level, score,
-                           VERSION, POLICY_VERSION)
+                           VERSION, POLICY_VERSION,
+                           tuple(sorted(context_exemptions)))
         if not findings:
             return ProcessingResult(masked_log=masked)
 
@@ -171,11 +195,14 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
         if clock.utcoffset() is None:
             raise InputError("INVALID_DETECTED_AT")
         stamp = lambda dt: dt.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        # SecurityEvent 발췌문은 exemption 해시가 함께 전달되지 않는 알림에서도
+        # 안전해야 하므로 문맥상 비PII로 승인된 형식까지 보수적으로 다시 가린다.
+        event_excerpt = mask(masked_body, pii.detect(masked_body))
         event = SecurityEvent("1.0", event_id, log.event_id, log.request_id,
                               stamp(datetime.fromisoformat(log.timestamp.replace("Z", "+00:00"))),
                               stamp(clock), log.environment, log.service, log.source_type,
                               log.event_name, level, score, VERSION, POLICY_VERSION,
-                              masked_body[:1000], digest, entries, {})
+                              event_excerpt[:1000], digest, entries, {})
         return ProcessingResult(masked_log=masked, security_event=event)
     except InputError as exc:
         return ProcessingResult(failure=ProcessingFailure("1.0", str(exc), stage, False))

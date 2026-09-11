@@ -13,6 +13,8 @@ from app.engine import process_log
 from app.hashing import stable_id
 from app.models import ProcessingFailure
 from app.rules.ner import NERRecognizer, TransformersNERRecognizer
+from app.rules.pii_context import (PIICandidateVerifier,
+                                   TransformersPIICandidateVerifier)
 from adapter import outbound, prompt_injection
 from adapter.config import Settings
 from adapter.normalize import AdapterError, normalize_nginx_log, normalize_was_log
@@ -50,7 +52,8 @@ class MaskingPipeline:
     """원본 로그 → 정책 적용 → 탐지·마스킹 → 결과 계약 메시지."""
 
     def __init__(self, settings: Settings, policy: MaskingPolicy,
-                 *, ner_recognizer: NERRecognizer | None = None) -> None:
+                 *, ner_recognizer: NERRecognizer | None = None,
+                 pii_verifier: PIICandidateVerifier | None = None) -> None:
         self._settings = settings
         self._policy = policy
         self._ner_recognizer = ner_recognizer
@@ -59,6 +62,13 @@ class MaskingPipeline:
                 settings.ner_model,
                 threshold=settings.ner_threshold,
                 local_files_only=settings.ner_local_files_only,
+            )
+        self._pii_verifier = pii_verifier
+        if self._pii_verifier is None and settings.pii_context_enabled:
+            self._pii_verifier = TransformersPIICandidateVerifier(
+                settings.pii_context_model,
+                non_pii_threshold=settings.pii_context_non_pii_threshold,
+                local_files_only=settings.pii_context_local_files_only,
             )
 
     # 한 메시지를 처리한다. 어느 단계에서 실패해도 부분 결과를 발행하지 않는다.
@@ -89,6 +99,7 @@ class MaskingPipeline:
                 normalized.log,
                 fingerprint_key=self._settings.fingerprint_key,
                 ner_recognizer=self._ner_recognizer,
+                pii_verifier=self._pii_verifier,
             )
             if result.failure is not None:
                 return self._dead_letter(

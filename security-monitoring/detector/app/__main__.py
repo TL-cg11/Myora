@@ -8,7 +8,7 @@ import sys
 
 from .engine import process_log
 from .jsonio import loads
-from .models import ProcessingFailure, ProcessingResult
+from .models import MaskedLog, ProcessingFailure, ProcessingResult
 
 # 한 행을 무제한으로 메모리에 읽지 않도록 바이트 크기를 제한한다.
 MAX_LINE_BYTES = 1_000_000
@@ -48,7 +48,7 @@ def run(source: Path, output: Path) -> dict:
                                                   (result.security_event, events, "security_events"),
                                                   (result.failure, failures, "failed")):
                     if value is not None:
-                        payload = asdict(value)
+                        payload = value.to_dict() if isinstance(value, MaskedLog) else asdict(value)
                         # 원문 대신 행 번호만 남겨 제한된 입력 파일에서 재처리 대상을 찾는다.
                         if count_key == "failed":
                             payload["line_number"] = counts["read"]

@@ -98,6 +98,10 @@ class Settings:
     ner_model: str  # Hugging Face token-classification 모델 또는 로컬 경로
     ner_threshold: float  # 이 신뢰도 이상인 개체만 마스킹
     ner_local_files_only: bool  # 운영 서버에서 원격 모델 다운로드를 금지할지 여부
+    pii_context_enabled: bool  # 정규식 전화·이메일 후보의 문맥 재검증 여부
+    pii_context_model: str  # Hugging Face 한국어 NLI 모델 또는 로컬 경로
+    pii_context_non_pii_threshold: float  # 오탐으로 제외할 최소 비개인정보 확률
+    pii_context_local_files_only: bool  # 원격 모델 다운로드를 금지할지 여부
 
     # consumer는 결과 발행이 끝난 뒤 직접 commit하므로 자동 commit을 끈다.
     def consumer_config(self) -> dict[str, Any]:
@@ -142,6 +146,13 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     if attempts < 1:
         raise ConfigError("ADAPTER_PUBLISH_ATTEMPTS는 1 이상이어야 합니다.")
     ner_threshold = _ratio(env, "DETECTOR_NER_THRESHOLD", "0.85")
+    pii_context_threshold = _ratio(
+        env, "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD", "0.90"
+    )
+    if pii_context_threshold < 0.5:
+        raise ConfigError(
+            "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD는 0.5 이상 1 이하여야 합니다."
+        )
     client_options = {
         key: env[name]
         for key, name in OPTIONAL_CLIENT_KEYS.items()
@@ -172,4 +183,12 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         ),
         ner_threshold=ner_threshold,
         ner_local_files_only=_boolean(env, "DETECTOR_NER_LOCAL_FILES_ONLY", False),
+        pii_context_enabled=_boolean(env, "DETECTOR_PII_CONTEXT_ENABLED", False),
+        pii_context_model=_text(
+            env, "DETECTOR_PII_CONTEXT_MODEL", "Huffon/klue-roberta-base-nli"
+        ),
+        pii_context_non_pii_threshold=pii_context_threshold,
+        pii_context_local_files_only=_boolean(
+            env, "DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY", False
+        ),
     )
