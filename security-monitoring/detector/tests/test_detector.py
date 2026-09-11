@@ -14,7 +14,7 @@ from app.hashing import fingerprint
 from app.masking import mask
 from app.models import Detection, NormalizedLog
 from app.rules.ner import TransformersNERRecognizer
-from app.rules.pii_context import TransformersPIICandidateVerifier
+from app.rules.pii_context import RULE_LABELS, TransformersPIICandidateVerifier
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures/cases.json").read_text(encoding="utf-8"))
 
@@ -62,6 +62,14 @@ class FixtureTests(unittest.TestCase):
 
 # 처리 엔진의 오류·보안·재처리 동작 테스트.
 class EngineTests(unittest.TestCase):
+    def test_phone_context_label_covers_non_contact_identifiers(self):
+        sensitive, non_pii = RULE_LABELS["PHONE_NUMBER"]
+
+        self.assertEqual(sensitive, "사람의 전화번호")
+        self.assertIn("주문번호", non_pii)
+        self.assertIn("배송 추적번호", non_pii)
+        self.assertIn("시스템 식별번호", non_pii)
+
     def test_context_model_removes_only_confident_regex_false_positive(self):
         def inference(context, candidate_labels, **_):
             non_pii = 0.98 if "주문번호" in context else 0.03
