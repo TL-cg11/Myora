@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Iterable, Protocol
+from urllib.error import HTTPError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
@@ -71,16 +74,26 @@ class NotificationSender(Protocol):
     def send(self, subject: str, body: str) -> None: ...
 
 
+class DiscordRateLimitError(RuntimeError):
+    """Sanitized Discord 429 carrying only a bounded retry delay."""
+
+    def __init__(self, retry_after_seconds: float) -> None:
+        super().__init__("Discord delivery was rate limited")
+        self.retry_after_seconds = max(0, min(86_400, retry_after_seconds))
+
+
 class NotificationRepository:
     def __init__(
         self,
         connection_factory: Callable[[], Any],
         policy: NotificationPolicy = DEFAULT_POLICY,
         channels: Iterable[str] | None = None,
+        jitter_source: Callable[[], float] | None = None,
     ) -> None:
         self._connection_factory = connection_factory
         self.policy = policy
         self.channels = tuple(channels or configured_channels())
+        self._jitter_source = jitter_source or random.random
 
     def schedule_unresolved(self, now: datetime | None = None, limit: int = 500) -> int:
         current = now or datetime.utcnow()
@@ -168,8 +181,17 @@ class NotificationRepository:
             with connection.cursor() as cursor:
                 for item in items:
                     next_count = item.retry_count + 1
+                    retry_after = getattr(error, "retry_after_seconds", None)
+                    jitter = self.policy.retry_jitter_seconds * max(
+                        0, min(1, self._jitter_source())
+                    )
                     next_retry = (
-                        current + self.policy.retry_delay(next_count)
+                        current
+                        + self.policy.retry_delay(
+                            next_count,
+                            retry_after_seconds=retry_after,
+                            jitter_seconds=jitter,
+                        )
                         if next_count < self.policy.max_retries
                         else None
                     )
@@ -231,6 +253,25 @@ class DiscordWebhookSender:
         self.webhook_url = urlunsplit(parsed._replace(query=urlencode(query)))
         self.timeout_seconds = timeout_seconds
 
+    @staticmethod
+    def _retry_after_seconds(error: HTTPError) -> float:
+        header = error.headers.get("Retry-After") if error.headers else None
+        if header:
+            try:
+                return max(0, float(header))
+            except ValueError:
+                try:
+                    target = parsedate_to_datetime(header)
+                    now = datetime.now(target.tzinfo) if target.tzinfo else datetime.utcnow()
+                    return max(0, (target.replace(tzinfo=target.tzinfo) - now).total_seconds())
+                except (TypeError, ValueError, OverflowError):
+                    pass
+        try:
+            body = json.loads(error.read(4096).decode("utf-8"))
+            return max(0, float(body.get("retry_after", 1)))
+        except (AttributeError, UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
+            return 1
+
     def send(self, subject: str, body: str) -> None:
         header = f"**{subject}**"
         chunks: list[str] = []
@@ -259,9 +300,16 @@ class DiscordWebhookSender:
                 },
                 method="POST",
             )
-            with urlopen(request, timeout=self.timeout_seconds) as response:
-                if not 200 <= response.status < 300:
-                    raise RuntimeError("Discord delivery returned a non-success status")
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    if not 200 <= response.status < 300:
+                        raise RuntimeError("Discord delivery returned a non-success status")
+            except HTTPError as exc:
+                if exc.code == 429:
+                    raise DiscordRateLimitError(
+                        self._retry_after_seconds(exc)
+                    ) from None
+                raise
 
 
 def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
