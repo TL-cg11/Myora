@@ -96,7 +96,7 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(settings.ner_enabled)
         self.assertEqual(settings.ner_threshold, 0.85)
         self.assertFalse(settings.pii_context_enabled)
-        self.assertEqual(settings.pii_context_non_pii_threshold, 0.90)
+        self.assertEqual(settings.pii_context_non_pii_threshold, 0.70)
         self.assertEqual(
             settings.pii_context_model, "Huffon/klue-roberta-base-nli"
         )

@@ -63,14 +63,11 @@ class FixtureTests(unittest.TestCase):
 # 처리 엔진의 오류·보안·재처리 동작 테스트.
 class EngineTests(unittest.TestCase):
     def test_context_model_removes_only_confident_regex_false_positive(self):
-        def inference(context, **_):
+        def inference(context, candidate_labels, **_):
             non_pii = 0.98 if "주문번호" in context else 0.03
             return {
-                "labels": [
-                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
-                    "실제 개인의 연락처 개인정보",
-                ],
-                "scores": [non_pii, 1 - non_pii],
+                "labels": candidate_labels,
+                "scores": [1 - non_pii, non_pii],
             }
 
         verifier = TransformersPIICandidateVerifier("fake", inference=inference)
@@ -85,16 +82,15 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result.masked_log.detected_rules, ["PHONE_NUMBER"])
 
     def test_context_model_keeps_ambiguous_candidate_and_never_filters_rrn(self):
-        def inference(_, **__):
+        def inference(_, candidate_labels, **__):
             return {
-                "labels": [
-                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
-                    "실제 개인의 연락처 개인정보",
-                ],
-                "scores": [0.70, 0.30],
+                "labels": candidate_labels,
+                "scores": [0.30, 0.70],
             }
 
-        verifier = TransformersPIICandidateVerifier("fake", inference=inference)
+        verifier = TransformersPIICandidateVerifier(
+            "fake", non_pii_threshold=0.90, inference=inference
+        )
         data = sample()
         data["body"] = "값 010-1234-5678, 식별값 900101-1234567"
         result = process_log(data, pii_verifier=verifier)

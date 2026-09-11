@@ -131,13 +131,10 @@ class WasLogTest(unittest.TestCase):
         self.assertEqual(event["detections"][0]["rule_id"], "PERSON_NAME")
 
     def test_context_verified_non_pii_reaches_masked_log_without_security_event(self):
-        def inference(_, **__):
+        def inference(_, candidate_labels, **__):
             return {
-                "labels": [
-                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
-                    "실제 개인의 연락처 개인정보",
-                ],
-                "scores": [0.99, 0.01],
+                "labels": candidate_labels,
+                "scores": [0.01, 0.99],
             }
 
         verifier = TransformersPIICandidateVerifier("fake", inference=inference)
@@ -157,13 +154,10 @@ class WasLogTest(unittest.TestCase):
         )
 
     def test_context_exemption_is_still_masked_in_security_event_excerpt(self):
-        def inference(_, **__):
+        def inference(_, candidate_labels, **__):
             return {
-                "labels": [
-                    "개인정보가 아닌 예시, 주문번호, 시스템 식별자 또는 업무 코드",
-                    "실제 개인의 연락처 개인정보",
-                ],
-                "scores": [0.99, 0.01],
+                "labels": candidate_labels,
+                "scores": [0.01, 0.99],
             }
 
         verifier = TransformersPIICandidateVerifier("fake", inference=inference)
