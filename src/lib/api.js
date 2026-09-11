@@ -12,6 +12,9 @@ export const setAuthToken = (token) => {
     if (token) localStorage.setItem(AUTH_TOKEN_STORAGE, token);
     else localStorage.removeItem(AUTH_TOKEN_STORAGE);
   } catch { /* 저장소가 막히면 현재 페이지에서만 인증할 수 있다. */ }
+  // 로그인·로그아웃·세션 만료로 계정이 바뀔 때마다 알린다. 관리자 로그인 여부에
+  // 따라 달라지는 /api/config 캐시(useChatLimit.js)가 새로고침 없이도 맞게 갱신된다.
+  globalThis.dispatchEvent?.(new Event('myohan-auth-changed'));
 };
 
 /** crypto.randomUUID 는 보안 컨텍스트(https/localhost)에서만 있다.

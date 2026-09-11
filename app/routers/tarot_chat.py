@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
-from app.auth import optional_user
+from app.auth import optional_user, question_limit_for
 from app.db import get_session
 from app.models import (
     ChatRole,
@@ -111,10 +111,11 @@ async def create_chat_message(
 ) -> ChatOut:
     reading = _load_reading(session, reading_id, guest_key, user)
     asked = sum(message.role is ChatRole.user for message in reading.messages)
-    if asked >= settings.chat_question_limit:
+    limit = question_limit_for(user)
+    if asked >= limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"AI 질문 {settings.chat_question_limit}회를 모두 사용했어요.",
+            detail=f"AI 질문 {limit}회를 모두 사용했어요.",
         )
 
     history = [{"role":m.role.value,"content":m.content} for m in sorted(reading.messages, key=lambda m:m.seq)

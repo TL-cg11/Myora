@@ -88,6 +88,13 @@ def optional_user(
     return auth_session.user
 
 
+def question_limit_for(user: AppUser | None) -> int:
+    """게스트·일반 회원은 공통 한도, 관리자 계정은 확장 한도를 쓴다."""
+    if user is not None and user.is_admin:
+        return settings.chat_question_limit_admin
+    return settings.chat_question_limit
+
+
 def current_user(user: AppUser | None = Depends(optional_user)) -> AppUser:
     if user is None:
         raise HTTPException(

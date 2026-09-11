@@ -1,8 +1,10 @@
-from fastapi import FastAPI, status
+from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.auth import optional_user, question_limit_for
+from app.models import AppUser
 from app.db import check_db
 from app.security_auth import SecurityAuthMiddleware, TokenAuthenticator, parse_token_hashes
 from app.security_db import find_security_user
@@ -52,14 +54,17 @@ def api_health() -> dict:
 
 
 @app.get("/api/config")
-def api_config() -> dict:
+def api_config(user: AppUser | None = Depends(optional_user)) -> dict:
     """화면이 서버와 같은 값을 쓰도록 내려준다.
 
     채팅 질문 한도 같은 숫자를 프론트에 하드코딩하면 서버만 바꿨을 때
     안내 문구와 실제 동작이 어긋난다. config.py 를 유일한 출처로 둔다.
+    관리자 계정으로 로그인한 요청에는 확장된 한도를 내려준다. 실제 채팅
+    엔드포인트도 같은 question_limit_for()로 계산하므로 여기서만 늘려
+    보여 주고 서버가 다르게 세는 일은 없다.
     """
     return {
-        "chat_question_limit": settings.chat_question_limit,
+        "chat_question_limit": question_limit_for(user),
         "ai_message_max_chars": settings.ai_message_max_chars,
     }
 
