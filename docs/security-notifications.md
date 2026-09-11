@@ -26,8 +26,11 @@ minutes.
 
 The worker claims no more than 20 rows per cycle and sends one grouped message
 per channel. A failed delivery becomes `FAILED`, increments `retry_count`, and
-uses 1, 2, 4, 8 minute exponential backoff for at most 5 attempts. Success is
-`SENT`; disabled channels and unsafe message content become `SUPPRESSED`.
+uses 1, 2, 4, 8 minute exponential backoff plus bounded jitter for at most 5
+attempts. Discord HTTP 429 responses honor a numeric or HTTP-date `Retry-After`
+value (or the JSON `retry_after` fallback) without scheduling earlier than the
+normal backoff. Success is `SENT`; disabled channels and unsafe message content
+become `SUPPRESSED`.
 Provider exception text is not persisted, and notifications contain only event
 identifiers, safe classification fields, and `masked_excerpt` after a second
 sensitive-data check.
