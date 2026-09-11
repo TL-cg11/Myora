@@ -118,6 +118,80 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('역할극 우회가 아닙니다', instruction)
         self.assertIn('페르소나로 자연스럽게 답하세요', instruction)
 
+    async def test_profanity_is_refused_but_the_question_is_kept_masked(self):
+        result, call = await self.run_with(
+            ['{"decision":"allow","rules":[],"crisis_kind":"none"}'],
+            question='씨발 이게 뭔 소리야')
+        self.assertEqual(result.answer, g.INCIVILITY)
+        self.assertEqual(call.await_count, 1)          # 생성하지 않는다
+        self.assertNotIn('씨발', result.question)
+        self.assertIn('이게 뭔 소리야', result.question)  # 나머지 문장은 남는다
+        self.assertEqual(result.rules, ('G09',))
+
+    async def test_crisis_outranks_profanity(self):
+        """힘든 사람이 욕설을 섞었다고 안전 안내를 놓치면 안 된다."""
+        result, _ = await self.run_with(
+            ['{"decision":"crisis","rules":["G07"],"crisis_kind":"self_harm"}'],
+            question='씨발 진짜 죽고 싶다')
+        self.assertEqual(result.answer, g.CRISIS['self_harm'])
+        self.assertNotIn('죽고 싶다', result.question)
+
+    async def test_ordinary_words_are_not_treated_as_profanity(self):
+        for question in ('오늘 시발점이 어디야', '사업이 시작됐어', '개나리 꿈을 꿨어'):
+            result, call = await self.run_with(
+                ['{"decision":"allow","rules":[],"crisis_kind":"none"}',
+                 '설명입니다', '{"decision":"allow","rules":[]}'],
+                question=question)
+            self.assertNotEqual(result.answer, g.INCIVILITY, question)
+            self.assertEqual(call.await_count, 3, question)
+
+    async def test_profane_answer_is_discarded_before_the_semantic_check(self):
+        """의미 검사가 오판하거나 장애가 나도 거친 답변이 새면 안 된다."""
+        result, call = await self.run_with([
+            '{"decision":"allow","rules":[],"crisis_kind":"none"}',
+            '그런 건 저도 모르죠 병신같이 왜 물어봐요',
+        ])
+        self.assertEqual(result.answer, g.FALLBACK)
+        self.assertEqual(call.await_count, 2)      # 의미 검사까지 가지 않는다
+        self.assertEqual(result.rules, ('G09',))
+        self.assertFalse(result.generated)
+
+    async def test_semantic_check_can_also_block_profanity(self):
+        """로컬 규칙이 놓친 변형은 의미 검사가 잡는다."""
+        evasive = '그런 건 저도 모르죠 ㅄ같이 왜 물어봐요'
+        result, _ = await self.run_with([
+            '{"decision":"allow","rules":[],"crisis_kind":"none"}',
+            evasive, '{"decision":"block","rules":["G09"]}',
+        ])
+        self.assertNotIn('ㅄ', result.answer)
+
+    async def test_output_checker_is_told_to_reject_profanity(self):
+        _, call = await self.run_with([
+            '{"decision":"allow","rules":[],"crisis_kind":"none"}',
+            '차분한 설명입니다.', '{"decision":"allow","rules":[]}'])
+        instruction = call.await_args_list[2].args[0][0]['content']
+        self.assertIn('욕설·비속어·모욕·조롱 표현이 있으면 G09', instruction)
+        self.assertIn('되받아치면 차단', instruction)
+
+    async def test_normal_answers_are_not_mistaken_for_profanity(self):
+        for answer in ('올해가 새로운 시발점이 될 수 있어요.',
+                       '사업을 시작하기 좋은 흐름이에요.',
+                       '개나리처럼 밝은 기운이 보여요.'):
+            result, call = await self.run_with([
+                '{"decision":"allow","rules":[],"crisis_kind":"none"}',
+                answer, '{"decision":"allow","rules":[]}'])
+            self.assertEqual(result.answer, answer)
+            self.assertEqual(call.await_count, 3, answer)
+
+    async def test_invisible_character_evasion_is_unfolded(self):
+        """화면에는 '씨발'로 보이지만 사이에 제로폭 문자를 끼운 우회."""
+        result, call = await self.run_with(
+            ['{"decision":"allow","rules":[],"crisis_kind":"none"}'],
+            question='씨\u200b발 이게 뭐야')
+        self.assertEqual(result.answer, g.INCIVILITY)
+        self.assertEqual(call.await_count, 1)
+        self.assertEqual(result.question, '■■ 이게 뭐야')  # 위치가 어긋나지 않는다
+
     async def test_missing_key_never_calls_provider(self):
         with patch.object(g, 'settings', replace(g.settings, deepseek_face_api_key='')):
             result, call = await self.run_with([])

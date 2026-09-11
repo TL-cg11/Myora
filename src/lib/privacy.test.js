@@ -22,3 +22,14 @@ test('서버 전송 원문과 별개로 화면 표시값만 마스킹한다', ()
   );
   assert.equal(original, '전화 010-1234-5678, 메일 demo@example.com, 주민번호 900101-1234567');
 });
+
+test('거친 표현은 말풍선에서 가리고 정상 단어는 그대로 둔다', () => {
+  assert.equal(maskForDisplay('씨발 이거 뭐야'), '■■ 이거 뭐야');
+  assert.equal(maskForDisplay('오늘 시발점이 어디야'), '오늘 시발점이 어디야');
+  assert.equal(maskForDisplay('사업이 시작됐어'), '사업이 시작됐어');
+});
+
+test('보이지 않는 문자로 가린 거친 표현도 말풍선에서 가린다', () => {
+  assert.equal(maskForDisplay('씨​발 이거 뭐야'), '■■ 이거 뭐야');
+  assert.equal(maskForDisplay('제 생년월일은 1995년이에요'), '제 생년월일은 1995년이에요');
+});
