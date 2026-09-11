@@ -20,10 +20,20 @@ export function hasDirectIdentifier(text) {
   return typeof text === 'string' && DIRECT_IDENTIFIER_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+/** 서버(app/services/profanity.py)와 같은 범위의 거친 표현.
+ *  서버가 저장·응답에서 이미 가리므로, 여기는 아직 서버를 거치지 않은
+ *  낙관적 말풍선을 위한 것이다. */
+const PROFANITY = /[시씨]+[1발벌바빠]+[랄로]?(?![점역차])|ㅅ+ㅂ+|[좆좃존]같|[개게]새+[끼키기]|병+신+|지+랄+|존나+|[엿옘]같|[씹씨]+[발빨]|미친[놈년]|[꺼거]져|닥쳐|fuck\w*|shit\w*|bitch\w*/gi;
+
+/** 눈으로 구분되지 않는 회피를 펴 준다. 서버(profanity.normalize)와 같은 범위다. */
+const INVISIBLE = /[\u200b-\u200f\u2060\ufeff]/g;
+
 /** 서버로 보내는 원문은 바꾸지 않고 사용자 말풍선에 표시할 문자열만 가린다. */
 export function maskForDisplay(text) {
   if (typeof text !== 'string') return text;
   return text
+    .normalize('NFKC')
+    .replace(INVISIBLE, '')
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, (value) => {
       const [local, domain] = value.split('@');
       return `${local.slice(0, 1)}***@${domain}`;
@@ -34,5 +44,6 @@ export function maskForDisplay(text) {
       return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
     })
     .replace(/https?:\/\/\S+/g, '[비공개 링크]')
-    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[비공개 키]');
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[비공개 키]')
+    .replace(PROFANITY, (value) => '■'.repeat(Math.max(2, value.length)));
 }

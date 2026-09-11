@@ -12,3 +12,6 @@ public/mediapipe/
 # local work logs
 WORKLOG.md
 .local/
+
+# macOS
+.DS_Store
