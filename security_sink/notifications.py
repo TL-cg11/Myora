@@ -224,6 +224,8 @@ class DiscordWebhookSender:
             or not parsed.path.startswith("/api/webhooks/")
         ):
             raise ValueError("Discord webhook URL must use the official HTTPS endpoint")
+        if parsed.hostname in {"discordapp.com", "www.discordapp.com"}:
+            parsed = parsed._replace(netloc="discord.com")
         query = dict(parse_qsl(parsed.query, keep_blank_values=True))
         query["wait"] = "true"
         self.webhook_url = urlunsplit(parsed._replace(query=urlencode(query)))
@@ -249,7 +251,12 @@ class DiscordWebhookSender:
             request = Request(
                 self.webhook_url,
                 data=payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": (
+                        "DiscordBot (https://github.com/TL-cg11/luck-nginx, 1.0)"
+                    ),
+                },
                 method="POST",
             )
             with urlopen(request, timeout=self.timeout_seconds) as response:
