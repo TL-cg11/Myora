@@ -8,7 +8,7 @@ from app.config import settings
 from app.auth import optional_user
 from app.db import get_session
 from app.models import AppUser, ReadingChatMessage
-from app.prompts import FACE_PERSONA
+from app.prompts import PERSONA
 from app.prompts.guardrail import POLICY_VERSION
 from app.services.chat_context import load_context
 from app.services.guardrail import safe_answer
@@ -71,4 +71,4 @@ async def reading_chat(service, persona, request, session, user):
 
 @router.post('/face/chat', response_model=ChatResponse)
 async def chat(request: ChatRequest, session: Session = Depends(get_session), user: AppUser | None = Depends(optional_user)):
-    return await reading_chat('face', FACE_PERSONA, request, session, user)
+    return await reading_chat('face', PERSONA['face'], request, session, user)

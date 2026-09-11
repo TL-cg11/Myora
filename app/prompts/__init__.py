@@ -1,5 +1,4 @@
-from app.prompts.face import FACE_PERSONA
-from app.prompts.saju import SAJU_PERSONA
+from app.prompts.persona import COMMON_STYLE, PERSONA
 
 
-__all__ = ["FACE_PERSONA", "SAJU_PERSONA"]
+__all__ = ["COMMON_STYLE", "PERSONA"]

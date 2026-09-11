@@ -21,7 +21,7 @@ from app.models import (
     TarotReading,
     Topic,
 )
-from app.prompts.tarot import SYSTEM_PROMPT
+from app.prompts import PERSONA
 from app.services.guardrail import safe_answer
 from app.prompts.guardrail import POLICY_VERSION
 from app.schemas import ChatCreate, ChatOut
@@ -131,7 +131,7 @@ async def create_chat_message(
     # 질문 자리를 먼저 예약해 동시 요청도 공통 횟수 제한을 넘지 못하게 한다.
     session.commit()
 
-    result = await safe_answer('tarot', SYSTEM_PROMPT, _reading_context(reading), payload.message, history)
+    result = await safe_answer('tarot', PERSONA['tarot'], _reading_context(reading), payload.message, history)
     answer = result.answer
     source = InterpretationSource.llm if result.generated else InterpretationSource.rule
     pending.content = result.question
