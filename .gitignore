@@ -1,0 +1,16 @@
+# 루트 환경 파일 (실제 키·비밀번호). 예시는 .env.example 만 추적한다.
+/.env
+/.env.*
+!/.env.example
+
+# Docker 볼륨을 bind mount 로 쓸 때 생기는 로컬 데이터
+/.data/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.venv-*/
+node_modules/
+.DS_Store
+Thumbs.db
