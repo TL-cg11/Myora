@@ -13,6 +13,7 @@ from app.routers.conversations import router as conversations_router
 from app.routers.auth import router as auth_router
 from app.routers.face import router as face_router
 from app.routers.pages import DIST_DIR, router as pages_router
+from app.routers.privacy import router as privacy_router
 from app.routers.saju import router as saju_router
 from app.routers.saju_chat import router as saju_chat_router
 from app.routers.security_audit import router as security_audit_router
@@ -74,6 +75,7 @@ app.include_router(chat_router)
 app.include_router(conversations_router)
 app.include_router(auth_router)
 app.include_router(face_router)
+app.include_router(privacy_router)
 app.include_router(tarot_router)
 app.include_router(tarot_chat_router)
 app.include_router(security_audit_router)

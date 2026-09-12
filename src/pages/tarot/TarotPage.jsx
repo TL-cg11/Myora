@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import tarotCat from '../../assets/tarot-cat.png';
 import { checkQuestion, createReading, listSpreads, sendChatMessage } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
-import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE, maskForDisplay } from '../../lib/privacy.js';
+import { hasDirectIdentifier, DIRECT_IDENTIFIER_MESSAGE } from '../../lib/privacy.js';
+import { displayMessageContent, useContextualMessages } from '../../lib/useContextualDisplay.js';
 import '../fortune/fortune-experience.css';
 import './tarot.css';
 
@@ -149,7 +150,7 @@ function ChatPanel({ reading }) {
   // 리딩을 만들 때 서버가 넣어둔 첫 인사가 messages 에 이미 있다. 이 인사말에
   // policy_version을 채우기 전(과거)에 만들어진 리딩은 서버가 그 메시지를
   // 걸러내므로 messages가 비어 있을 수 있다 — 그 경우에만 이 기본값을 쓴다.
-  const [messages, setMessages] = useState(reading.messages ?? [
+  const [messages, setMessages] = useContextualMessages(reading.messages ?? [
     { seq: 1, role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
   const [input, setInput] = useState('');
@@ -171,7 +172,7 @@ function ChatPanel({ reading }) {
   async function send(text) {
     const question = text.trim();
     if (!question || loading || limitReached) return;
-    setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: maskForDisplay(question) }]);
+    setMessages((current) => [...current, { seq: `local-${current.length}`, role: 'user', content: question }]);
     setInput('');
     setLoading(true);
     try {
@@ -203,7 +204,7 @@ function ChatPanel({ reading }) {
       <div className="chat-messages" ref={listRef} aria-live="polite">
         {messages.map((message) => (
           <div key={message.seq} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>
-            {message.role === 'user' ? maskForDisplay(message.content) : message.content}
+            {displayMessageContent(message)}
           </div>
         ))}
         {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}

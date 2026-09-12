@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasDirectIdentifier, maskForDisplay } from './privacy.js';
+import { finishContextualDisplay, hasDirectIdentifier, maskForDisplay } from './privacy.js';
 
 test('정형 식별자가 있으면 입력 단계에서 걸러 낸다', () => {
   for (const value of ['연락처 010-1234-5678', 'a@b.com 으로 알려주세요',
@@ -21,6 +21,13 @@ test('서버 전송 원문과 별개로 화면 표시값만 마스킹한다', ()
     '전화 010-****-5678, 메일 d***@example.com, 주민번호 ******-*******',
   );
   assert.equal(original, '전화 010-1234-5678, 메일 demo@example.com, 주민번호 900101-1234567');
+});
+
+test('문맥 모델이 허용한 전화번호 형식은 화면 후처리가 다시 가리지 않는다', () => {
+  assert.equal(
+    finishContextualDisplay('주문번호 010-1234-5678을 조회해줘'),
+    '주문번호 010-1234-5678을 조회해줘',
+  );
 });
 
 test('거친 표현은 말풍선에서 가리고 정상 단어는 그대로 둔다', () => {

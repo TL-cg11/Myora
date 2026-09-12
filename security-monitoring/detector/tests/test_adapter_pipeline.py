@@ -41,6 +41,25 @@ class WasLogTest(unittest.TestCase):
     def setUp(self):
         self.pipeline = build_pipeline()
 
+    def test_display_mask_uses_the_same_context_verifier(self):
+        def inference(context, candidate_labels, **_):
+            non_pii = 0.98 if "배송 추적번호" in context else 0.02
+            return {"labels": candidate_labels, "scores": [1 - non_pii, non_pii]}
+
+        verifier = TransformersPIICandidateVerifier("fake", inference=inference)
+        pipeline = MaskingPipeline(
+            load_settings(ENVIRONMENT), load_policy(), pii_verifier=verifier
+        )
+
+        self.assertEqual(
+            pipeline.mask_display_text("배송 추적번호는 010-1234-5678입니다"),
+            "배송 추적번호는 010-1234-5678입니다",
+        )
+        self.assertEqual(
+            pipeline.mask_display_text("제 전화번호는 010-1234-5678입니다"),
+            "제 전화번호는 010-****-5678입니다",
+        )
+
     def test_clean_api_request_produces_only_a_masked_log(self):
         result = run(self.pipeline, example("was-api-request.json"))
         self.assertFalse(result.failed)

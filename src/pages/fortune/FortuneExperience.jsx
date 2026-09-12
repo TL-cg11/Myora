@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { sendReadingChat } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
-import { maskForDisplay } from '../../lib/privacy.js';
+import { displayMessageContent, useContextualMessages } from '../../lib/useContextualDisplay.js';
 import './fortune-experience.css';
 
 const configs = {
@@ -21,7 +21,7 @@ const configs = {
 function ChatPanel({ readingId, fortuneType }) {
   const isFaceChat = fortuneType === 'face';
   const { chatQuestionLimit: questionLimit, messageMaxChars } = useAiConfig();
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useContextualMessages([
     { role: 'assistant', content: '결과를 함께 보고 있어요. 더 궁금한 점을 편하게 물어보세요!' },
   ]);
   const [input, setInput] = useState('');
@@ -33,7 +33,7 @@ function ChatPanel({ readingId, fortuneType }) {
   async function sendMessage(text) {
     const question = text.trim();
     if (!question || loading || limitReached) return;
-    const next = [...messages, { role: 'user', content: maskForDisplay(question) }];
+    const next = [...messages, { role: 'user', content: question }];
     setMessages(next);
     setInput('');
     setLoading(true);
@@ -67,7 +67,7 @@ function ChatPanel({ readingId, fortuneType }) {
       {limitReached ? `AI 질문 ${questionLimit}회를 모두 사용했어요.` : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
     </p>
     <div className="chat-messages" aria-live="polite">
-      {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{message.content}</div>)}
+      {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{displayMessageContent(message)}</div>)}
       {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}
     </div>
     <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" disabled={loading || limitReached} onClick={() => sendMessage(item)}>{item}</button>)}</div>

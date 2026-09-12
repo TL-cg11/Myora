@@ -100,6 +100,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(
             settings.pii_context_model, "Huffon/klue-roberta-base-nli"
         )
+        self.assertEqual(settings.display_api_host, "127.0.0.1")
+        self.assertEqual(settings.display_api_port, 8765)
 
     def test_ner_settings_are_validated(self):
         base = {"MASKING_PSEUDONYM_KEY": KEY.decode("utf-8")}
@@ -131,6 +133,13 @@ class SettingsTest(unittest.TestCase):
             load_settings({
                 **base, "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD": "0.49"
             })
+
+    def test_display_api_must_stay_on_loopback(self):
+        base = {"MASKING_PSEUDONYM_KEY": KEY.decode("utf-8")}
+        with self.assertRaises(ConfigError):
+            load_settings({**base, "ADAPTER_DISPLAY_API_HOST": "0.0.0.0"})
+        with self.assertRaises(ConfigError):
+            load_settings({**base, "ADAPTER_DISPLAY_API_PORT": "70000"})
 
 
 if __name__ == "__main__":

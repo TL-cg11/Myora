@@ -97,6 +97,9 @@ export const listSpreads = () => tarotRequest('/spreads');
 export const checkQuestion = (question) =>
   tarotRequest('/questions/check', { method: 'POST', body: { question } });
 
+export const maskDisplayMessage = (text) =>
+  request('/api/privacy', '/display-mask', { method: 'POST', body: { text } });
+
 export const createReading = ({ spreadCode, topic, question }) =>
   tarotRequest('/readings', {
     method: 'POST',

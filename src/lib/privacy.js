@@ -31,7 +31,7 @@ const INVISIBLE = /[\u200b-\u200f\u2060\ufeff]/g;
 /** 서버로 보내는 원문은 바꾸지 않고 사용자 말풍선에 표시할 문자열만 가린다. */
 export function maskForDisplay(text) {
   if (typeof text !== 'string') return text;
-  return text
+  return finishContextualDisplay(text
     .normalize('NFKC')
     .replace(INVISIBLE, '')
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, (value) => {
@@ -43,6 +43,16 @@ export function maskForDisplay(text) {
       const digits = value.replace(/\D/g, '').replace(/^82/, '0');
       return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
     })
+    .replace(/https?:\/\/\S+/g, '[비공개 링크]')
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[비공개 키]'));
+}
+
+/** 서버의 문맥 모델이 처리한 결과에 화면 전용 링크·비속어 정책만 추가한다. */
+export function finishContextualDisplay(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .normalize('NFKC')
+    .replace(INVISIBLE, '')
     .replace(/https?:\/\/\S+/g, '[비공개 링크]')
     .replace(/\bsk-[A-Za-z0-9_-]+\b/g, '[비공개 키]')
     .replace(PROFANITY, (value) => '■'.repeat(Math.max(2, value.length)));
