@@ -59,6 +59,10 @@ class GrafanaProvisioningTests(unittest.TestCase):
             self.assertIn(f"uid: {uid}", self.alerts)
         self.assertIn("luck_consumer_lag_messages", self.alerts)
         self.assertIn("luck_sink_dlq_total", self.alerts)
+        self.assertIn(
+            "luck_sink_dlq_total unless luck_sink_dlq_total offset 5m",
+            self.alerts,
+        )
         self.assertIn('up{job="luck-security-sinks"}', self.alerts)
         self.assertIn("contactPoints:", self.alerts)
         self.assertIn("Luck Security Operations", self.alerts)

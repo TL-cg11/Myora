@@ -62,7 +62,7 @@ groups:
             model:
               datasource: {type: prometheus, uid: prometheus}
               editorMode: code
-              expr: sum by (consumer_group, topic, stage) (increase(luck_sink_dlq_total[5m]))
+              expr: sum by (consumer_group, topic, stage) (increase(luck_sink_dlq_total[5m]) or (luck_sink_dlq_total unless luck_sink_dlq_total offset 5m))
               instant: true
               intervalMs: 15000
               maxDataPoints: 43200
