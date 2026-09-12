@@ -20,6 +20,7 @@ class NotificationPolicy:
     max_batch_size: int = 20
     max_retries: int = 5
     retry_base_seconds: int = 60
+    retry_jitter_seconds: int = 5
     unresolved_hours_low: int = 72
     unresolved_hours_medium: int = 24
     unresolved_hours_high: int = 4
@@ -33,9 +34,18 @@ class NotificationPolicy:
             "CRITICAL": self.unresolved_hours_critical,
         }[risk_level]
 
-    def retry_delay(self, retry_count: int) -> timedelta:
+    def retry_delay(
+        self,
+        retry_count: int,
+        *,
+        retry_after_seconds: float | None = None,
+        jitter_seconds: float = 0,
+    ) -> timedelta:
         exponent = max(0, retry_count - 1)
-        return timedelta(seconds=min(3600, self.retry_base_seconds * (2**exponent)))
+        backoff = min(3600, self.retry_base_seconds * (2**exponent))
+        provider_delay = max(0, min(86_400, retry_after_seconds or 0))
+        jitter = max(0, min(self.retry_jitter_seconds, jitter_seconds))
+        return timedelta(seconds=max(backoff, provider_delay) + jitter)
 
 
 DEFAULT_POLICY = NotificationPolicy()

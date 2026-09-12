@@ -5,8 +5,10 @@ import json
 import unittest
 from dataclasses import replace
 from datetime import datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from security_sink.notification_policy import (
     NotificationPolicy,
@@ -16,6 +18,7 @@ from security_sink.notification_policy import (
     queue_rows,
 )
 from security_sink.notifications import (
+    DiscordRateLimitError,
     DiscordWebhookSender,
     NotificationRepository,
     NotificationService,
@@ -155,6 +158,10 @@ class NotificationPolicyTests(unittest.TestCase):
         self.assertEqual(policy.retry_delay(1), timedelta(seconds=60))
         self.assertEqual(policy.retry_delay(5), timedelta(seconds=960))
         self.assertEqual(policy.retry_delay(99), timedelta(seconds=3600))
+        self.assertEqual(
+            policy.retry_delay(1, retry_after_seconds=120, jitter_seconds=3),
+            timedelta(seconds=123),
+        )
 
     def test_dedup_key_is_event_alert_and_channel_based(self):
         self.assertEqual(
@@ -250,6 +257,32 @@ class NotificationRepositoryTests(unittest.TestCase):
         repository.mark_failed([pending(1, retry_count=1)], RuntimeError("again"))
         self.assertIsNone(cursor.executions[0][1][1])
 
+    def test_rate_limit_retry_after_and_jitter_override_base_backoff(self):
+        cursor = FakeCursor()
+        connection = FakeConnection(cursor)
+        policy = NotificationPolicy(
+            max_retries=3,
+            retry_base_seconds=60,
+            retry_jitter_seconds=10,
+        )
+        repository = NotificationRepository(
+            lambda: connection,
+            policy=policy,
+            channels=("DISCORD",),
+            jitter_source=lambda: 0.5,
+        )
+        before = datetime.utcnow()
+
+        repository.mark_failed(
+            [pending(1)], DiscordRateLimitError(retry_after_seconds=120)
+        )
+
+        values = cursor.executions[0][1]
+        self.assertEqual(values[0], 1)
+        self.assertGreaterEqual(values[1], before + timedelta(seconds=125))
+        self.assertLess(values[1], before + timedelta(seconds=126))
+        self.assertEqual(values[2], "DiscordRateLimitError: delivery failed")
+
 
 class DeliveryAdapterTests(unittest.TestCase):
     def test_discord_sender_posts_confirmed_json_without_mentions(self):
@@ -329,6 +362,45 @@ class DeliveryAdapterTests(unittest.TestCase):
         self.assertGreater(len(requests), 1)
         self.assertTrue(all(len(json.loads(item.data)["content"]) <= 2000 for item in requests))
 
+    def test_discord_sender_exposes_only_bounded_retry_after_on_429(self):
+        error = HTTPError(
+            "https://discord.com/api/webhooks/123/secret-token",
+            429,
+            "Too Many Requests",
+            {"Retry-After": "120"},
+            BytesIO(b'{"retrymail":"not-used"}'),
+        )
+
+        with (
+            patch("security_sink.notifications.urlopen", side_effect=error),
+            self.assertRaises(DiscordRateLimitError) as raised,
+        ):
+            DiscordWebhookSender("https://discord.com/api/webhooks/123/token").send(
+                "subject", "body"
+            )
+
+        self.assertEqual(raised.exception.retry_after_seconds, 120)
+        self.assertNotIn("secret-token", str(raised.exception))
+
+    def test_discord_sender_uses_json_retry_after_when_header_is_missing(self):
+        error = HTTPError(
+            "https://discord.com/api/webhooks/123/token",
+            429,
+            "Too Many Requests",
+            {},
+            BytesIO(b'{"retry_after":2.5}'),
+        )
+
+        with (
+            patch("security_sink.notifications.urlopen", side_effect=error),
+            self.assertRaises(DiscordRateLimitError) as raised,
+        ):
+            DiscordWebhookSender("https://discord.com/api/webhooks/123/token").send(
+                "subject", "body"
+            )
+
+        self.assertEqual(raised.exception.retry_after_seconds, 2.5)
+
 
 class ProvisioningTests(unittest.TestCase):
     def test_notifier_service_and_environment_are_non_containerized(self):
@@ -339,7 +411,8 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn("docker", service.lower())
         for name in (
             "DISCORD_WEBHOOK_URL", "NOTIFICATION_MAX_RETRIES",
-            "NOTIFICATION_GROUP_WINDOW_SECONDS", "NOTIFICATION_UNRESOLVED_HIGH_HOURS",
+            "NOTIFICATION_RETRY_JITTER_SECONDS", "NOTIFICATION_GROUP_WINDOW_SECONDS",
+            "NOTIFICATION_UNRESOLVED_HIGH_HOURS",
         ):
             self.assertIn(name, environment)
         self.assertNotIn("SLACK_WEBHOOK_URL", environment)

@@ -36,6 +36,7 @@ def policy_from_environment() -> NotificationPolicy:
         max_batch_size=_integer("NOTIFICATION_MAX_BATCH_SIZE", 20),
         max_retries=_integer("NOTIFICATION_MAX_RETRIES", 5),
         retry_base_seconds=_integer("NOTIFICATION_RETRY_BASE_SECONDS", 60),
+        retry_jitter_seconds=_integer("NOTIFICATION_RETRY_JITTER_SECONDS", 5, 0),
         unresolved_hours_low=_integer("NOTIFICATION_UNRESOLVED_LOW_HOURS", 72),
         unresolved_hours_medium=_integer("NOTIFICATION_UNRESOLVED_MEDIUM_HOURS", 24),
         unresolved_hours_high=_integer("NOTIFICATION_UNRESOLVED_HIGH_HOURS", 4),
