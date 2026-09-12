@@ -13,6 +13,8 @@
 #   - notification_log 의 PENDING/SENDING 행은 SUPPRESSED 로 바꾼다. 그대로 두면 `--profile notify` 를
 #     켜는 순간 서버에서 이미 처리 중이던 옛 알림이 팀 Discord 채널로 다시 나간다.
 set -euo pipefail
+# Windows Git Bash 가 /경로 인자를 C:\Program Files\Git\... 로 바꾸는 것을 막는다 (docker 인자 보호).
+export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 
 LUCK_DUMP=${1:?"사용법: bash scripts/import-db-dump.sh <luck_db.sql> [security_monitoring.sql]"}

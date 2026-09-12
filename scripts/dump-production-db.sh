@@ -8,6 +8,8 @@
 #   bash scripts/dump-production-db.sh [출력 디렉터리]   (기본 .server/mariadb)
 # 결과: <dir>/luck_db.sql, <dir>/security_monitoring.sql → scripts/import-db-dump.sh 로 넣는다.
 set -euo pipefail
+# Windows Git Bash 가 /경로 인자를 C:\Program Files\Git\... 로 바꾸는 것을 막는다 (docker 인자 보호).
+export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 OUT=${1:-.server/mariadb}
 WAS_HOST=${WAS_HOST:-was@100.66.77.55}
