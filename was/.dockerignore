@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+public/mediapipe
+.local
+.env
+.env.*
+!.env.example
+__pycache__
+*.pyc
+docs
+plan.md
+*.md

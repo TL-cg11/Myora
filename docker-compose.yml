@@ -1,0 +1,369 @@
+# Myora(묘한운세) 전체 스택을 한 PC에서 띄우는 Docker Compose 구성.
+#
+#   docker compose up -d --build               # 앱 + 보안 파이프라인 + 관측 스택
+#   docker compose --profile notify up -d      # + Discord 알림 워커 (DISCORD_WEBHOOK_URL 필요)
+#   docker compose --profile retention up -d   # + 보존 정리 워커 (하루 1회)
+#
+# 3계층 구조는 그대로다: nginx(:80) → was(:8000) → mariadb(:3306).
+# 서버 3대에서 Tailscale IP 로 연결하던 부분만 compose 네트워크의 서비스 이름으로 바뀌었다.
+#
+#   브라우저 → nginx ─────────────→ was ──────────→ mariadb (luck_db, security_monitoring)
+#              │ access.json.log      │ myohan.was.app
+#              ▼                      ▼
+#          fluent-bit ──────────→ kafka ◀──────── masking-adapter (was 와 네트워크 공유)
+#          myohan.nginx.access        │ myohan.masked-logs / myohan.security-events
+#                                     ▼
+#                security-event-sink → mariadb        masked-log-sink → loki
+#                          └── prometheus(:9108/9109 metrics) ── grafana(:3000)
+#
+# Suricata IDS / EveBox 는 호스트 네트워크 인터페이스가 필요해 이 파일에 포함하지 않는다
+# (nginx/security-monitoring/README.md 의 서버 설치 절차를 그대로 사용).
+
+name: myora
+
+x-security-db: &security-db
+  SECURITY_DB_HOST: mariadb
+  SECURITY_DB_PORT: "3306"
+  SECURITY_DB_NAME: security_monitoring
+
+x-kafka: &kafka
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+services:
+  # ---------------- 데이터 계층 ----------------
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?.env 가 없습니다. cp .env.example .env 를 먼저 실행하세요}
+      MARIADB_AUTO_UPGRADE: "1"
+      LUCK_DB_NAME: ${LUCK_DB_NAME:-luck_db}
+      LUCK_DB_USER: ${LUCK_DB_USER:-luck_user}
+      LUCK_DB_PASSWORD: ${LUCK_DB_PASSWORD}
+      SECURITY_MONITORING_MIGRATION_PASSWORD: ${SECURITY_MONITORING_MIGRATION_PASSWORD}
+      SECURITY_MONITORING_SINK_PASSWORD: ${SECURITY_MONITORING_SINK_PASSWORD}
+      SECURITY_MONITORING_API_PASSWORD: ${SECURITY_MONITORING_API_PASSWORD}
+      SECURITY_MONITORING_READONLY_PASSWORD: ${SECURITY_MONITORING_READONLY_PASSWORD}
+      SECURITY_MONITORING_NOTIFIER_PASSWORD: ${SECURITY_MONITORING_NOTIFIER_PASSWORD}
+      SECURITY_MONITORING_RETENTION_PASSWORD: ${SECURITY_MONITORING_RETENTION_PASSWORD}
+      GRAFANA_SECURITY_DB_USER: ${GRAFANA_SECURITY_DB_USER:-security_grafana}
+      GRAFANA_SECURITY_DB_PASSWORD: ${GRAFANA_SECURITY_DB_PASSWORD}
+      SECURITY_LOCAL_ACTOR_ID: ${SECURITY_LOCAL_ACTOR_ID:-local-admin}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./mariadb/docker/mariadb.cnf:/etc/mysql/conf.d/99-luck.cnf:ro
+      - ./mariadb/docker/init-luck.sh:/docker-entrypoint-initdb.d/00-init-luck.sh:ro
+      - ./mariadb/sql:/luck-sql:ro
+    ports:
+      - "127.0.0.1:${MARIADB_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 40s
+
+  # ---------------- 메시지 버스 ----------------
+  kafka:
+    image: apache/kafka:3.9.1
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: MyoraLocalKafkaCluster0
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,HOST://localhost:${KAFKA_HOST_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+    ports:
+      - "127.0.0.1:${KAFKA_HOST_PORT:-9092}:9094"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  # topic 을 미리 만들어 partition 수와 이름을 고정한다 (어댑터·sink 문서의 이름과 동일).
+  kafka-init:
+    image: apache/kafka:3.9.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        for topic in myohan.was.app myohan.nginx.access myohan.masked-logs myohan.security-events \
+                     myohan.dead-letter myohan.masked-logs.sink-dlq myohan.security-events.sink-dlq; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+            --topic "$$topic" --partitions 3 --replication-factor 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+
+  # ---------------- 애플리케이션 계층 ----------------
+  was:
+    build: ./was
+    image: myora-was
+    restart: unless-stopped
+    environment:
+      <<: [*security-db, *kafka]
+      APP_NAME: luck-was
+      APP_ENV: ${APP_ENV:-development}
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      DB_NAME: ${LUCK_DB_NAME:-luck_db}
+      DB_USER: ${LUCK_DB_USER:-luck_user}
+      DB_PASSWORD: ${LUCK_DB_PASSWORD}
+      SECURITY_DB_USER: security_monitoring_api
+      SECURITY_DB_PASSWORD: ${SECURITY_MONITORING_API_PASSWORD}
+      SECURITY_AUTH_TOKEN_HASHES: ${SECURITY_AUTH_TOKEN_HASHES:-{}}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      AI_REQUEST_TIMEOUT: ${AI_REQUEST_TIMEOUT:-20}
+      AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-5}
+      AI_CHECK_TIMEOUT: ${AI_CHECK_TIMEOUT:-10}
+      AI_TOTAL_TIMEOUT: ${AI_TOTAL_TIMEOUT:-45}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-700}
+      AI_CHECK_MAX_TOKENS: ${AI_CHECK_MAX_TOKENS:-250}
+      AI_HISTORY_LIMIT: ${AI_HISTORY_LIMIT:-10}
+      AI_MESSAGE_MAX_CHARS: ${AI_MESSAGE_MAX_CHARS:-1500}
+      AI_CONTEXT_MAX_CHARS: ${AI_CONTEXT_MAX_CHARS:-8000}
+      AI_ANSWER_MAX_CHARS: ${AI_ANSWER_MAX_CHARS:-4000}
+      CHAT_QUESTION_LIMIT: ${CHAT_QUESTION_LIMIT:-5}
+      CHAT_QUESTION_LIMIT_ADMIN: ${CHAT_QUESTION_LIMIT_ADMIN:-20}
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-1}
+      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-60}
+      # 채팅 화면 마스킹은 같은 네트워크 네임스페이스의 masking-adapter(127.0.0.1:8765)를 쓴다.
+      ADAPTER_DISPLAY_API_HOST: 127.0.0.1
+      ADAPTER_DISPLAY_API_PORT: "8765"
+    ports:
+      - "127.0.0.1:${WAS_PORT:-8000}:8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # 원본 로그 → 마스킹 → 결과 topic. WAS 와 네트워크를 공유해 loopback 표시용 API(8765)를 제공한다.
+  masking-adapter:
+    image: myora-was
+    restart: unless-stopped
+    network_mode: "service:was"
+    working_dir: /app/security-monitoring/detector
+    command: ["python", "-m", "adapter"]
+    environment:
+      <<: *kafka
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      MASKING_PSEUDONYM_KEY: ${MASKING_PSEUDONYM_KEY:?MASKING_PSEUDONYM_KEY 가 필요합니다}
+      DETECTOR_FINGERPRINT_KEY: ${DETECTOR_FINGERPRINT_KEY:-}
+      DETECTOR_NER_ENABLED: ${DETECTOR_NER_ENABLED:-false}
+      DETECTOR_PII_CONTEXT_ENABLED: ${DETECTOR_PII_CONTEXT_ENABLED:-false}
+      ADAPTER_GROUP_ID: myohan-security-masking
+      ADAPTER_INPUT_TOPICS: myohan.was.app,myohan.nginx.access
+      ADAPTER_MASKED_LOGS_TOPIC: myohan.masked-logs
+      ADAPTER_SECURITY_EVENTS_TOPIC: myohan.security-events
+      ADAPTER_DEAD_LETTER_TOPIC: myohan.dead-letter
+      ADAPTER_DEFAULT_ENVIRONMENT: ${ADAPTER_DEFAULT_ENVIRONMENT:-development}
+      ADAPTER_DISPLAY_API_HOST: 127.0.0.1
+      ADAPTER_DISPLAY_API_PORT: "8765"
+    depends_on:
+      was:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+
+  # ---------------- 진입점 ----------------
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/docker/luck.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      was:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Nginx JSON access log → Kafka myohan.nginx.access
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    restart: unless-stopped
+    environment:
+      <<: *kafka
+    volumes:
+      - ./nginx/docker/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - nginx-logs:/var/log/nginx:ro
+      - fluent-bit-state:/fluent-bit/state
+    depends_on:
+      nginx:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+
+  # ---------------- 보안 이벤트 저장 (luck-nginx security_sink) ----------------
+  security-event-sink:
+    build: ./nginx
+    image: myora-security-sink
+    restart: unless-stopped
+    command: ["python", "-m", "security_sink.worker"]
+    environment:
+      <<: [*security-db, *kafka]
+      SECURITY_DB_USER: security_monitoring_sink
+      SECURITY_DB_PASSWORD: ${SECURITY_MONITORING_SINK_PASSWORD}
+      SECURITY_EVENT_CONSUMER_GROUP: security-event-sink
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      SECURITY_NOTIFICATION_CHANNELS: DISCORD
+      METRICS_HOST: 0.0.0.0
+      SECURITY_EVENT_METRICS_PORT: "9108"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  masked-log-sink:
+    image: myora-security-sink
+    restart: unless-stopped
+    command: ["python", "-m", "security_sink.masked_worker"]
+    environment:
+      <<: [*security-db, *kafka]
+      SECURITY_DB_USER: security_monitoring_sink
+      SECURITY_DB_PASSWORD: ${SECURITY_MONITORING_SINK_PASSWORD}
+      MASKED_LOG_CONSUMER_GROUP: masked-log-sink
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      LOKI_URL: http://loki:3100
+      LOKI_PUSH_TIMEOUT_SECONDS: "5"
+      MASKED_LOG_BUFFER_DIR: /var/lib/luck-security-sink/masked-log-buffer
+      MASKED_LOG_BUFFER_MAX_BYTES: "1073741824"
+      MASKED_LOG_BUFFER_REPLAY_SECONDS: "60"
+      METRICS_HOST: 0.0.0.0
+      MASKED_LOG_METRICS_PORT: "9109"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - masked-log-buffer:/var/lib/luck-security-sink/masked-log-buffer
+    depends_on:
+      security-event-sink:
+        condition: service_started
+      loki:
+        condition: service_started
+
+  # Discord 알림. 실제 webhook 이 있을 때만: docker compose --profile notify up -d
+  security-notifier:
+    image: myora-security-sink
+    restart: unless-stopped
+    profiles: ["notify"]
+    command: ["python", "-m", "security_sink.notifier_worker"]
+    environment:
+      <<: *security-db
+      SECURITY_DB_USER: security_monitoring_notifier
+      SECURITY_DB_PASSWORD: ${SECURITY_MONITORING_NOTIFIER_PASSWORD}
+      SECURITY_NOTIFICATION_CHANNELS: DISCORD
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL}
+      NOTIFICATION_IMMEDIATE_RISK_LEVEL: ${NOTIFICATION_IMMEDIATE_RISK_LEVEL:-HIGH}
+      NOTIFICATION_POLL_SECONDS: ${NOTIFICATION_POLL_SECONDS:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      security-event-sink:
+        condition: service_started
+
+  # 보존 기간 정리. 서버의 systemd timer(매일 03:30)를 루프로 대체한다: --profile retention
+  security-retention:
+    image: myora-security-sink
+    restart: unless-stopped
+    profiles: ["retention"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          python scripts/run_security_retention.py --execute --batch-size 1000 --max-batches 10 || true
+          sleep 86400
+        done
+    environment:
+      <<: *security-db
+      SECURITY_DB_USER: security_monitoring_retention
+      SECURITY_DB_PASSWORD: ${SECURITY_MONITORING_RETENTION_PASSWORD}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  # ---------------- 관측 스택 ----------------
+  loki:
+    image: grafana/loki:3.0.0
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./nginx/docker/observability/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./nginx/docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SMTP_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GRAFANA_SECURITY_DB_HOST: mariadb
+      GRAFANA_SECURITY_DB_PORT: "3306"
+      GRAFANA_SECURITY_DB_USER: ${GRAFANA_SECURITY_DB_USER:-security_grafana}
+      GRAFANA_SECURITY_DB_PASSWORD: ${GRAFANA_SECURITY_DB_PASSWORD}
+      GRAFANA_DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/replace-me}
+    volumes:
+      - ./nginx/docker/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./nginx/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./nginx/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      - ./nginx/observability/grafana/dashboards:/var/lib/grafana/dashboards/security-monitoring:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
+
+volumes:
+  mariadb-data:
+  nginx-logs:
+  fluent-bit-state:
+  masked-log-buffer:
+  loki-data:
+  prometheus-data:
+  grafana-data:
