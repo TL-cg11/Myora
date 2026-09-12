@@ -25,6 +25,15 @@ from security_sink.notifications import (
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def _mariadb_migration(name: str):
+    """모노레포(mariadb/)와 예전 나란한 checkout(luck-mariadb/) 어느 쪽에서도 마이그레이션을 찾는다."""
+    for folder in ("mariadb", "luck-mariadb"):
+        candidate = ROOT.parent / folder / "sql" / "migrate" / name
+        if candidate.is_file():
+            return candidate
+    return ROOT.parent / "mariadb" / "sql" / "migrate" / name
+
+
 
 def fixture() -> dict:
     return json.loads((ROOT / "fixtures" / "luck.security-events.normal.json").read_text(encoding="utf-8"))
@@ -337,13 +346,7 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn("SMTP_HOST", environment)
 
     def test_notifier_role_has_only_required_queue_write_access(self):
-        migration = (
-            ROOT.parent
-            / "luck-mariadb"
-            / "sql"
-            / "migrate"
-            / "2026-09-07_security_monitoring.sql"
-        ).read_text()
+        migration = _mariadb_migration("2026-09-07_security_monitoring.sql").read_text(encoding="utf-8")
         self.assertIn(
             "GRANT SELECT, INSERT, UPDATE ON security_monitoring.notification_log TO security_monitoring_notifier;",
             migration,
@@ -358,13 +361,7 @@ class ProvisioningTests(unittest.TestCase):
         self.assertNotIn("DELETE", notifier_grants)
 
     def test_discord_channel_migration_preserves_legacy_history_values(self):
-        migration = (
-            ROOT.parent
-            / "luck-mariadb"
-            / "sql"
-            / "migrate"
-            / "2026-09-10_notification_discord.sql"
-        ).read_text()
+        migration = _mariadb_migration("2026-09-10_notification_discord.sql").read_text(encoding="utf-8")
         self.assertIn("MODIFY channel ENUM('DISCORD','SLACK','EMAIL') NOT NULL", migration)
 
 
