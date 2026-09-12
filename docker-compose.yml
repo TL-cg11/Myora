@@ -113,7 +113,9 @@ services:
 
   # ---------------- 애플리케이션 계층 ----------------
   was:
-    build: ./was
+    build:
+      context: ./was
+      target: runtime
     image: myora-was
     restart: unless-stopped
     environment:
@@ -131,6 +133,14 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      # 운영 서버처럼 서비스별 키를 따로 쓸 때 (.env.deepseek.saju/tarot/face 에 해당). 비우면 공통 키를 쓴다.
+      DEEPSEEK_SAJU_API_KEY: ${DEEPSEEK_SAJU_API_KEY:-${DEEPSEEK_API_KEY:-}}
+      DEEPSEEK_TAROT_API_KEY: ${DEEPSEEK_TAROT_API_KEY:-${DEEPSEEK_API_KEY:-}}
+      DEEPSEEK_FACE_API_KEY: ${DEEPSEEK_FACE_API_KEY:-${DEEPSEEK_API_KEY:-}}
+      DEEPSEEK_SAJU_MODEL: ${DEEPSEEK_SAJU_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}
+      DEEPSEEK_TAROT_MODEL: ${DEEPSEEK_TAROT_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}
+      DEEPSEEK_FACE_MODEL: ${DEEPSEEK_FACE_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}
+      AI_GUARDRAIL_MODEL: ${AI_GUARDRAIL_MODEL:-${DEEPSEEK_MODEL:-deepseek-v4-flash}}
       AI_REQUEST_TIMEOUT: ${AI_REQUEST_TIMEOUT:-20}
       AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-5}
       AI_CHECK_TIMEOUT: ${AI_CHECK_TIMEOUT:-10}
@@ -159,7 +169,11 @@ services:
 
   # 원본 로그 → 마스킹 → 결과 topic. WAS 와 네트워크를 공유해 loopback 표시용 API(8765)를 제공한다.
   masking-adapter:
-    image: myora-was
+    build:
+      context: ./was
+      # runtime = 정규식만, adapter-ner = 운영 서버와 같은 NER/문맥 모델 포함 (.env 의 ADAPTER_BUILD_TARGET)
+      target: ${ADAPTER_BUILD_TARGET:-runtime}
+    image: myora-masking-adapter
     restart: unless-stopped
     network_mode: "service:was"
     working_dir: /app/security-monitoring/detector
@@ -170,7 +184,16 @@ services:
       MASKING_PSEUDONYM_KEY: ${MASKING_PSEUDONYM_KEY:?MASKING_PSEUDONYM_KEY 가 필요합니다}
       DETECTOR_FINGERPRINT_KEY: ${DETECTOR_FINGERPRINT_KEY:-}
       DETECTOR_NER_ENABLED: ${DETECTOR_NER_ENABLED:-false}
+      DETECTOR_NER_MODEL: ${DETECTOR_NER_MODEL:-Leo97/KoELECTRA-small-v3-modu-ner}
+      DETECTOR_NER_THRESHOLD: ${DETECTOR_NER_THRESHOLD:-0.85}
+      DETECTOR_NER_LOCAL_FILES_ONLY: ${DETECTOR_NER_LOCAL_FILES_ONLY:-false}
       DETECTOR_PII_CONTEXT_ENABLED: ${DETECTOR_PII_CONTEXT_ENABLED:-false}
+      DETECTOR_PII_CONTEXT_MODEL: ${DETECTOR_PII_CONTEXT_MODEL:-Huffon/klue-roberta-base-nli}
+      DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD: ${DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD:-0.70}
+      DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY: ${DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY:-false}
+      HF_HOME: /hf-cache
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-0}
       ADAPTER_GROUP_ID: myohan-security-masking
       ADAPTER_INPUT_TOPICS: myohan.was.app,myohan.nginx.access
       ADAPTER_MASKED_LOGS_TOPIC: myohan.masked-logs
@@ -179,11 +202,22 @@ services:
       ADAPTER_DEFAULT_ENVIRONMENT: ${ADAPTER_DEFAULT_ENVIRONMENT:-development}
       ADAPTER_DISPLAY_API_HOST: 127.0.0.1
       ADAPTER_DISPLAY_API_PORT: "8765"
+    volumes:
+      - hf-cache:/hf-cache
+    # was 컨테이너가 재생성되면 공유하던 네트워크 네임스페이스가 사라지므로 어댑터도 함께 재시작한다.
     depends_on:
       was:
-        condition: service_started
+        condition: service_healthy
+        restart: true
       kafka-init:
         condition: service_completed_successfully
+    # 이미지의 HEALTHCHECK(WAS 8000 확인)를 어댑터 자신의 표시용 API 로 바꾼다.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
 
   # ---------------- 진입점 ----------------
   nginx:
@@ -361,6 +395,7 @@ services:
 
 volumes:
   mariadb-data:
+  hf-cache:
   nginx-logs:
   fluent-bit-state:
   masked-log-buffer:

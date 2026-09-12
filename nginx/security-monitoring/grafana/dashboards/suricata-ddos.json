@@ -1,0 +1,47 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "loki", "uid": "luck-loki"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (attack_type) (count_over_time({job=\"suricata\", is_ddos=\"true\"}[$__auto]))", "legendFormat": "{{attack_type}}", "refId": "A"}],
+      "title": "DDoS events by type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "luck-loki"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"expr": "sum by (severity) (count_over_time({job=\"suricata\"}[$__auto]))", "legendFormat": "{{severity}}", "refId": "A"}],
+      "title": "IDS alerts by severity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "luck-loki"},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"expr": "{job=\"suricata\"} | json", "refId": "A"}],
+      "title": "Suricata alert stream",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "tags": ["suricata", "ids", "ddos", "kafka"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "LUCK Suricata / DDoS Detection",
+  "uid": "luck-suricata-ddos",
+  "version": 1
+}

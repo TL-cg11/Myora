@@ -1,0 +1,109 @@
+data_dir: /var/lib/vector
+
+sources:
+  suricata_eve:
+    type: file
+    include:
+      - /var/log/suricata/eve.json
+    read_from: end
+    ignore_not_found: true
+    fingerprint:
+      strategy: device_and_inode
+    decoding:
+      codec: json
+
+  ids_from_kafka:
+    type: kafka
+    bootstrap_servers: kafka:29092
+    group_id: luck-security-loki-v1
+    topics:
+      - luck.security.ids.v1
+    auto_offset_reset: earliest
+    decoding:
+      codec: json
+
+transforms:
+  alerts_only:
+    type: filter
+    inputs:
+      - suricata_eve
+    condition: '.event_type == "alert"'
+
+  classify_ids:
+    type: remap
+    inputs:
+      - alerts_only
+    source: |
+      signature = string(.alert.signature) ?? "unknown"
+      category = string(.alert.category) ?? "unknown"
+
+      .luck = {
+        "schema_version": "1.0",
+        "sensor": "luck-nginx",
+        "pipeline": "suricata-kafka-loki",
+        "event_family": "ids_alert",
+        "attack_type": "community_alert",
+        "is_ddos": false,
+        "severity": "medium"
+      }
+
+      if contains(signature, "TCP SYN flood") {
+        .luck.attack_type = "tcp_syn_flood"
+        .luck.is_ddos = true
+      } else if contains(signature, "UDP flood") {
+        .luck.attack_type = "udp_flood"
+        .luck.is_ddos = true
+      } else if contains(signature, "ICMP flood") {
+        .luck.attack_type = "icmp_flood"
+        .luck.is_ddos = true
+      } else if contains(signature, "web connection flood") {
+        .luck.attack_type = "web_connection_flood"
+        .luck.is_ddos = true
+      } else if contains(downcase(category), "denial of service") {
+        .luck.attack_type = "community_dos"
+        .luck.is_ddos = true
+      }
+
+      alert_severity = to_int(.alert.severity) ?? 3
+      if alert_severity <= 1 {
+        .luck.severity = "critical"
+      } else if alert_severity == 2 {
+        .luck.severity = "high"
+      }
+
+      .luck.event_id = uuid_v4()
+
+sinks:
+  ids_to_kafka:
+    type: kafka
+    inputs:
+      - classify_ids
+    bootstrap_servers: kafka:29092
+    topic: luck.security.ids.v1
+    key_field: luck.event_id
+    compression: zstd
+    encoding:
+      codec: json
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
+
+  kafka_to_loki:
+    type: loki
+    inputs:
+      - ids_from_kafka
+    endpoint: http://loki:3100
+    encoding:
+      codec: json
+    labels:
+      job: suricata
+      sensor: '{{ luck.sensor }}'
+      attack_type: '{{ luck.attack_type }}'
+      is_ddos: '{{ luck.is_ddos }}'
+      severity: '{{ luck.severity }}'
+    remove_label_fields: false
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block

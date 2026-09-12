@@ -61,12 +61,32 @@ AI 채팅(DeepSeek)을 쓰려면 `.env` 의 `DEEPSEEK_API_KEY` 를 채우고 `do
 ```bash
 docker compose ps                         # 컨테이너 상태
 docker compose logs -f was                # 특정 서비스 로그 (nginx, masking-adapter, security-event-sink ...)
-docker compose up -d --build was          # 코드 수정 후 WAS 만 다시 빌드
+docker compose up -d --build was          # 코드 수정 후 WAS 만 다시 빌드 (masking-adapter 는 자동으로 따라 재시작)
 docker compose down                       # 중지 (데이터 유지)
 docker compose down -v                    # 중지 + DB·Loki·Grafana 데이터 삭제 (DB 초기화 다시 실행됨)
 docker compose --profile notify up -d     # Discord 알림 워커 추가 (DISCORD_WEBHOOK_URL 필요)
 docker compose --profile retention up -d  # 보존 기간 정리 워커 추가
 ```
+
+### 운영 서버 데이터·설정 가져오기 (서버 SSH 키가 있는 사람만)
+
+기준 데이터(카드·사전·해석)는 `docker compose up` 만으로 들어가지만, 회원·운세 기록·보안 이벤트 같은
+실데이터와 DeepSeek 키·가명화 키는 운영 서버에만 있다. 서버 3대에 SSH 키가 등록된 PC 에서:
+
+```bash
+bash scripts/dump-production-db.sh        # 앱 계정 권한으로 luck_db + security_monitoring 덤프 (sudo 불필요)
+bash scripts/import-db-dump.sh .server/mariadb/luck_db.sql .server/mariadb/security_monitoring.sql
+bash scripts/import-hf-cache.sh           # NER/문맥 모델 캐시(900MB)를 hf-cache 볼륨으로 복사
+```
+
+`.env` 에는 WAS 서버 `~/luck-was/.env`, `.env.deepseek.{saju,tarot,face}` 의 값을 옮긴다
+(`DEEPSEEK_*_API_KEY`, `MASKING_PSEUDONYM_KEY`, `SECURITY_AUTH_TOKEN_HASHES`, `DETECTOR_*`).
+**`MASKING_PSEUDONYM_KEY` 는 서버 값을 그대로 써야** 덤프해 온 마스킹 로그의 가명 토큰과 새 로그가 이어진다.
+팀원끼리는 완성된 `.env` 파일을 안전한 경로로 직접 전달한다(절대 커밋하지 않는다).
+
+운영 서버처럼 한국어 NER·문맥 재검증까지 켜려면 `.env` 에서 `ADAPTER_BUILD_TARGET=adapter-ner`,
+`DETECTOR_NER_ENABLED=true`, `DETECTOR_PII_CONTEXT_ENABLED=true` 로 두고
+`docker compose up -d --build masking-adapter` 한다(이미지 +1.3GB, CPU 전용 torch).
 
 ### 보안 관제 API 확인
 
