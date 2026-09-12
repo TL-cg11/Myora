@@ -46,7 +46,15 @@ docker compose up -d --build
 HTTPS 없이도 카메라 권한이 정상적으로 동작한다. `127.0.0.1` 대신 반드시 `localhost` 로 접속한다.
 
 AI 채팅(DeepSeek)을 쓰려면 `.env` 의 `DEEPSEEK_API_KEY` 를 채우고 `docker compose up -d was` 로
-재시작한다. 키가 없으면 채팅은 검수된 고정 안내만 돌려주고, 사주·타로·관상 결과는 정상 동작한다.
+재시작한다. 키가 없으면 채팅은 검수된 고정 안내(`source: rule`)만 돌려주고 타로의 "질문 검사"는
+503 을 반환해 질문 없이 진행하게 되며, 사주·타로·관상 결과 자체는 정상 동작한다.
+
+알아 둘 것:
+
+- 타로 카드 그림(`/assets/tarot/major-XX.png`)은 원래 저장소에도 없어서 404 가 찍히고, 화면은
+  설계대로 번호·이름 카드로 대체 표시한다.
+- 로그인은 5회 연속 실패하면 60분 잠긴다(`AUTH_*` 로 조정). 로컬에서 잠겼으면
+  `docker compose exec mariadb mariadb -uroot -p$MARIADB_ROOT_PASSWORD luck_db -e "UPDATE app_user SET failed_login_attempts=0, locked_until=NULL"` 로 푼다.
 
 ### 자주 쓰는 명령
 
