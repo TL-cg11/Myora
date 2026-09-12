@@ -1,0 +1,721 @@
+<title>묘한운세 스키마 설계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --paper:#faf8fb; --surface:#ffffff; --sunk:#f4f1f7;
+  --ink:#241d2e; --body:#3f3750; --muted:#6d6579; --faint:#8f8899;
+  --line:#e6e0ee; --rule:#d6cce4;
+  --accent:#6a4bb8; --accent-soft:#efe9fb;
+  --saju:#a06416; --face:#1f6f6b; --tarot:#8a4a86;
+  --warn:#9a4a2f;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --serif:'Gowun Batang',Georgia,serif;
+  --sans:'Noto Sans KR',system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#16121b; --surface:#1f1927; --sunk:#251e2f;
+    --ink:#ece7f2; --body:#cdc5d8; --muted:#a49bb2; --faint:#857c94;
+    --line:#312a3d; --rule:#3d3449;
+    --accent:#b49bf0; --accent-soft:#2a2138;
+    --saju:#d9a45c; --face:#5fb5ae; --tarot:#cd92c8;
+    --warn:#e0906f;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#16121b; --surface:#1f1927; --sunk:#251e2f;
+  --ink:#ece7f2; --body:#cdc5d8; --muted:#a49bb2; --faint:#857c94;
+  --line:#312a3d; --rule:#3d3449;
+  --accent:#b49bf0; --accent-soft:#2a2138;
+  --saju:#d9a45c; --face:#5fb5ae; --tarot:#cd92c8;
+  --warn:#e0906f;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--body);font-family:var(--sans);font-size:15px;line-height:1.75;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 96px}
+
+/* ── 헤더 ───────────────────────────────────────── */
+.masthead{padding:72px 0 40px;border-bottom:2px solid var(--ink);margin-bottom:44px}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 18px}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(34px,5.2vw,52px);line-height:1.12;
+  letter-spacing:-.02em;color:var(--ink);margin:0 0 18px;text-wrap:balance}
+.standfirst{font-family:var(--serif);font-size:19px;line-height:1.7;color:var(--muted);
+  max-width:60ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:28px;font-family:var(--mono);
+  font-size:11.5px;color:var(--faint)}
+.meta b{color:var(--muted);font-weight:500}
+
+/* ── 섹션 ───────────────────────────────────────── */
+section{margin-top:64px}
+h2{font-family:var(--serif);font-size:27px;font-weight:700;color:var(--ink);
+  letter-spacing:-.01em;margin:0 0 8px;text-wrap:balance}
+h2 .num{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);
+  letter-spacing:.1em;display:block;margin-bottom:10px}
+.lede{font-size:15.5px;color:var(--muted);max-width:64ch;margin:0 0 28px}
+h3{font-family:var(--sans);font-size:16px;font-weight:700;color:var(--ink);margin:34px 0 10px}
+p{max-width:66ch;margin:0 0 16px}
+strong{color:var(--ink);font-weight:700}
+code{font-family:var(--mono);font-size:.875em;background:var(--sunk);color:var(--ink);
+  padding:1.5px 5px;border-radius:4px;border:1px solid var(--line)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+/* ── 현재 상태 표 ───────────────────────────────── */
+.state{width:100%;border-collapse:collapse;margin:0 0 8px;font-size:14px}
+.state th{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);text-align:left;padding:0 14px 9px 0;
+  border-bottom:1px solid var(--rule)}
+.state td{padding:13px 14px 13px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.state td:first-child{font-weight:700;color:var(--ink);white-space:nowrap}
+.chip{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:500;
+  padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.chip.ok{color:var(--face)} .chip.no{color:var(--warn)}
+
+/* ── 결정 카드 ─────────────────────────────────── */
+.decisions{display:grid;gap:18px;margin-top:8px}
+.dec{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:22px 24px 20px;border-left:3px solid var(--accent)}
+.dec h3{margin:0 0 10px;font-size:16.5px}
+.dec p{margin:0 0 12px;font-size:14.5px}
+.dec p:last-child{margin-bottom:0}
+.alt{font-size:13.5px;color:var(--muted);border-top:1px dashed var(--rule);padding-top:11px;
+  margin-top:14px}
+.alt b{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--faint);font-weight:500;display:block;margin-bottom:4px}
+
+/* ── 다이어그램 ─────────────────────────────────── */
+figure{margin:0}
+.figbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:26px 20px;overflow-x:auto}
+.figbox svg{display:block;min-width:760px;max-width:100%;height:auto;color:var(--body)}
+figcaption{font-size:13.5px;color:var(--muted);margin-top:14px;max-width:70ch}
+
+/* ── 테이블 명세 ───────────────────────────────── */
+.group{margin-top:38px}
+.grouphead{display:flex;align-items:baseline;gap:12px;padding-bottom:9px;
+  border-bottom:2px solid currentColor;margin-bottom:20px}
+.grouphead .name{font-family:var(--serif);font-size:20px;font-weight:700}
+.grouphead .note{font-size:13px;color:var(--muted);font-family:var(--sans)}
+.g-account{color:var(--accent)} .g-core{color:var(--ink)}
+.g-saju{color:var(--saju)} .g-face{color:var(--face)} .g-tarot{color:var(--tarot)}
+
+.tbl{background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  overflow:hidden;margin-bottom:14px}
+.tbl > summary{cursor:pointer;padding:14px 18px;display:flex;align-items:center;
+  gap:12px;flex-wrap:wrap;list-style:none}
+.tbl > summary::-webkit-details-marker{display:none}
+.tbl > summary::before{content:'▸';font-size:11px;color:var(--faint);
+  transition:transform .15s ease;display:inline-block}
+.tbl[open] > summary::before{transform:rotate(90deg)}
+.tbl > summary:hover{background:var(--sunk)}
+.tname{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--ink)}
+.tdesc{font-size:13.5px;color:var(--muted);flex:1;min-width:180px}
+.tag{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.06em;
+  padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--faint);
+  background:var(--sunk);white-space:nowrap}
+.tag.new{color:var(--accent);border-color:var(--accent)}
+.tag.keep{color:var(--face);border-color:var(--face)}
+.tag.move{color:var(--warn);border-color:var(--warn)}
+.tbody{padding:0 18px 18px;border-top:1px solid var(--line)}
+pre{font-family:var(--mono);font-size:12.5px;line-height:1.72;background:var(--sunk);
+  border:1px solid var(--line);border-radius:7px;padding:15px 17px;overflow-x:auto;
+  margin:15px 0 0;color:var(--ink);tab-size:2}
+pre .c{color:var(--faint)}
+pre .k{color:var(--accent);font-weight:500}
+.why{font-size:13.5px;color:var(--muted);margin:15px 0 0;max-width:none}
+
+/* ── 마이그레이션 ───────────────────────────────── */
+ol.steps{list-style:none;counter-reset:s;padding:0;margin:8px 0 0;
+  display:grid;gap:2px}
+ol.steps li{counter-increment:s;position:relative;padding:16px 0 16px 52px;
+  border-bottom:1px solid var(--line)}
+ol.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:16px;
+  font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--accent);
+  letter-spacing:.04em}
+ol.steps b{display:block;color:var(--ink);font-size:15px;margin-bottom:3px}
+ol.steps span{font-size:14px;color:var(--muted)}
+ol.steps code{font-size:12.5px}
+
+/* ── 열린 질문 ─────────────────────────────────── */
+ul.open{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:14px}
+ul.open li{padding-left:20px;position:relative;font-size:14.5px;max-width:70ch}
+ul.open li::before{content:'';position:absolute;left:0;top:11px;width:7px;height:7px;
+  border:1.5px solid var(--accent);border-radius:50%}
+ul.open b{color:var(--ink)}
+
+/* ── 판단 게이트 ───────────────────────────────── */
+.gate{background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;
+  padding:22px 24px;margin:0 0 26px}
+.gate p{margin:0 0 12px;font-size:15px}
+.gate p:last-child{margin-bottom:0}
+.gate .verdict{font-family:var(--serif);font-size:19px;font-weight:700;color:var(--ink);
+  margin-bottom:12px;line-height:1.5}
+.cmp{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 0}
+.cmp th{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);text-align:left;padding:0 14px 9px 0;
+  border-bottom:1px solid var(--rule)}
+.cmp td{padding:12px 14px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.cmp td:first-child{color:var(--ink)}
+.cmp td:last-child{padding-right:0}
+
+.foot{margin-top:72px;padding-top:22px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+
+@media (max-width:620px){
+  .wrap{padding:0 18px 64px}
+  .masthead{padding:48px 0 32px}
+  .state td:first-child{white-space:normal}
+  ol.steps li{padding-left:40px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">묘한운세 · 데이터 설계</p>
+  <h1>사주 · 관상 · 타로를<br>한 스키마로 묶기</h1>
+  <p class="standfirst">세 기능은 데이터 성격이 서로 다릅니다. 타로는 뽑기 기록, 사주는 생년월일에서 결정되는 계산, 관상은 사진에서 뽑아낸 측정값입니다. 공통 뼈대는 공유하고 다른 부분은 나누는 설계 — 다만 <strong>사주·관상을 저장하기로 정한 뒤에 꺼낼 문서</strong>입니다.</p>
+  <div class="meta">
+    <span><b>대상</b> luck_db · MariaDB 11 · utf8mb4</span>
+    <span><b>기준</b> origin/main + 타로 1차 구현</span>
+    <span><b>상태</b> 스키마는 적용됨(sql/init/07~10) · 이관은 보류</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="num">현재</span>지금은 타로만 데이터를 남깁니다</h2>
+  <p class="lede">설계를 바꾸기 전에 무엇이 이미 있고 무엇이 없는지부터. 사주와 관상은 계산해서 화면에 뿌리고 끝나며, 회원 개념은 어느 기능에도 없습니다.</p>
+
+  <table class="state">
+    <thead><tr><th>기능</th><th>계산 위치</th><th>저장</th><th>채팅</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>사주</td>
+        <td><code>korean-saju</code> · 서버 메모리</td>
+        <td><span class="chip no">없음</span></td>
+        <td><span class="chip no">없음</span></td>
+      </tr>
+      <tr>
+        <td>관상</td>
+        <td>MediaPipe · 브라우저</td>
+        <td><span class="chip no">없음</span></td>
+        <td><span class="chip no">무상태</span> 매번 컨텍스트 재전송</td>
+      </tr>
+      <tr>
+        <td>타로</td>
+        <td>서버 셔플 + 규칙 해석</td>
+        <td><span class="chip ok">6 테이블</span></td>
+        <td><span class="chip ok">저장됨</span> <code>tarot_chat_message</code></td>
+      </tr>
+      <tr>
+        <td>회원</td>
+        <td>—</td>
+        <td><span class="chip no">테이블 없음</span></td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>타로만 앞서 있는 게 아니라, <strong>타로가 세 기능이 공통으로 필요로 하는 것을 이미 한 번 풀어놨습니다</strong> — 비회원 식별(<code>guest_key</code>), 결과 요약, 해석 출처(<code>rule</code>/<code>llm</code>), 대화 기록. 이걸 타로 전용으로 두지 말고 끌어올리는 것이 이 설계의 핵심입니다.</p>
+</section>
+
+<section>
+  <h2><span class="num">전제</span>지금 적용할 설계는 아닙니다</h2>
+  <p class="lede">이 문서는 목표 구조를 그린 것이지, 오늘 실행할 작업 지시가 아닙니다. 언제 값을 하는지 먼저 짚고 넘어갑니다.</p>
+
+  <div class="gate" style="margin-bottom:22px">
+    <p class="verdict">업데이트 — 스키마는 미리 승격했고(<code>sql/init/07~10</code>), 이관만 보류 중입니다.</p>
+    <p><code>reading</code>, <code>chat_message</code>, <code>saju_chart</code>, <code>saju_reading</code>, <code>face_shape</code>, <code>face_reading</code> 테이블은 이제 실제로 존재합니다. 로그인·저장 기능을 만들 때 맞춰볼 테이블이 미리 있는 편이 낫고, 전부 빈 테이블이라 <code>ALTER TABLE</code>로 고치는 비용이 거의 없어서 먼저 만들었습니다. 아래 논의는 <strong>기존 타로 데이터를 이 구조로 옮기는 이관</strong>에 대한 것이고, 그 결론은 그대로입니다 — 스키마가 있다고 이관까지 할 이유는 없습니다. 지금 앱 코드는 사주·관상 어느 쪽도 이 테이블에 쓰지 않고, 타로도 기존 <code>tarot_reading</code>을 그대로 씁니다.</p>
+  </div>
+
+  <div class="gate">
+    <p class="verdict">공통 <code>reading</code> 뼈대는 <u>사주나 관상 중 하나라도 결과를 저장하기 시작할 때</u> 값을 합니다.</p>
+    <p>타로만 저장하는 동안에는 얻는 것이 없습니다. 테이블 하나를 둘로 쪼개고(<code>reading</code> + <code>tarot_reading</code>) 조인이 하나 늘 뿐입니다. 그런데 <strong>사주·관상을 저장할지는 아직 팀이 정한 적이 없습니다.</strong></p>
+  </div>
+
+  <h3>옛 구조로 계속 갈 때 실제로 막히는 것</h3>
+  <table class="cmp">
+    <thead><tr><th>하려는 일</th><th>지금 구조로 가능한가</th></tr></thead>
+    <tbody>
+      <tr><td>마이페이지 타로 기록</td><td><span class="chip ok">그대로 가능</span> <code>GET /api/tarot/readings</code> 이미 있습니다</td></tr>
+      <tr><td>타로 채팅 저장</td><td><span class="chip ok">동작 중</span> <code>tarot_chat_message</code></td></tr>
+      <tr><td>마이너 아르카나 56장 추가</td><td><span class="chip ok">가능</span> 스키마 변경 없이 INSERT만</td></tr>
+      <tr><td>로그인 붙이기</td><td><span class="chip ok">가능</span> <code>tarot_reading.user_id</code>가 이미 nullable</td></tr>
+      <tr><td>사주·관상 결과 저장</td><td><span class="chip no">비용 발생</span> 기능마다 <code>*_reading</code> + <code>*_chat_message</code>를 따로</td></tr>
+      <tr><td>세 기능 통합 기록 목록</td><td><span class="chip no">비용 발생</span> 세 번 조회해 코드에서 병합</td></tr>
+      <tr><td>관상 채팅 5회 제한을 서버가 강제</td><td><span class="chip no">불가</span> 대화가 저장돼야 셀 수 있습니다</td></tr>
+    </tbody>
+  </table>
+
+  <h3>이관 비용은 실제로 큽니다</h3>
+  <p>이 설계의 이행 스크립트를 실제 MariaDB에서 검증하다 함정 세 개를 밟았습니다. 검증 환경이라 잡았지, 운영 DB였으면 위험했습니다.</p>
+  <ul class="open" style="margin-bottom:20px">
+    <li><b>CHECK 제약이 FK와 충돌합니다.</b> MariaDB는 <code>ON DELETE SET NULL</code> FK가 걸린 컬럼에 CHECK를 허용하지 않습니다(ERROR 1901). 기존 <code>tarot_reading</code>의 같은 CHECK가 통과했던 건 <code>user_id</code>에 FK가 없었기 때문입니다.</li>
+    <li><b>트랜잭션이 DDL을 감싸지 못합니다.</b> <code>RENAME</code>·<code>CREATE</code>가 암묵적 커밋을 일으켜, 중간에 실패하면 절반만 진행된 상태가 남습니다.</li>
+    <li><b>롤백 스크립트가 두 번 돌면 데이터를 지웁니다.</b> <code>DROP TABLE IF EXISTS tarot_reading</code>이 복구된 원본을 겨냥하게 됩니다. 상태를 확인하는 가드가 반드시 필요합니다.</li>
+  </ul>
+
+  <p><strong>권고 — 지금은 이관하지 않습니다.</strong> 옛 구조로 마이페이지까지 마치고, 사주나 관상을 실제로 저장해야 할 때 그 시점에 결정하는 편이 낫습니다. 그때는 무엇을 저장해야 하는지 이미 알고 있으니 판단 근거가 훨씬 분명합니다.</p>
+
+  <h3>다만 이건 지금 해두면 좋습니다</h3>
+  <p>어떤 답변이 LLM이고 어떤 게 규칙 기반인지 저장하지 않는 것은 지금 구조의 실질적 공백입니다. DeepSeek을 붙여놓고 나중에 답변 품질을 되짚을 방법이 없습니다. 이관 없이 한 줄로 됩니다.</p>
+<pre><span class="k">ALTER TABLE</span> tarot_chat_message
+  <span class="k">ADD COLUMN</span> source ENUM('rule','llm') <span class="k">NULL</span>
+  COMMENT 'assistant 답변을 무엇으로 만들었나';</pre>
+</section>
+
+<section>
+  <h2><span class="num">결정</span>네 가지 판단</h2>
+  <p class="lede">각 항목마다 택하지 않은 대안을 같이 적었습니다. 뒤집을 근거가 있으면 그 자리에서 뒤집으면 됩니다.</p>
+
+  <div class="decisions">
+
+    <article class="dec">
+      <h3>공통 <code>reading</code> 한 장 + 기능별 상세 1:1</h3>
+      <p>모든 결과는 <code>reading</code> 행 하나로 시작합니다. 소유자, 요약, 해석 출처, 상태, 시각처럼 세 기능이 똑같이 갖는 것만 여기 둡니다. 기능 고유 정보는 <code>saju_reading</code> · <code>face_reading</code> · <code>tarot_reading</code>이 같은 PK로 1:1로 물고 갑니다.</p>
+      <p>이렇게 하면 마이페이지의 "최근 본 운세"가 <strong>테이블 하나만 읽으면 됩니다.</strong> 기능이 늘어도 목록 쿼리는 그대로입니다. 채팅도 <code>reading_id</code> 하나로 붙어서 관상·사주 채팅이 공짜로 저장됩니다.</p>
+      <div class="alt"><b>택하지 않은 것</b>기능별로 완전히 분리된 <code>*_reading</code> 세 벌. 각 테이블은 단순해지지만 마이페이지가 세 번 조회해 코드에서 병합해야 하고, 채팅 테이블도 세 벌이 됩니다.</div>
+    </article>
+
+    <article class="dec">
+      <h3>관상 사진은 저장하지 않습니다</h3>
+      <p>얼굴 사진은 그 자체로 민감한 개인정보입니다. 지금 구조는 브라우저에서 MediaPipe로 측정하고 <strong>숫자만 서버로 보내면 되므로</strong>, 사진을 받지도 저장하지도 않는 선택이 가능합니다. <code>face_reading</code>에는 비율 다섯 개와 대칭 점수만 남습니다.</p>
+      <p>측정값만으로 결과를 다시 그릴 수 있어서 "다시 보기"도 됩니다. 사진이 필요해지는 순간(예: 결과 카드 이미지 저장) 별도 논의 대상이 되게 두는 편이 낫습니다.</p>
+      <div class="alt"><b>택하지 않은 것</b>사진을 오브젝트 스토리지에 두고 URL만 저장. 결과 재현과 개선에는 유리하지만, 보관 기간·삭제 요청·유출 대응이 전부 따라옵니다.</div>
+    </article>
+
+    <article class="dec">
+      <h3>사주 계산 결과는 <code>saju_chart</code>로 공유합니다</h3>
+      <p>사주는 같은 생년월일시·성별이면 <strong>언제 계산해도 같은 결과가 나옵니다.</strong> 리딩마다 사주 여덟 글자를 복사해 두는 대신, <code>(생년월일, 시각, 시각모름, 성별, 엔진버전)</code>을 유니크 키로 갖는 <code>saju_chart</code>에 한 번 계산해 두고 리딩이 참조합니다.</p>
+      <p><code>engine_version</code>을 키에 넣은 이유는 <code>korean-saju</code>가 올라가 계산이 달라져도 <strong>과거 리딩이 그때 보여준 결과를 그대로 유지</strong>하기 위해서입니다. 새 버전은 새 행이 됩니다.</p>
+      <div class="alt"><b>택하지 않은 것</b>리딩마다 결과를 그대로 복사. 단순하지만 같은 사람이 열 번 보면 같은 여덟 글자가 열 벌 쌓이고, 해석 로직을 고쳤을 때 무엇이 언제 계산된 것인지 구분할 수 없습니다.</div>
+    </article>
+
+    <article class="dec">
+      <h3><code>guest_key</code>를 남기고 회원과 공존시킵니다</h3>
+      <p>로그인 없이 바로 쓰는 흐름을 막지 않으려면 비회원 식별자가 계속 필요합니다. <code>reading</code>은 <code>user_id</code>와 <code>guest_key</code>를 둘 다 갖고, <strong>둘 중 하나는 반드시 있어야 한다</strong>는 제약을 겁니다.</p>
+      <p>나중에 로그인이 붙으면 가입 시점에 그 브라우저의 <code>guest_key</code>를 가진 행을 <code>user_id</code>로 옮겨 붙이면 기록이 이어집니다. 열쇠가 브라우저에만 있다는 한계는 그대로이므로, 화면에서 그 사실을 정직하게 알려야 합니다.</p>
+      <div class="alt"><b>택하지 않은 것</b>로그인 필수. 데이터는 깨끗해지지만 첫 화면에서 이탈이 생깁니다.</div>
+    </article>
+
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">구조</span>테이블 관계</h2>
+  <p class="lede">가운데 <code>reading</code>이 뼈대입니다. 세 기능의 상세가 같은 키로 1:1로 매달리고, 채팅은 기능을 가리지 않고 <code>reading</code>에 붙습니다.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 940 372" role="img" aria-label="reading 테이블을 중심으로 사주·관상·타로 상세 테이블이 1대1로 연결되고, 채팅은 reading에 붙으며, 각 상세는 자기 참조 테이블을 바라보는 관계도">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,1 L9,5 L0,9 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <g font-family="'JetBrains Mono',monospace" font-size="12.5">
+
+          <!-- 연결선 -->
+          <g stroke="currentColor" stroke-width="1.2" fill="none" marker-end="url(#ar)" opacity=".55">
+            <path d="M118,66 L118,96"/>
+            <path d="M204,42 L296,74"/>
+            <path d="M500,88 L586,88"/>
+            <path d="M330,120 L172,196"/>
+            <path d="M372,120 L358,196"/>
+            <path d="M452,120 L580,196"/>
+            <path d="M76,140 L76,196"/>
+            <path d="M118,240 L118,286"/>
+            <path d="M358,240 L358,286"/>
+            <path d="M588,240 L588,286"/>
+            <path d="M672,218 L726,218"/>
+            <path d="M672,308 L726,308"/>
+          </g>
+
+          <!-- 연결선 라벨 -->
+          <g font-size="10.5" fill="currentColor" opacity=".65">
+            <text x="126" y="86">1:N</text>
+            <text x="222" y="52">user_id</text>
+            <text x="516" y="80">1:N</text>
+            <text x="232" y="150">1:1</text>
+            <text x="380" y="162">1:1</text>
+            <text x="492" y="150">1:1</text>
+            <text x="18" y="172" text-anchor="start">재사용</text>
+            <text x="126" y="270">N:1</text>
+            <text x="366" y="270">N:1</text>
+            <text x="596" y="270">1:N</text>
+            <text x="678" y="210">N:1</text>
+            <text x="678" y="300">N:1</text>
+          </g>
+
+          <!-- 계정 -->
+          <g fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="32" y="20" width="172" height="46" rx="7"/>
+            <rect x="32" y="96" width="172" height="46" rx="7"/>
+          </g>
+          <g fill="currentColor" text-anchor="middle">
+            <text x="118" y="48">app_user</text>
+            <text x="118" y="124">birth_profile</text>
+          </g>
+
+          <!-- reading 스파인 -->
+          <rect x="296" y="52" width="204" height="68" rx="8" fill="none"
+                stroke="var(--accent)" stroke-width="2.4"/>
+          <text x="398" y="82" text-anchor="middle" fill="var(--accent)" font-weight="700"
+                font-size="14">reading</text>
+          <text x="398" y="102" text-anchor="middle" fill="var(--accent)" font-size="10"
+                font-family="'Noto Sans KR',sans-serif" opacity=".85">공통 뼈대</text>
+
+          <!-- 채팅 -->
+          <rect x="586" y="66" width="172" height="46" rx="7" fill="none"
+                stroke="currentColor" stroke-width="1.4"/>
+          <text x="672" y="94" text-anchor="middle" fill="currentColor">chat_message</text>
+
+          <!-- 상세 3종 -->
+          <g fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="32" y="196" width="172" height="44" rx="7"/>
+            <rect x="272" y="196" width="172" height="44" rx="7"/>
+            <rect x="502" y="196" width="172" height="44" rx="7"/>
+          </g>
+          <g fill="currentColor" text-anchor="middle" font-size="11.5">
+            <text x="118" y="223">saju_reading</text>
+            <text x="358" y="223">face_reading</text>
+            <text x="588" y="223">tarot_reading</text>
+          </g>
+
+          <!-- 참조 카탈로그 (파선) -->
+          <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="5 3.5" opacity=".75">
+            <rect x="32" y="286" width="172" height="44" rx="7"/>
+            <rect x="272" y="286" width="172" height="44" rx="7"/>
+            <rect x="726" y="196" width="180" height="44" rx="7"/>
+            <rect x="726" y="286" width="180" height="44" rx="7"/>
+          </g>
+          <rect x="502" y="286" width="172" height="44" rx="7" fill="none"
+                stroke="currentColor" stroke-width="1.4"/>
+          <g fill="currentColor" text-anchor="middle" font-size="11.5">
+            <text x="118" y="313">saju_chart</text>
+            <text x="358" y="313">face_shape</text>
+            <text x="588" y="313">tarot_reading_card</text>
+            <text x="816" y="223">tarot_spread</text>
+            <text x="816" y="313">tarot_card</text>
+          </g>
+
+        </g>
+      </svg>
+    </div>
+    <figcaption><strong>실선은 사용자가 만드는 기록, 파선은 미리 채워두는 참조 데이터</strong>입니다. 참조 데이터는 시드 SQL로 관리되고 앱은 읽기만 합니다. <code>tarot_spread_position</code>과 <code>tarot_card_meaning</code>은 각각 <code>tarot_spread</code>·<code>tarot_card</code>에 딸린 참조 테이블이라 그림에서 생략했습니다.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2><span class="num">명세</span>테이블</h2>
+  <p class="lede">각 항목을 펼치면 DDL과 그렇게 정한 이유가 나옵니다. <span class="tag new">신규</span> 는 새로 만드는 것, <span class="tag keep">유지</span> 는 지금 그대로, <span class="tag move">이관</span> 은 기존 테이블에서 옮겨오는 것입니다.</p>
+
+  <div class="group">
+    <div class="grouphead g-account">
+      <span class="name">계정</span>
+      <span class="note">지금 없는 영역. 로그인이 붙을 때 필요합니다.</span>
+    </div>
+
+    <details class="tbl">
+      <summary><span class="tname">app_user</span><span class="tdesc">회원 계정</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> app_user (
+  id            BIGINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  email         VARCHAR(190) <span class="k">NOT NULL</span>,
+  password_hash VARCHAR(255) <span class="k">NULL</span>       <span class="c">-- 소셜 로그인만 쓰면 NULL</span>
+  nickname      VARCHAR(40)  <span class="k">NOT NULL</span>,
+  status        ENUM('active','dormant','withdrawn') <span class="k">NOT NULL DEFAULT</span> 'active',
+  created_at    TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP <span class="k">ON UPDATE</span> CURRENT_TIMESTAMP,
+  <span class="k">UNIQUE KEY</span> uk_app_user_email (email)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why"><code>email</code>을 190자로 자른 건 utf8mb4에서 인덱스 키 길이 한계(767바이트) 때문입니다. <code>status</code>에 <code>withdrawn</code>을 둔 이유는 탈퇴해도 리딩 기록을 바로 지우지 않고 익명화할 여지를 남기기 위해서입니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">birth_profile</span><span class="tdesc">사주에 쓰는 생년월일 프로필. 한 회원이 여러 개(본인·가족)를 가질 수 있습니다.</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> birth_profile (
+  id           BIGINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  user_id      BIGINT UNSIGNED <span class="k">NOT NULL</span>,
+  label        VARCHAR(40)  <span class="k">NOT NULL</span>,   <span class="c">-- '내 사주', '엄마'</span>
+  birth_date   DATE         <span class="k">NOT NULL</span>,
+  birth_time   TIME         <span class="k">NULL</span>,       <span class="c">-- 모르면 NULL</span>
+  calendar     ENUM('solar','lunar','lunar_leap') <span class="k">NOT NULL DEFAULT</span> 'solar',
+  gender       ENUM('female','male','unknown')    <span class="k">NOT NULL DEFAULT</span> 'unknown',
+  created_at   TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP,
+  <span class="k">KEY</span> ix_birth_profile_user (user_id),
+  <span class="k">CONSTRAINT</span> fk_birth_profile_user <span class="k">FOREIGN KEY</span> (user_id)
+    <span class="k">REFERENCES</span> app_user (id) <span class="k">ON DELETE CASCADE</span>
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why"><code>birth_time</code>이 <code>NULL</code>인 것과 "자정에 태어남"은 다릅니다. 지금 코드는 시각을 모르면 정오로 대체하는데, 그 대체값이 아니라 <strong>모른다는 사실 자체를 저장해야</strong> 나중에 계산 방식을 바꿔도 원본이 남습니다. <code>calendar</code>는 음력 입력을 받을 계획이 있으면 지금 넣는 게 쌉니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="group">
+    <div class="grouphead g-core">
+      <span class="name">공통</span>
+      <span class="note">세 기능이 공유하는 뼈대.</span>
+    </div>
+
+    <details class="tbl">
+      <summary><span class="tname">reading</span><span class="tdesc">모든 결과 한 건. 소유자·요약·상태를 갖습니다.</span><span class="tag move">이관</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> reading (
+  id            BIGINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  service       ENUM('saju','face','tarot') <span class="k">NOT NULL</span>,
+  user_id       BIGINT UNSIGNED <span class="k">NULL</span>,
+  guest_key     CHAR(36)        <span class="k">NULL</span>,
+  summary_title VARCHAR(120) <span class="k">NULL</span>,
+  summary_text  TEXT         <span class="k">NULL</span>,
+  interpretation_source ENUM('rule','llm') <span class="k">NOT NULL DEFAULT</span> 'rule',
+  llm_model     VARCHAR(64) <span class="k">NULL</span>,
+  status        ENUM('created','interpreted','failed') <span class="k">NOT NULL DEFAULT</span> 'created',
+  created_at    TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP <span class="k">ON UPDATE</span> CURRENT_TIMESTAMP,
+  <span class="k">KEY</span> ix_reading_user  (user_id,   created_at),
+  <span class="k">KEY</span> ix_reading_guest (guest_key, created_at),
+  <span class="k">CONSTRAINT</span> fk_reading_user <span class="k">FOREIGN KEY</span> (user_id)
+    <span class="k">REFERENCES</span> app_user (id) <span class="k">ON DELETE SET NULL</span>,
+  <span class="k">CONSTRAINT</span> ck_reading_owner <span class="k">CHECK</span> (user_id <span class="k">IS NOT NULL OR</span> guest_key <span class="k">IS NOT NULL</span>)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why">인덱스 두 개가 마이페이지 쿼리를 그대로 받습니다 — <code>WHERE guest_key = ? ORDER BY created_at DESC</code>. <code>service</code>는 조건에 잘 안 들어가고 카디널리티도 3이라 따로 인덱스를 두지 않았습니다.</p>
+        <p class="why">기존 <code>tarot_reading</code>의 소유자·요약·상태 칼럼이 전부 여기로 올라옵니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">chat_message</span><span class="tdesc">결과 화면 대화. 기능을 가리지 않습니다.</span><span class="tag move">이관</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> chat_message (
+  id         BIGINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  reading_id BIGINT UNSIGNED <span class="k">NOT NULL</span>,
+  seq        SMALLINT UNSIGNED <span class="k">NOT NULL</span>,
+  role       ENUM('system','user','assistant') <span class="k">NOT NULL</span>,
+  content    TEXT <span class="k">NOT NULL</span>,
+  source     ENUM('rule','llm') <span class="k">NULL</span>,  <span class="c">-- assistant 답변을 무엇으로 만들었나</span>
+  created_at TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP,
+  <span class="k">UNIQUE KEY</span> uk_chat_message_seq (reading_id, seq),
+  <span class="k">CONSTRAINT</span> fk_chat_message_reading <span class="k">FOREIGN KEY</span> (reading_id)
+    <span class="k">REFERENCES</span> reading (id) <span class="k">ON DELETE CASCADE</span>
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why"><code>tarot_chat_message</code>에서 이름만 바뀐 것에 가깝지만, <code>source</code>가 새로 생깁니다. 지금은 답변 출처를 응답으로만 돌려주고 저장하지 않아서, 나중에 "LLM 답변 품질"을 되짚을 수 없습니다.</p>
+        <p class="why">관상 채팅이 여기 붙으면 <strong>지금 매 요청마다 컨텍스트를 통째로 다시 보내는 구조가 사라집니다.</strong> 질문 5회 제한도 <code>COUNT(*) WHERE role='user'</code>로 서버가 셀 수 있어 클라이언트 상태에 기대지 않게 됩니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="group">
+    <div class="grouphead g-saju">
+      <span class="name">사주</span>
+      <span class="note">계산은 결정론적. 결과를 공유합니다.</span>
+    </div>
+
+    <details class="tbl">
+      <summary><span class="tname">saju_chart</span><span class="tdesc">생년월일시로 결정되는 사주 계산 결과</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> saju_chart (
+  id             BIGINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  birth_date     DATE <span class="k">NOT NULL</span>,
+  birth_time     TIME <span class="k">NULL</span>,
+  time_unknown   TINYINT(1) <span class="k">NOT NULL DEFAULT</span> 0,
+  gender         ENUM('female','male','unknown') <span class="k">NOT NULL</span>,
+  engine_version VARCHAR(32) <span class="k">NOT NULL</span>,   <span class="c">-- korean-saju 버전</span>
+  pillar_year    CHAR(2) <span class="k">NOT NULL</span>,        <span class="c">-- 갑자 두 글자</span>
+  pillar_month   CHAR(2) <span class="k">NOT NULL</span>,
+  pillar_day     CHAR(2) <span class="k">NOT NULL</span>,
+  pillar_hour    CHAR(2) <span class="k">NULL</span>,            <span class="c">-- 시각 모르면 NULL</span>
+  jeonggyeok     VARCHAR(40) <span class="k">NULL</span>,
+  yongsin        VARCHAR(40) <span class="k">NULL</span>,
+  sinsal         JSON <span class="k">NULL</span>,
+  computed_at    TIMESTAMP <span class="k">NOT NULL DEFAULT</span> CURRENT_TIMESTAMP,
+  <span class="k">UNIQUE KEY</span> uk_saju_chart
+    (birth_date, birth_time, time_unknown, gender, engine_version)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why">네 기둥을 한 문자열(<code>str(saju)</code>)로 뭉쳐 넣지 않고 <strong>기둥별로 쪼갠 이유</strong>는, "월주가 무엇인 사람" 같은 조회나 통계가 나중에 반드시 나오기 때문입니다. 문자열로 넣으면 그때 파싱해야 합니다.</p>
+        <p class="why"><code>sinsal</code>은 개수가 유동적인 목록이라 JSON으로 뒀습니다. 신살별 조회가 필요해지면 그때 <code>saju_chart_sinsal</code>로 펴면 됩니다 — 지금 미리 만들 근거는 없습니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">saju_reading</span><span class="tdesc">사주 리딩 상세</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> saju_reading (
+  reading_id      BIGINT UNSIGNED <span class="k">NOT NULL PRIMARY KEY</span>,
+  chart_id        BIGINT UNSIGNED <span class="k">NOT NULL</span>,
+  birth_profile_id BIGINT UNSIGNED <span class="k">NULL</span>,  <span class="c">-- 비회원이면 NULL</span>
+  topic           ENUM('general','love','career','money','health')
+                  <span class="k">NOT NULL DEFAULT</span> 'general',
+  question        VARCHAR(255) <span class="k">NULL</span>,
+  <span class="k">KEY</span> ix_saju_reading_chart (chart_id),
+  <span class="k">CONSTRAINT</span> fk_saju_reading_reading <span class="k">FOREIGN KEY</span> (reading_id)
+    <span class="k">REFERENCES</span> reading (id) <span class="k">ON DELETE CASCADE</span>,
+  <span class="k">CONSTRAINT</span> fk_saju_reading_chart <span class="k">FOREIGN KEY</span> (chart_id)
+    <span class="k">REFERENCES</span> saju_chart (id)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why"><code>reading_id</code>가 그대로 PK입니다. AUTO_INCREMENT를 따로 두지 않으면 1:1이 <strong>스키마 차원에서 강제</strong>됩니다.</p>
+        <p class="why"><code>topic</code>을 타로와 같은 값으로 맞춰뒀습니다. 주제 선택 UI를 세 기능이 공유할 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="group">
+    <div class="grouphead g-face">
+      <span class="name">관상</span>
+      <span class="note">사진은 저장하지 않고 측정값만 남깁니다.</span>
+    </div>
+
+    <details class="tbl">
+      <summary><span class="tname">face_shape</span><span class="tdesc">인상 유형 카탈로그. 지금은 JS 상수로 하드코딩돼 있습니다.</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> face_shape (
+  id       SMALLINT UNSIGNED <span class="k">NOT NULL</span> AUTO_INCREMENT <span class="k">PRIMARY KEY</span>,
+  code     VARCHAR(32) <span class="k">NOT NULL</span>,
+  title    VARCHAR(80) <span class="k">NOT NULL</span>,   <span class="c">-- '섬세한 선과 또렷한 중심이 만나는 인상'</span>
+  keyword  VARCHAR(40) <span class="k">NOT NULL</span>,
+  summary  VARCHAR(500) <span class="k">NOT NULL</span>,
+  is_active TINYINT(1) <span class="k">NOT NULL DEFAULT</span> 1,
+  <span class="k">UNIQUE KEY</span> uk_face_shape_code (code)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why">타로 카드 해석을 DB에 둔 것과 같은 이유입니다 — <strong>문구를 고치는 데 배포가 필요 없어야</strong> 합니다. 다만 관상 판정 로직은 브라우저에 있어서, 이 테이블을 쓰려면 결과 문구를 서버에서 받아오도록 바꿔야 합니다. 그만한 값이 있는지는 판단이 필요합니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">face_reading</span><span class="tdesc">관상 리딩 상세. 비율 다섯 개와 대칭 점수.</span><span class="tag new">신규</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> face_reading (
+  reading_id     BIGINT UNSIGNED <span class="k">NOT NULL PRIMARY KEY</span>,
+  shape_id       SMALLINT UNSIGNED <span class="k">NULL</span>,
+  aspect_ratio   DECIMAL(5,4) <span class="k">NOT NULL</span>,  <span class="c">-- 얼굴 세로/가로</span>
+  jaw_ratio      DECIMAL(5,4) <span class="k">NOT NULL</span>,
+  forehead_ratio DECIMAL(5,4) <span class="k">NOT NULL</span>,
+  eye_ratio      DECIMAL(5,4) <span class="k">NOT NULL</span>,
+  mouth_ratio    DECIMAL(5,4) <span class="k">NOT NULL</span>,
+  symmetry_score DECIMAL(5,4) <span class="k">NOT NULL</span>,  <span class="c">-- 좌우 대칭</span>
+  mood           VARCHAR(20) <span class="k">NULL</span>,       <span class="c">-- 사용자가 고른 첫인상 키워드</span>
+  detector_version VARCHAR(32) <span class="k">NOT NULL</span>,  <span class="c">-- MediaPipe 모델 버전</span>
+  <span class="k">CONSTRAINT</span> fk_face_reading_reading <span class="k">FOREIGN KEY</span> (reading_id)
+    <span class="k">REFERENCES</span> reading (id) <span class="k">ON DELETE CASCADE</span>,
+  <span class="k">CONSTRAINT</span> fk_face_reading_shape <span class="k">FOREIGN KEY</span> (shape_id)
+    <span class="k">REFERENCES</span> face_shape (id)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why"><strong>사진도, 랜드마크 468점 좌표도 없습니다.</strong> 왜 이 여섯 개로 충분한지는 결과를 만드는 함수가 무엇을 읽는지 보면 나옵니다.</p>
+
+<pre><span class="c">// faceReadingRules.js · createFaceReading(measurements, mood)</span>
+shapeReadings[measurements.faceShape]      <span class="c">// 얼굴형 문구</span>
+eyeReading(measurements.eyeRatio)          <span class="c">// 눈매 문장</span>
+mouthReading(measurements.mouthRatio)      <span class="c">// 입매 문장</span>
+harmonyReading(measurements.symmetryScore) <span class="c">// 조화 문장</span>
+safeMood                                   <span class="c">// 사용자가 고른 키워드</span></pre>
+
+        <p class="why"><code>faceShape</code>는 저장할 필요가 없습니다. <code>classifyFaceShape({aspectRatio, jawRatio, foreheadRatio})</code>가 <strong>세 비율에서 순수하게 파생</strong>시키기 때문입니다. 결국 <code>eyeRatio</code>, <code>mouthRatio</code>, <code>symmetryScore</code>에 얼굴형 판정용 세 개를 더한 여섯 개와 <code>mood</code>면 같은 문구가 그대로 재생됩니다.</p>
+
+        <h3 style="margin-top:26px;font-size:14.5px">측정은 열 개, 저장은 여섯 개</h3>
+        <p class="why"><code>measureFace()</code>는 열 개를 반환합니다. 나머지 넷을 뺀 이유는 각각 다릅니다.</p>
+        <table class="state" style="margin-top:12px;font-size:13.5px">
+          <thead><tr><th>측정값</th><th>쓰이는 곳</th><th>저장</th></tr></thead>
+          <tbody>
+            <tr><td><code>coverage</code></td><td>얼굴이 너무 작게 잡혔는지</td><td rowspan="3" style="vertical-align:middle"><span class="chip no">선택</span> 결과에 영향 없음</td></tr>
+            <tr><td><code>rollDegrees</code></td><td>고개가 기울었는지</td></tr>
+            <tr><td><code>noseOffset</code></td><td>얼굴이 옆으로 돌았는지</td></tr>
+            <tr><td><code>browEyeRatio</code></td><td><strong>소비하는 코드가 없음</strong></td><td><span class="chip no">제외</span></td></tr>
+          </tbody>
+        </table>
+        <p class="why">앞의 셋은 <code>validateFacePose()</code>가 촬영 안내를 띄우는 <strong>품질 게이트</strong>일 뿐 결과 문구에 들어가지 않습니다. 다만 "측정은 통과했는데 결과가 이상하다"는 문의가 오면 이 값들이 있어야 재현됩니다. 개인정보 성격이 없는 순수 자세 지표라 넣어도 부담은 없으니, <strong>넣을지는 팀 판단</strong>으로 남깁니다.</p>
+        <p class="why"><code>browEyeRatio</code>는 측정만 하고 아무 데서도 읽지 않습니다 — 죽은 코드로 보입니다. 관상 담당자 확인이 필요합니다.</p>
+
+        <p class="why"><code>DECIMAL(5,4)</code>은 <code>0.0000</code>~<code>9.9999</code>. 모든 비율이 얼굴 폭 대비라 1 근처에 모입니다. <code>FLOAT</code> 대신 쓴 건 판정 경계값(<code>eyeRatio &gt;= 0.205</code>, <code>jawRatio &gt; 0.91</code>)과 정확히 비교하기 위해서입니다.</p>
+        <p class="why">칼럼명은 코드의 <code>symmetryScore</code>를 따랐습니다. 결과 문장을 만드는 함수 이름이 <code>harmonyReading</code>이라 헷갈리기 쉬운데, <strong>값의 출처는 대칭 점수</strong>입니다.</p>
+        <p class="why"><code>detector_version</code>은 <code>saju_chart.engine_version</code>과 같은 목적입니다 — 모델이 바뀌면 같은 사진도 다른 숫자가 나오므로, 과거 결과를 해석할 때 무엇으로 쟀는지 알아야 합니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="group">
+    <div class="grouphead g-tarot">
+      <span class="name">타로</span>
+      <span class="note">이미 있는 테이블. 소유자·요약 칼럼만 <code>reading</code>으로 올라갑니다.</span>
+    </div>
+
+    <details class="tbl">
+      <summary><span class="tname">tarot_reading</span><span class="tdesc">타로 리딩 상세. 스프레드와 주제만 남습니다.</span><span class="tag move">이관</span></summary>
+      <div class="tbody">
+<pre><span class="k">CREATE TABLE</span> tarot_reading (
+  reading_id BIGINT UNSIGNED <span class="k">NOT NULL PRIMARY KEY</span>,
+  spread_id  SMALLINT UNSIGNED <span class="k">NOT NULL</span>,
+  topic      ENUM('general','love','career','money','health')
+             <span class="k">NOT NULL DEFAULT</span> 'general',
+  question   VARCHAR(255) <span class="k">NULL</span>,
+  <span class="k">CONSTRAINT</span> fk_tarot_reading_reading <span class="k">FOREIGN KEY</span> (reading_id)
+    <span class="k">REFERENCES</span> reading (id) <span class="k">ON DELETE CASCADE</span>,
+  <span class="k">CONSTRAINT</span> fk_tarot_reading_spread <span class="k">FOREIGN KEY</span> (spread_id)
+    <span class="k">REFERENCES</span> tarot_spread (id)
+) ENGINE=InnoDB <span class="k">DEFAULT CHARSET</span>=utf8mb4;</pre>
+        <p class="why">기존 테이블에서 <code>user_id</code>, <code>guest_key</code>, <code>summary_title</code>, <code>summary_text</code>, <code>interpretation_source</code>, <code>llm_model</code>, <code>status</code>, 시각 칼럼이 <code>reading</code>으로 빠집니다. 남는 건 타로에만 있는 세 개뿐입니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">tarot_reading_card</span><span class="tdesc">뽑힌 카드. 자리별 1장.</span><span class="tag keep">유지</span></summary>
+      <div class="tbody">
+<pre><span class="c">-- reading_id 가 tarot_reading 이 아니라 reading 을 가리키도록 FK 만 바뀝니다.</span>
+  <span class="k">UNIQUE KEY</span> uk_tarot_reading_card_position (reading_id, position_no),
+  <span class="k">UNIQUE KEY</span> uk_tarot_reading_card_card     (reading_id, card_id)</pre>
+        <p class="why">유니크 키 두 개가 규칙을 강제합니다 — 한 자리에 두 장이 놓일 수 없고, 한 리딩에 같은 카드가 두 번 나올 수 없습니다. 애플리케이션 버그가 있어도 DB가 막습니다.</p>
+      </div>
+    </details>
+
+    <details class="tbl">
+      <summary><span class="tname">tarot_card · tarot_card_meaning · tarot_spread · tarot_spread_position</span><span class="tdesc">카드 카탈로그와 스프레드 정의</span><span class="tag keep">유지</span></summary>
+      <div class="tbody">
+        <p class="why">그대로 둡니다. 메이저 22장과 주제별 해석 176행이 이미 들어가 있고, 마이너 56장은 같은 형식으로 INSERT만 추가하면 됩니다.</p>
+        <p class="why">참고로 이 구조가 <code>face_shape</code>의 본보기입니다 — 해석 문구를 코드가 아니라 데이터로 두면 배포 없이 고칠 수 있습니다.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">이행</span>기존 데이터를 옮기는 순서</h2>
+  <p class="lede">타로가 이미 운영 중이라면 순서가 중요합니다. 각 단계가 끝난 시점에 서비스가 계속 동작해야 합니다. 앞의 <strong>전제</strong> 절에서 짚었듯 지금 실행할 작업은 아니고, 실제로 필요해졌을 때의 절차입니다.</p>
+
+  <ol class="steps">
+    <li><b>새 테이블을 먼저 만듭니다</b><span><code>app_user</code>, <code>birth_profile</code>, <code>reading</code>, <code>chat_message</code>, <code>saju_*</code>, <code>face_*</code>. 아무도 안 쓰는 상태라 언제 해도 안전합니다.</span></li>
+    <li><b>기존 타로 리딩을 <code>reading</code>으로 복사합니다</b><span><code>INSERT INTO reading (...) SELECT ... , 'tarot' FROM tarot_reading</code>. 이때 <code>id</code>를 그대로 가져가면 아래 단계가 훨씬 쉬워집니다.</span></li>
+    <li><b>새 <code>tarot_reading</code>과 <code>chat_message</code>를 채웁니다</b><span>기존 <code>tarot_reading</code>은 <code>tarot_reading_old</code>로 이름만 바꿔 남겨둡니다. 되돌릴 여지를 남기는 겁니다.</span></li>
+    <li><b>앱 코드를 새 테이블로 전환하고 배포합니다</b><span>모델·서비스·라우터가 <code>reading</code>을 읽도록. 여기까지가 한 번의 배포입니다.</span></li>
+    <li><b>확인 후 옛 테이블을 지웁니다</b><span>며칠 지켜보고 <code>tarot_reading_old</code>, <code>tarot_chat_message</code>를 <code>DROP</code>. 급할 이유가 없습니다.</span></li>
+  </ol>
+
+  <p style="margin-top:24px"><strong>이관 스크립트는 <code>sql/init/</code>에 두면 안 됩니다.</strong> <code>install.sh</code>가 그 폴더의 SQL을 매번 전부 실행하는데, 이관은 한 번만 돌아야 합니다. <code>sql/migrate/</code>에 두고 손으로 실행하며, 이관과 롤백 양쪽 모두 <code>tarot_reading_old</code> 존재 여부로 상태를 확인하는 가드가 있어야 두 번 돌려도 안전합니다.</p>
+  <p><strong>앱 계정에는 DDL 권한이 없습니다.</strong> 1·3·5단계는 DB 서버에서 root로 실행해야 합니다. 스키마 파일은 이제 <code>sql/init/07~10</code>에 있어 <code>install.sh</code>가 자동으로 적용합니다. 이관·롤백 스크립트만 <code>sql/migrate/</code>에 따로 두어 손으로 실행합니다 — 이관은 한 번만 돌아야 하기 때문입니다.</p>
+</section>
+
+<section>
+  <h2><span class="num">확인</span>정하고 가야 할 것</h2>
+  <p class="lede">이 설계가 전제하고 있지만 아직 팀이 정하지 않은 것들입니다.</p>
+
+  <ul class="open">
+    <li><b>로그인이 실제로 붙나요?</b> 안 붙는다면 <code>app_user</code>·<code>birth_profile</code>은 만들 이유가 없고, <code>reading.user_id</code>도 지금처럼 놀리는 칼럼이 됩니다. 계획이 없다면 <strong>빼는 편이 정직합니다.</strong></li>
+    <li><b>사주·관상 결과를 정말 저장할 건가요?</b> 지금은 화면에 뿌리고 끝납니다. 저장하는 이유는 마이페이지에서 다시 보기와 채팅 기록인데, 그 기능을 안 만들 거면 테이블도 필요 없습니다.</li>
+    <li><b>관상 판정을 서버로 옮길 건가요?</b> <code>face_shape</code>는 그 전제 위에 있습니다. 브라우저 판정을 유지한다면 이 테이블 없이 <code>face_reading</code>에 결과 문구를 직접 넣는 편이 단순합니다.</li>
+    <li><b>관상 자세 지표(<code>coverage</code> · <code>rollDegrees</code> · <code>noseOffset</code>)를 남길까요?</b> 결과에는 영향이 없지만 문의 대응 때 재현에 쓰입니다. 그리고 <code>browEyeRatio</code>는 측정만 하고 읽는 코드가 없어 <strong>죽은 코드로 보입니다</strong> — 의도한 것인지 확인이 필요합니다.</li>
+    <li><b>비회원 기록을 얼마나 보관하나요?</b> <code>guest_key</code> 리딩은 주인이 브라우저를 지우면 영영 접근 불가인 채 계속 쌓입니다. 90일 정리 배치 같은 기준이 필요합니다.</li>
+    <li><b>SQLAlchemy ORM을 계속 쓰나요?</b> 지금 DB를 쓰는 코드는 타로뿐이고 팀에 선례가 없습니다. 생쿼리로 간다면 이 설계는 그대로 두고 접근 코드만 달라집니다 — <strong>스키마 설계와는 별개 문제입니다.</strong></li>
+  </ul>
+</section>
+
+<p class="foot">luck_db · MariaDB 11 · utf8mb4_unicode_ci — 이 문서는 제안이며 확정된 스키마가 아닙니다.</p>
+
+</div>
