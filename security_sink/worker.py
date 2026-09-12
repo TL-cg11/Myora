@@ -40,6 +40,7 @@ def main() -> int:
     consumer = Consumer(config)
     producer = Producer(kafka_producer_config(config))
     metrics = SinkMetrics(consumer_group)
+    metrics.initialize_dlq(TOPIC)
     metrics_server = MetricsServer(
         metrics,
         os.getenv("METRICS_HOST", "127.0.0.1"),

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from urllib.request import urlopen
 
-from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
+from security_sink.metrics import DLQ_STAGES, MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.metrics_verification import REQUIRED_METRICS, verify_metrics_runtime
 from security_sink.retention import RETENTION_QUERIES, RetentionVerification
 
@@ -24,6 +24,19 @@ class FakeConsumer:
 
 
 class SinkMetricsTests(unittest.TestCase):
+    def test_dlq_counters_are_exposed_at_zero_before_the_first_failure(self) -> None:
+        metrics = SinkMetrics("masked-log-sink")
+        metrics.initialize_dlq("myohan.masked-logs")
+
+        rendered = metrics.render().decode()
+
+        for stage in DLQ_STAGES:
+            self.assertIn(
+                'luck_sink_dlq_total{consumer_group="masked-log-sink",'
+                f'topic="myohan.masked-logs",stage="{stage}"}} 0',
+                rendered,
+            )
+
     def test_render_contains_result_failure_retry_dlq_latency_and_lag(self) -> None:
         metrics = SinkMetrics("security-event-sink")
         metrics.record_message("myohan.security-events", "processed", 0.2)

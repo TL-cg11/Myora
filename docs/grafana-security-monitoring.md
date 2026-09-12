@@ -27,8 +27,9 @@ require `event_id` deduplication and a durable `notification_log` transaction.
 The `Luck Security Operations` contact point routes infrastructure alerts only
 to Discord with 30-second grouping and a four-hour repeat interval. The webhook
 is injected from `/etc/luck-observability.env`; Slack and SMTP are disabled.
-The DLQ rule combines the five-minute counter increase with detection of a new
-counter series so that the first DLQ message after process startup is not missed.
+Each sink exposes zero-valued DLQ counters for every terminal failure stage at
+startup. The DLQ rule combines the five-minute counter increase with new-series
+detection so that the first DLQ message after process startup is not missed.
 
 ## Server prerequisites
 

@@ -10,6 +10,7 @@ from typing import Any
 
 
 BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0)
+DLQ_STAGES = ("schema_validation", "masking_validation", "sink_processing")
 
 
 def _labels(values: tuple[tuple[str, str], ...]) -> str:
@@ -33,6 +34,12 @@ class SinkMetrics:
         self._duration_count: dict[str, int] = defaultdict(int)
         self._lag: dict[tuple[str, int], float] = {}
         self._age: dict[tuple[str, int], float] = {}
+
+    def initialize_dlq(self, topic: str) -> None:
+        """Expose zero-valued DLQ counters before the first failure occurs."""
+        with self._lock:
+            for stage in DLQ_STAGES:
+                self._dlq.setdefault((topic, stage), 0.0)
 
     def record_message(self, topic: str, result: str, duration: float) -> None:
         with self._lock:
