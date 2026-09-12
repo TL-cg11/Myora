@@ -24,16 +24,15 @@ if [ ! -f "$WORK/hf-cache.tar" ]; then
   echo "      모델 캐시가 번들에 없어 NER/문맥 재검증은 끈 상태로 둡니다."
 fi
 
-echo "[2/4] 컨테이너 빌드·기동 (처음이면 5~10분)"
-docker compose up -d --build
-
 if [ -f "$WORK/hf-cache.tar" ]; then
-  echo "[3/4] 모델 캐시 적용"
+  echo "[2/4] 모델 캐시 적용 (컨테이너보다 먼저 넣어야 어댑터가 오프라인으로 뜬다)"
   bash scripts/import-hf-cache.sh "$WORK/hf-cache.tar"
-  docker compose restart was >/dev/null
 else
-  echo "[3/4] 모델 캐시 없음 — 건너뜀"
+  echo "[2/4] 모델 캐시 없음 — 건너뜀"
 fi
+
+echo "[3/4] 컨테이너 빌드·기동 (처음이면 5~10분)"
+docker compose up -d --build
 
 echo "[4/4] 운영 DB 데이터 적용"
 until docker compose ps --format '{{.Service}} {{.Status}}' | grep -q "mariadb.*healthy"; do sleep 3; done
