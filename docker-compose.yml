@@ -10,7 +10,7 @@
 #   브라우저 → nginx ─────────────→ was ──────────→ mariadb (luck_db, security_monitoring)
 #              │ access.json.log      │ myohan.was.app
 #              ▼                      ▼
-#          fluent-bit ──────────→ kafka ◀──────── masking-adapter (was 와 네트워크 공유)
+#          fluent-bit ──────────→ kafka ◀──────── masking-adapter (was 컨테이너 안의 두 번째 프로세스)
 #          myohan.nginx.access        │ myohan.masked-logs / myohan.security-events
 #                                     ▼
 #                security-event-sink → mariadb        masked-log-sink → loki
@@ -112,10 +112,13 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 
   # ---------------- 애플리케이션 계층 ----------------
+  # WAS(uvicorn) + Kafka 마스킹 어댑터. 어댑터의 표시용 API(127.0.0.1:8765)가 loopback 전용이라
+  # 같은 컨테이너에서 두 프로세스로 돈다 (was/docker/entrypoint.sh). 로그는 [masking-adapter] 접두어로 구분.
   was:
     build:
       context: ./was
-      target: runtime
+      # runtime = 정규식 탐지만, adapter-ner = 운영 서버와 같은 NER/문맥 모델 포함 (.env 의 ADAPTER_BUILD_TARGET)
+      target: ${ADAPTER_BUILD_TARGET:-runtime}
     image: myora-was
     restart: unless-stopped
     environment:
@@ -156,30 +159,8 @@ services:
       AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-1}
       AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
       AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-60}
-      # 채팅 화면 마스킹은 같은 네트워크 네임스페이스의 masking-adapter(127.0.0.1:8765)를 쓴다.
-      ADAPTER_DISPLAY_API_HOST: 127.0.0.1
-      ADAPTER_DISPLAY_API_PORT: "8765"
-    ports:
-      - "127.0.0.1:${WAS_PORT:-8000}:8000"
-    depends_on:
-      mariadb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-
-  # 원본 로그 → 마스킹 → 결과 topic. WAS 와 네트워크를 공유해 loopback 표시용 API(8765)를 제공한다.
-  masking-adapter:
-    build:
-      context: ./was
-      # runtime = 정규식만, adapter-ner = 운영 서버와 같은 NER/문맥 모델 포함 (.env 의 ADAPTER_BUILD_TARGET)
-      target: ${ADAPTER_BUILD_TARGET:-runtime}
-    image: myora-masking-adapter
-    restart: unless-stopped
-    network_mode: "service:was"
-    working_dir: /app/security-monitoring/detector
-    command: ["python", "-m", "adapter"]
-    environment:
-      <<: *kafka
+      # ---- 마스킹 어댑터 (같은 컨테이너의 두 번째 프로세스) ----
+      ADAPTER_ENABLED: ${ADAPTER_ENABLED:-true}
       KAFKA_AUTO_OFFSET_RESET: earliest
       MASKING_PSEUDONYM_KEY: ${MASKING_PSEUDONYM_KEY:?MASKING_PSEUDONYM_KEY 가 필요합니다}
       DETECTOR_FINGERPRINT_KEY: ${DETECTOR_FINGERPRINT_KEY:-}
@@ -200,24 +181,18 @@ services:
       ADAPTER_SECURITY_EVENTS_TOPIC: myohan.security-events
       ADAPTER_DEAD_LETTER_TOPIC: myohan.dead-letter
       ADAPTER_DEFAULT_ENVIRONMENT: ${ADAPTER_DEFAULT_ENVIRONMENT:-development}
+      # 채팅 화면 마스킹은 같은 컨테이너의 어댑터 표시용 API(127.0.0.1:8765)를 쓴다.
       ADAPTER_DISPLAY_API_HOST: 127.0.0.1
       ADAPTER_DISPLAY_API_PORT: "8765"
     volumes:
       - hf-cache:/hf-cache
-    # was 컨테이너가 재생성되면 공유하던 네트워크 네임스페이스가 사라지므로 어댑터도 함께 재시작한다.
+    ports:
+      - "127.0.0.1:${WAS_PORT:-8000}:8000"
     depends_on:
-      was:
+      mariadb:
         condition: service_healthy
-        restart: true
       kafka-init:
         condition: service_completed_successfully
-    # 이미지의 HEALTHCHECK(WAS 8000 확인)를 어댑터 자신의 표시용 API 로 바꾼다.
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
-      interval: 15s
-      timeout: 5s
-      start_period: 90s
-      retries: 5
 
   # ---------------- 진입점 ----------------
   nginx:

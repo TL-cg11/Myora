@@ -38,7 +38,7 @@ apply_dump() {
 }
 
 echo "[1/4] 앱 컨테이너 일시 중지 (DROP TABLE 잠금 방지)"
-docker compose stop was masking-adapter security-event-sink masked-log-sink security-notifier security-retention >/dev/null 2>&1 || true
+docker compose stop was security-event-sink masked-log-sink security-notifier security-retention >/dev/null 2>&1 || true
 
 echo "[2/4] luck_db 덤프 적용: $LUCK_DUMP ($(du -h "$LUCK_DUMP" | cut -f1))"
 apply_dump "$LUCK_DB" "$LUCK_DUMP"
@@ -68,6 +68,6 @@ WHERE u.actor_id = '${ACTOR}' AND r.role_code IN ('VIEWER','EDITOR','ADMIN');
 SQL
 
 echo "[4/4] 앱 재시작"
-docker compose up -d was masking-adapter security-event-sink masked-log-sink >/dev/null
+docker compose up -d was security-event-sink masked-log-sink >/dev/null
 sql -e "SELECT 'app_user' t, COUNT(*) n FROM ${LUCK_DB}.app_user UNION ALL SELECT 'reading', COUNT(*) FROM ${LUCK_DB}.reading UNION ALL SELECT 'tarot_reading', COUNT(*) FROM ${LUCK_DB}.tarot_reading UNION ALL SELECT 'tarot_chat_message', COUNT(*) FROM ${LUCK_DB}.tarot_chat_message UNION ALL SELECT 'security_event', COUNT(*) FROM security_monitoring.security_event UNION ALL SELECT 'security_user', COUNT(*) FROM security_monitoring.security_user;"
 echo "완료"

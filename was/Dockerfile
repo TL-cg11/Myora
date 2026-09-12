@@ -32,17 +32,20 @@ COPY consumer consumer
 COPY schemas schemas
 COPY security-monitoring security-monitoring
 COPY --from=frontend /build/dist dist
-RUN useradd --system --uid 10001 --create-home was && chown -R was:was /app
+COPY docker/entrypoint.sh /usr/local/bin/myora-entrypoint
+RUN chmod 0755 /usr/local/bin/myora-entrypoint \
+ && useradd --system --uid 10001 --create-home was && chown -R was:was /app
 USER was
 EXPOSE 8000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
   CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# uvicorn + 마스킹 어댑터를 함께 실행한다 (ADAPTER_ENABLED=false 면 uvicorn 만).
+CMD ["myora-entrypoint"]
 
 # ---------- 3단계: 마스킹 어댑터 + 한국어 NER/문맥 모델 런타임 ----------
 # 운영 서버의 어댑터는 KoELECTRA NER 과 KLUE NLI 문맥 재검증을 켜고 돈다. CPU 전용 torch 를
 # 설치해 이미지 크기를 줄인다(기본 PyPI torch 는 CUDA 라이브러리까지 끌어와 수 GB 가 된다).
-# compose 에서 masking-adapter 의 build target 으로 선택한다 (ADAPTER_BUILD_TARGET=adapter-ner).
+# compose 에서 was 의 build target 으로 선택한다 (ADAPTER_BUILD_TARGET=adapter-ner).
 FROM runtime AS adapter-ner
 USER root
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.6,<3"  && pip install "transformers>=4.41,<6"

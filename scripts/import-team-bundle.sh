@@ -30,7 +30,7 @@ docker compose up -d --build
 if [ -f "$WORK/hf-cache.tar" ]; then
   echo "[3/4] 모델 캐시 적용"
   bash scripts/import-hf-cache.sh "$WORK/hf-cache.tar"
-  docker compose restart masking-adapter >/dev/null
+  docker compose restart was >/dev/null
 else
   echo "[3/4] 모델 캐시 없음 — 건너뜀"
 fi

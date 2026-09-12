@@ -60,8 +60,8 @@ AI 채팅(DeepSeek)을 쓰려면 `.env` 의 `DEEPSEEK_API_KEY` 를 채우고 `do
 
 ```bash
 docker compose ps                         # 컨테이너 상태
-docker compose logs -f was                # 특정 서비스 로그 (nginx, masking-adapter, security-event-sink ...)
-docker compose up -d --build was          # 코드 수정 후 WAS 만 다시 빌드 (masking-adapter 는 자동으로 따라 재시작)
+docker compose logs -f was                # 특정 서비스 로그 (was 로그에 [masking-adapter] 접두어로 어댑터 로그 포함)
+docker compose up -d --build was          # 코드 수정 후 WAS(+마스킹 어댑터) 다시 빌드
 docker compose down                       # 중지 (데이터 유지)
 docker compose down -v                    # 중지 + DB·Loki·Grafana 데이터 삭제 (DB 초기화 다시 실행됨)
 docker compose --profile notify up -d     # Discord 알림 워커 추가 (DISCORD_WEBHOOK_URL 필요)
@@ -86,7 +86,7 @@ bash scripts/import-hf-cache.sh           # NER/문맥 모델 캐시(900MB)를 h
 
 운영 서버처럼 한국어 NER·문맥 재검증까지 켜려면 `.env` 에서 `ADAPTER_BUILD_TARGET=adapter-ner`,
 `DETECTOR_NER_ENABLED=true`, `DETECTOR_PII_CONTEXT_ENABLED=true` 로 두고
-`docker compose up -d --build masking-adapter` 한다(이미지 +1.3GB, CPU 전용 torch).
+`docker compose up -d --build was` 한다(이미지 +1.3GB, CPU 전용 torch).
 
 ### 보안 관제 API 확인
 
@@ -110,7 +110,7 @@ curl -H "Authorization: Bearer myora-local-security-token" \
 5. Grafana 에서 Loki 로그와 MariaDB 이벤트를 조회
 
 ```bash
-docker compose logs masking-adapter security-event-sink masked-log-sink | tail -50
+docker compose logs was security-event-sink masked-log-sink | tail -50
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --bootstrap-server localhost:9092 --topic myohan.masked-logs --from-beginning --max-messages 3
 ```
@@ -146,7 +146,7 @@ cd was && npm test
 브라우저 → nginx(:80) ────────────→ was(:8000) ─────────→ mariadb(:3306)
               │ access.json.log        │ myohan.was.app       luck_db / security_monitoring
               ▼                        ▼
-          fluent-bit ────────────→ kafka ◀──────── masking-adapter (was 와 네트워크 공유,
+          fluent-bit ────────────→ kafka ◀──────── masking-adapter (was 컨테이너 안의 두 번째 프로세스,
           myohan.nginx.access          │            채팅 화면 마스킹 API 127.0.0.1:8765 제공)
                                        │ myohan.masked-logs / myohan.security-events
                                        ▼
