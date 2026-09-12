@@ -1,0 +1,26 @@
+{
+  "policy_version": "1.0",
+  "schema_version": "1.0",
+  "description": "현재 v1.0 스키마에 정의된 필드의 마스킹 정책",
+  "fields": {
+    "user_id": {"pii": true, "action": "pseudonymize", "detectors": []},
+    "guest_key": {"pii": true, "action": "pseudonymize", "detectors": []},
+    "client_ip": {"pii": true, "action": "mask_ip", "detectors": []},
+    "input.question": {
+      "pii": true,
+      "action": "detect_and_mask",
+      "detectors": ["email", "phone", "person_name", "birth_date", "address", "credential"],
+      "prompt_injection_detection": true
+    },
+    "output.answer": {
+      "pii": true,
+      "action": "detect_and_mask",
+      "detectors": ["email", "phone", "person_name", "birth_date", "address", "credential"]
+    },
+    "input.topic": {"pii": false, "action": "pass", "detectors": []}
+  },
+  "default": {
+    "unknown_input_field_action": "reject",
+    "other_schema_field_action": "pass"
+  }
+}

@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { finishContextualDisplay, hasDirectIdentifier, maskForDisplay } from './privacy.js';
+
+test('정형 식별자가 있으면 입력 단계에서 걸러 낸다', () => {
+  for (const value of ['연락처 010-1234-5678', 'a@b.com 으로 알려주세요',
+    '주민번호 900101-1234567', 'https://example.com/me 참고', 'sk-test_secret'])
+    assert.ok(hasDirectIdentifier(value), value);
+});
+
+test('평범한 질문과 숫자가 많은 문장은 막지 않는다', () => {
+  for (const value of ['지금 이 일을 계속 해도 될까요?', '대운은 1 11 21 31 41 51 61 71 순서인가요?',
+    '1995년생인데 올해 흐름이 궁금해요', '', undefined])
+    assert.ok(!hasDirectIdentifier(value), String(value));
+});
+
+test('서버 전송 원문과 별개로 화면 표시값만 마스킹한다', () => {
+  const original = '전화 010-1234-5678, 메일 demo@example.com, 주민번호 900101-1234567';
+  assert.equal(
+    maskForDisplay(original),
+    '전화 010-****-5678, 메일 d***@example.com, 주민번호 ******-*******',
+  );
+  assert.equal(original, '전화 010-1234-5678, 메일 demo@example.com, 주민번호 900101-1234567');
+});
+
+test('문맥 모델이 허용한 전화번호 형식은 화면 후처리가 다시 가리지 않는다', () => {
+  assert.equal(
+    finishContextualDisplay('주문번호 010-1234-5678을 조회해줘'),
+    '주문번호 010-1234-5678을 조회해줘',
+  );
+});
+
+test('거친 표현은 말풍선에서 가리고 정상 단어는 그대로 둔다', () => {
+  assert.equal(maskForDisplay('씨발 이거 뭐야'), '■■ 이거 뭐야');
+  assert.equal(maskForDisplay('오늘 시발점이 어디야'), '오늘 시발점이 어디야');
+  assert.equal(maskForDisplay('사업이 시작됐어'), '사업이 시작됐어');
+});
+
+test('보이지 않는 문자로 가린 거친 표현도 말풍선에서 가린다', () => {
+  assert.equal(maskForDisplay('씨​발 이거 뭐야'), '■■ 이거 뭐야');
+  assert.equal(maskForDisplay('제 생년월일은 1995년이에요'), '제 생년월일은 1995년이에요');
+});

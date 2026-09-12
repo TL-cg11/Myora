@@ -1,0 +1,182 @@
+/** 타로 API 클라이언트와 비회원 식별자 관리. */
+
+const GUEST_KEY_STORAGE = 'myohan-guest-key';
+const AUTH_TOKEN_STORAGE = 'myohan-auth-token';
+
+export const getAuthToken = () => {
+  try { return localStorage.getItem(AUTH_TOKEN_STORAGE); } catch { return null; }
+};
+
+export const setAuthToken = (token) => {
+  try {
+    if (token) localStorage.setItem(AUTH_TOKEN_STORAGE, token);
+    else localStorage.removeItem(AUTH_TOKEN_STORAGE);
+  } catch { /* 저장소가 막히면 현재 페이지에서만 인증할 수 있다. */ }
+  // 로그인·로그아웃·세션 만료로 계정이 바뀔 때마다 알린다. 관리자 로그인 여부에
+  // 따라 달라지는 /api/config 캐시(useChatLimit.js)가 새로고침 없이도 맞게 갱신된다.
+  globalThis.dispatchEvent?.(new Event('myohan-auth-changed'));
+};
+
+/** crypto.randomUUID 는 보안 컨텍스트(https/localhost)에서만 있다.
+ *  사내 IP 에 http 로 접속하면 없으므로 직접 만든다. */
+function randomUuid() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** 브라우저마다 하나씩 발급해 두고 계속 쓴다. 이 값으로 내 리딩만 조회한다. */
+export function getGuestKey() {
+  let key = null;
+  try {
+    key = localStorage.getItem(GUEST_KEY_STORAGE);
+  } catch {
+    // 시크릿 모드 등에서 저장소가 막혀 있으면 매번 새로 발급된다(기록만 안 남음).
+  }
+  if (!key) {
+    key = randomUuid();
+    try {
+      localStorage.setItem(GUEST_KEY_STORAGE, key);
+    } catch {
+      /* 저장 못 해도 이번 세션은 동작한다. */
+    }
+  }
+  return key;
+}
+
+async function readError(response) {
+  try {
+    const body = await response.json();
+    if (typeof body.detail === 'string') return body.detail;
+    // 422 는 detail 이 배열로 온다.
+    if (Array.isArray(body.detail)) return body.detail.map((item) => item.msg).join(' ');
+  } catch {
+    /* 본문이 JSON 이 아니면 상태 코드로 안내한다. */
+  }
+  return response.status >= 500
+    ? '서버가 잠시 응답하지 않아요. 잠시 뒤 다시 시도해 주세요.'
+    : '요청을 처리하지 못했어요.';
+}
+
+export async function request(basePath, path, { method = 'GET', body } = {}) {
+  let response;
+  try {
+    response = await fetch(`${basePath}${path}`, {
+      method,
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error('네트워크에 연결할 수 없어요. 연결 상태를 확인해 주세요.');
+  }
+  if (!response.ok) {
+    if (response.status === 401 && getAuthToken()) {
+      setAuthToken(null);
+      globalThis.dispatchEvent?.(new Event('myohan-auth-expired'));
+    }
+    // 호출부가 상태 코드로 분기할 수 있게 남긴다(예: 400 이면 입력 화면으로 되돌리기).
+    const failure = new Error(await readError(response));
+    failure.status = response.status;
+    throw failure;
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+const tarotRequest = (path, options) => request('/api/tarot', path, options);
+const faceRequest = (path, options) => request('/api/face', path, options);
+
+export const listSpreads = () => tarotRequest('/spreads');
+
+export const checkQuestion = (question) =>
+  tarotRequest('/questions/check', { method: 'POST', body: { question } });
+
+export const maskDisplayMessage = (text) =>
+  request('/api/privacy', '/display-mask', { method: 'POST', body: { text } });
+
+export const createReading = ({ spreadCode, topic, question }) =>
+  tarotRequest('/readings', {
+    method: 'POST',
+    body: {
+      spread_code: spreadCode,
+      topic,
+      question: question?.trim() ? question.trim() : null,
+      guest_key: getGuestKey(),
+    },
+  });
+
+export const getReading = (readingId) =>
+  tarotRequest(`/readings/${readingId}?guest_key=${getGuestKey()}`);
+
+export const listReadings = (limit = 12) =>
+  tarotRequest(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+
+export const sendChatMessage = (readingId, message) =>
+  tarotRequest(`/readings/${readingId}/chat?guest_key=${getGuestKey()}`, {
+    method: 'POST',
+    body: { message },
+  });
+
+export const storeFaceReading = ({ mood, measurements, detectorVersion }) =>
+  faceRequest('/readings', {
+    method: 'POST',
+    body: {
+      guest_key: getGuestKey(),
+      mood,
+      detector_version: detectorVersion,
+      measurements: {
+        aspect_ratio: measurements.aspectRatio,
+        jaw_ratio: measurements.jawRatio,
+        forehead_ratio: measurements.foreheadRatio,
+        eye_ratio: measurements.eyeRatio,
+        mouth_ratio: measurements.mouthRatio,
+        symmetry_score: measurements.symmetryScore,
+        coverage: measurements.coverage,
+        roll_degrees: measurements.rollDegrees,
+        nose_offset: measurements.noseOffset,
+      },
+    },
+  });
+
+export const listFaceReadings = (limit = 12) =>
+  faceRequest(`/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+
+export const listSajuReadings = (limit = 12) =>
+  request('/api/saju', `/readings?guest_key=${getGuestKey()}&limit=${limit}`);
+
+export const createSajuReading = ({ name, birthDate, birthTime, gender }) =>
+  request('/api/saju', '/readings', {
+    method: 'POST',
+    body: {
+      name: name?.trim() || null,
+      birth_date: birthDate,
+      birth_time: birthTime || null,
+      gender: gender || null,
+      guest_key: getGuestKey(),
+    },
+  });
+
+export const registerAccount = ({ username, name, password, email }) =>
+  request('/api/auth', '/register', {
+    method: 'POST', body: { username, name, password, email, guest_key: getGuestKey() },
+  });
+
+export const loginAccount = ({ loginId, password }) =>
+  request('/api/auth', '/login', {
+    method: 'POST', body: { login_id: loginId, password, guest_key: getGuestKey() },
+  });
+
+export const getMe = () => request('/api/auth', '/me');
+export const logoutAccount = () => request('/api/auth', '/logout', { method: 'POST' });
+
+
+export const sendReadingChat = (service, readingId, message) =>
+  request(`/api/${service}`, '/chat', {
+    method: 'POST', body: { reading_id: readingId, guest_key: getGuestKey(), message },
+  });

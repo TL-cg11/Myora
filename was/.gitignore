@@ -1,0 +1,19 @@
+.env
+.env.deepseek.face
+.env.deepseek.saju
+.env.deepseek.tarot
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+public/mediapipe/
+
+# local work logs
+WORKLOG.md
+.local/
+
+# macOS
+.DS_Store
+
+CONVERSATION_HISTORY_PLAN.md

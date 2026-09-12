@@ -1,0 +1,20 @@
+.hero-art.hero-art-three img {
+  width: min(610px, 110%);
+  max-width: none;
+  border-radius: 30px;
+  box-shadow: 0 24px 55px rgba(80, 44, 135, 0.18);
+  filter: none;
+}
+
+@media (max-width: 900px) {
+  .hero-art.hero-art-three img {
+    width: min(620px, 96vw);
+  }
+}
+
+@media (max-width: 560px) {
+  .hero-art.hero-art-three img {
+    width: min(500px, 96vw);
+    border-radius: 22px;
+  }
+}

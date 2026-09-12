@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myohan.example/schemas/was-log-v1.schema.json",
+  "title": "Myohan WAS log v1.0",
+  "description": "luck-was에서 생성하는 WAS JSON 로그",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "timestamp",
+    "environment",
+    "severity",
+    "source",
+    "service",
+    "feature",
+    "event_type",
+    "user_id",
+    "guest_key"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "event_id": {"type": "string", "format": "uuid"},
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$",
+      "description": "ISO 8601 형식의 UTC 시각"
+    },
+    "environment": {"type": "string", "minLength": 1, "maxLength": 64},
+    "severity": {"type": "string", "minLength": 1, "maxLength": 32},
+    "source": {"const": "was"},
+    "service": {"const": "luck-was"},
+    "feature": {"type": "string", "enum": ["saju", "tarot", "face"]},
+    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_exchange"]},
+    "ai_call_id": {"type": "string", "format": "uuid"},
+    "user_id": {"type": ["integer", "null"], "minimum": 1},
+    "guest_key": {"type": ["string", "null"], "format": "uuid"},
+    "method": {"type": "string", "minLength": 1, "maxLength": 16},
+    "uri": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "status": {"type": "integer", "minimum": 100, "maximum": 599},
+    "client_ip": {"type": "string", "minLength": 1, "maxLength": 45},
+    "processing_time": {"type": "number", "minimum": 0, "description": "초 단위 처리 시간"},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "topic": {"type": "string"},
+        "question": {"type": "string"}
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "answer": {"type": "string"}
+      }
+    },
+    "ai": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "timeout_seconds"],
+      "properties": {
+        "provider": {"const": "deepseek"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 100},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "content_length": {"type": "integer", "minimum": 0, "description": "바이트 단위"},
+        "reading_id": {"type": "integer", "minimum": 1},
+        "question_sequence": {"type": "integer", "minimum": 1},
+        "message_count": {"type": "integer", "minimum": 1},
+        "context_length": {"type": "integer", "minimum": 0},
+        "prompt_length": {"type": "integer", "minimum": 0},
+        "answer_length": {"type": "integer", "minimum": 0},
+        "generated": {"type": "boolean"},
+        "phase": {"type": "string"},
+        "policy_version": {"type": "string"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"event_type": {"const": "api_request"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": [
+          "method",
+          "uri",
+          "status",
+          "client_ip",
+          "processing_time",
+          "input",
+          "metadata"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "ai_request"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["ai_call_id", "ai", "input", "metadata"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_exchange"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["input", "output", "metadata"],
+        "properties": {
+          "input": {"required": ["question"]},
+          "output": {"required": ["answer"]}
+        }
+      }
+    }
+  ]
+}

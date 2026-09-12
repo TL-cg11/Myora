@@ -1,0 +1,81 @@
+/* 타로 전용 스타일. 공통 레이아웃은 fortune-experience.css 를 그대로 쓴다. */
+
+.tarot-loading{padding:48px;text-align:center;color:#7a7186}
+.tarot-error{margin:0 0 14px;padding:12px 15px;border-radius:14px;background:#fff1f3;color:#9c4b58;font-size:13px;line-height:1.6}
+
+/* STEP 1 ------------------------------------------------------------------ */
+.tarot-field{margin-top:26px}
+.tarot-field h3{font-size:14px;font-weight:700;color:#564867;margin:0 0 12px}
+.tarot-field h3 small{font-weight:400;color:#9a91a4}
+.tarot-field>input{width:100%;padding:14px 16px;border:1px solid #ddd3ea;border-radius:14px;background:#fcfaff;color:#443754;outline:none}
+.tarot-field>input:focus{border-color:#8968da;box-shadow:0 0 0 3px #eee8ff}
+
+.spread-options{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.spread-options button{display:flex;flex-direction:column;justify-content:flex-start;position:relative;text-align:left;padding:18px 16px;border:1px solid #ded4ee;border-radius:18px;background:#fff;cursor:pointer}
+.spread-options button:hover{border-color:#b79ce8}
+.spread-options button.selected{border-color:#7552ca;background:#f8f4ff;box-shadow:0 0 0 3px #eee8ff}
+.spread-options b{display:block;font-family:'Gowun Batang',serif;font-size:17px;color:#4d3873}
+.spread-options em{position:absolute;top:16px;right:14px;font-style:normal;font-size:11px;font-weight:700;color:#7552ca;background:#f1eaff;padding:4px 8px;border-radius:999px}
+.spread-options small{display:block;margin-top:7px;font-size:12px;line-height:1.6;color:#867d92}
+
+.topic-options{display:flex;flex-wrap:wrap;gap:8px}
+.topic-options button{border:1px solid #ded4eb;border-radius:999px;background:#fff;padding:10px 16px;font-size:13px;color:#675874;cursor:pointer}
+.topic-options button.selected{background:#7552ca;border-color:#7552ca;color:#fff}
+
+/* STEP 2 ------------------------------------------------------------------ */
+.pick-title{font-family:'Gowun Batang',serif;font-size:24px;color:#49346a;margin:18px 0 6px}
+.pick-guide{margin:0;font-size:13px;line-height:1.7;color:#867d92}
+
+.tarot-deck{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:26px 0 20px}
+.card-back{position:relative;aspect-ratio:2/3;border:1px solid #d8c9ef;border-radius:14px;cursor:pointer;display:grid;place-items:center;
+  background:repeating-linear-gradient(45deg,#5b3a9c 0 6px,#6a45b4 6px 12px);
+  box-shadow:inset 0 0 0 4px rgba(255,255,255,.12),0 6px 16px rgba(71,42,111,.18)}
+.card-back:hover:not(:disabled){transform:translateY(-6px)}
+.card-back:disabled{opacity:.42;cursor:not-allowed}
+.card-back.locked{opacity:.72;cursor:default}
+.card-back.locked:hover{transform:none}
+.card-back-art{font-size:22px;color:rgba(255,255,255,.75)}
+.card-back.selected{background:linear-gradient(145deg,#f8d8e9,#e8d8ff);border-color:#c7aef0;transform:translateY(-10px)}
+.card-back.selected .card-back-art{color:#7552ca}
+.card-back.selected em{position:absolute;bottom:9px;font-style:normal;font-size:10px;font-weight:800;color:#5d3da3}
+
+/* RESULT ------------------------------------------------------------------ */
+.tarot-result{text-align:left}
+.tarot-result>button{display:block;margin:26px auto 0}
+.tarot-result h2,.tarot-result .result-symbol{margin-left:auto;margin-right:auto}
+.tarot-result h2{text-align:center}
+.result-meta{text-align:center;font-size:13px;color:#867d92;margin:0 0 30px}
+.result-meta em{display:block;margin-top:7px;font-style:normal;color:#6b5f7c}
+
+.reading-cards{display:grid;gap:16px}
+.reading-card{display:grid;grid-template-columns:132px 1fr;gap:20px;align-items:start;padding:20px;border:1px solid #efe8f8;border-radius:22px;background:#fdfbff}
+.reading-card-body h3{font-family:'Gowun Batang',serif;font-size:21px;color:#4d3873;margin:6px 0}
+.reading-card-body>small{display:block;font-size:12px;color:#948b9f;margin-bottom:4px}
+.reading-card-body>p{margin:0;font-size:14px;line-height:1.85;color:#6f6579}
+.reading-card-body .result-keywords{justify-content:flex-start;margin:10px 0 12px}
+.position-label{font-size:12px;font-weight:800;letter-spacing:.05em;color:#7957ce}
+.position-label i{margin-left:8px;font-style:normal;font-weight:700;font-size:10px;color:#8a7f9a;background:#f2edf9;padding:3px 8px;border-radius:999px}
+
+/* 카드면: 이미지가 준비되면 img 로 대체되고, 없으면 이 CSS 카드가 보인다. */
+.tarot-card-face{aspect-ratio:2/3;border-radius:14px;overflow:hidden;box-shadow:0 8px 20px rgba(71,42,111,.16)}
+/* 그림이 있으면 카드를 통째로 뒤집는다. CSS 카드면은 이름을 읽어야 하므로 기호만 돌리고
+   색과 '역' 표시로 방향을 알린다. */
+.tarot-card-face.is-reversed img{transform:rotate(180deg)}
+.tarot-card-face.is-reversed .card-symbol{transform:rotate(180deg)}
+.tarot-card-face.is-reversed .card-drawn{background:linear-gradient(160deg,#e4e9fb,#efe2f6);border-color:#c9cdec}
+.tarot-card-face img{width:100%;height:100%;object-fit:cover;display:block}
+.card-drawn{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;text-align:center;
+  background:linear-gradient(160deg,#efe7ff,#fce7f3);border:1px solid #d9cbf3}
+.card-corner{position:absolute;top:8px;left:10px;font-size:11px;font-weight:800;color:#8f79c4}
+.card-symbol{font-size:26px;color:#7552ca;transition:transform .3s ease}
+.card-reversed-mark{position:absolute;top:8px;right:9px;font-size:10px;font-weight:800;color:#fff;background:#8a7bc4;border-radius:999px;padding:2px 6px}
+.card-drawn b{font-family:'Gowun Batang',serif;font-size:16px;line-height:1.25;color:#4d3873}
+.card-drawn small{font-size:9px;color:#8d84a0}
+
+@media(max-width:700px){
+  .spread-options{grid-template-columns:1fr}
+  .spread-options em{top:18px}
+  .tarot-deck{grid-template-columns:repeat(4,1fr);gap:8px}
+  .reading-card{grid-template-columns:96px 1fr;gap:14px;padding:16px}
+  .reading-card-body h3{font-size:18px}
+}

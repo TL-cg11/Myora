@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>LUCK Service Status</title>
+  <style>
+    :root {
+      --bg: #07110e;
+      --panel: rgba(16, 35, 29, 0.82);
+      --line: rgba(151, 255, 197, 0.16);
+      --text: #effff6;
+      --muted: #91aa9e;
+      --green: #62f5a2;
+      --red: #ff7272;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      font-family: Inter, Pretendard, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(42, 187, 113, 0.18), transparent 30rem),
+        radial-gradient(circle at 90% 90%, rgba(31, 121, 87, 0.22), transparent 35rem),
+        var(--bg);
+    }
+
+    main {
+      width: min(920px, calc(100% - 32px));
+      padding: 64px 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 700px;
+      font-size: clamp(38px, 8vw, 76px);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
+
+    .lead {
+      max-width: 620px;
+      margin: 22px 0 42px;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .card {
+      position: relative;
+      min-height: 210px;
+      padding: 24px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(18px);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      right: -45px;
+      bottom: -45px;
+      border-radius: 50%;
+      background: rgba(98, 245, 162, 0.08);
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 5px rgba(145, 170, 158, 0.08);
+    }
+
+    .card.ok .dot {
+      background: var(--green);
+      box-shadow: 0 0 18px var(--green);
+    }
+
+    .card.error .dot {
+      background: var(--red);
+      box-shadow: 0 0 18px var(--red);
+    }
+
+    .status {
+      margin: 54px 0 7px;
+      font-size: 29px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .detail {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    button {
+      padding: 0;
+      border: 0;
+      color: var(--green);
+      font: inherit;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .card { min-height: 170px; }
+      .status { margin-top: 34px; }
+      footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">LUCK infrastructure</p>
+    <h1>세 개의 서버,<br>하나의 흐름.</h1>
+    <p class="lead">Nginx가 요청을 받고 FastAPI가 처리한 뒤 MariaDB의 테스트 데이터를 확인합니다. 아래 상태는 현재 서비스에서 직접 조회한 결과입니다.</p>
+
+    <section class="grid" aria-label="서비스 상태">
+      <article class="card" id="nginx-card">
+        <div class="topline"><h2>Nginx</h2><span class="dot" aria-hidden="true"></span></div>
+        <p class="status">확인 중</p>
+        <p class="detail">100.117.253.9 · HTTP proxy</p>
+      </article>
+      <article class="card" id="was-card">
+        <div class="topline"><h2>FastAPI</h2><span class="dot" aria-hidden="true"></span></div>
+        <p class="status">확인 중</p>
+        <p class="detail">100.66.77.55:8000 · Application</p>
+      </article>
+      <article class="card" id="db-card">
+        <div class="topline"><h2>MariaDB</h2><span class="dot" aria-hidden="true"></span></div>
+        <p class="status">확인 중</p>
+        <p class="detail">100.104.124.29:3306 · Database</p>
+      </article>
+    </section>
+
+    <footer>
+      <span id="updated">상태 정보를 불러오는 중입니다.</span>
+      <button type="button" id="refresh">지금 새로고침</button>
+    </footer>
+  </main>
+
+  <script>
+    const setCard = (id, ok, detail) => {
+      const card = document.getElementById(id);
+      card.classList.remove("ok", "error");
+      card.classList.add(ok ? "ok" : "error");
+      card.querySelector(".status").textContent = ok ? "정상" : "연결 실패";
+      if (detail) card.querySelector(".detail").textContent = detail;
+    };
+
+    const getJson = async (url) => {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+
+    async function refresh() {
+      const updated = document.getElementById("updated");
+      updated.textContent = "상태 확인 중…";
+
+      try {
+        const nginx = await getJson("/nginx-health");
+        setCard("nginx-card", nginx.status === "ok", "100.117.253.9 · HTTP proxy");
+      } catch (error) {
+        setCard("nginx-card", false, `Nginx · ${error.message}`);
+      }
+
+      try {
+        const was = await getJson("/api/health");
+        setCard("was-card", was.status === "ok", "100.66.77.55:8000 · Application");
+      } catch (error) {
+        setCard("was-card", false, `FastAPI · ${error.message}`);
+      }
+
+      try {
+        const health = await getJson("/health");
+        const db = health.database || {};
+        const checkedAt = db.checked_at ? new Date(db.checked_at).toLocaleString("ko-KR") : "응답 없음";
+        setCard("db-card", db.status === "ok", `마지막 DB 확인 · ${checkedAt}`);
+      } catch (error) {
+        setCard("db-card", false, `MariaDB · ${error.message}`);
+      }
+
+      updated.textContent = `마지막 갱신 · ${new Date().toLocaleTimeString("ko-KR")}`;
+    }
+
+    document.getElementById("refresh").addEventListener("click", refresh);
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

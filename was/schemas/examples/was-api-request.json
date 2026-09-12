@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "request_id": "efa41bc3638fccc4608bfba32bf456c1",
+  "timestamp": "2026-09-08T04:20:00Z",
+  "environment": "production",
+  "severity": "INFO",
+  "source": "was",
+  "service": "luck-was",
+  "feature": "tarot",
+  "event_type": "api_request",
+  "user_id": null,
+  "guest_key": "3889ff5a-cadb-4c20-8759-083cac443121",
+  "method": "POST",
+  "uri": "/api/tarot/readings",
+  "status": 200,
+  "client_ip": "100.10.20.30",
+  "processing_time": 1.24,
+  "input": {
+    "topic": "love",
+    "question": "제 연애운이 어떻게 될까요?"
+  },
+  "metadata": {
+    "content_length": 182,
+    "reading_id": 4821
+  }
+}
