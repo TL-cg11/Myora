@@ -14,3 +14,7 @@ __pycache__/
 node_modules/
 .DS_Store
 Thumbs.db
+
+# 기존 서버에서 가져온 덤프·환경 파일 (비밀 포함, 커밋 금지)
+/*.sql
+/.server/
