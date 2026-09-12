@@ -1,0 +1,10 @@
+/var/log/luck-security/ids-events.jsonl {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0640 root adm
+}

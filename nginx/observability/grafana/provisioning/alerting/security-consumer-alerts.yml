@@ -1,0 +1,262 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: luck-security-consumer-health
+    folder: Security Monitoring
+    interval: 1m
+    rules:
+      - uid: luck-security-lag-high
+        title: Security consumer lag is high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: max by (consumer_group, topic) (luck_consumer_lag_messages)
+              instant: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [1000], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-security-consumers
+        panelId: 1
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: Security sink consumer lag exceeded 1000 messages for 5 minutes.
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: kafka-consumer, severity: warning, owner: security-monitoring}
+
+      - uid: luck-security-dlq-detected
+        title: Security sink DLQ message detected
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: sum by (consumer_group, topic, stage) (increase(luck_sink_dlq_total[5m]))
+              instant: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-security-consumers
+        panelId: 4
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: At least one security sink message entered a DLQ in the last 5 minutes.
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
+
+      - uid: luck-security-sink-down
+        title: Security sink metrics target is down
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: up{job="luck-security-sinks"}
+              instant: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: min
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [1], type: lt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-security-consumers
+        panelId: 5
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: A security sink metrics target has been unavailable for 2 minutes.
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: observability, severity: critical, owner: security-monitoring}
+
+      - uid: luck-security-lag-critical
+        title: Security consumer lag is critical
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: max by (consumer_group, topic) (luck_consumer_lag_messages)
+              instant: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [5000], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-security-consumers
+        panelId: 1
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Security sink consumer lag exceeded 5000 messages.
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
+
+      - uid: luck-security-message-stale
+        title: Security consumer oldest message is stale
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              datasource: {type: prometheus, uid: prometheus}
+              editorMode: code
+              expr: max by (consumer_group, topic) (luck_consumer_oldest_message_age_seconds)
+              instant: true
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [60], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-security-consumers
+        panelId: 1
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: A security sink consumer is processing messages older than 60 seconds.
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
+
+deleteContactPoints:
+  - orgId: 1
+    uid: luck-security-slack
+  - orgId: 1
+    uid: luck-security-email
+
+contactPoints:
+  - orgId: 1
+    name: Luck Security Operations
+    receivers:
+      - uid: luck-security-discord
+        type: discord
+        disableResolveMessage: false
+        settings:
+          url: $GRAFANA_DISCORD_WEBHOOK_URL
+          use_discord_username: true
+
+policies:
+  - orgId: 1
+    receiver: Luck Security Operations
+    group_by: [grafana_folder, alertname, consumer_group, topic]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

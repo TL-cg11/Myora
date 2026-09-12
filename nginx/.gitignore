@@ -1,0 +1,8 @@
+# Local observability credentials
+observability/observability.env
+
+# Python runtime artifacts and local sink credentials
+__pycache__/
+*.py[cod]
+.venv-security-sink/
+security_sink.env

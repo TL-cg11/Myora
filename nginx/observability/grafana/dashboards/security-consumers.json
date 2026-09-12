@@ -1,0 +1,84 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"editorMode": "code", "expr": "max by (consumer_group, topic) (luck_consumer_lag_messages)", "legendFormat": "{{consumer_group}} / {{topic}}", "range": true, "refId": "A"}],
+      "title": "Consumer lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"editorMode": "code", "expr": "sum by (consumer_group, topic) (rate(luck_sink_messages_total{result=\"processed\"}[$__rate_interval]))", "legendFormat": "{{consumer_group}} / {{topic}}", "range": true, "refId": "A"}],
+      "title": "Processing throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le, consumer_group, topic) (rate(luck_sink_processing_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p95 {{consumer_group}} / {{topic}}", "range": true, "refId": "A"}],
+      "title": "Processing latency p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"editorMode": "code", "expr": "sum by (consumer_group, topic) (increase(luck_sink_failures_total[$__rate_interval]))", "legendFormat": "failure {{consumer_group}} / {{topic}}", "range": true, "refId": "A"},
+        {"editorMode": "code", "expr": "sum by (consumer_group, topic) (increase(luck_sink_retries_total[$__rate_interval]))", "legendFormat": "retry {{consumer_group}} / {{topic}}", "range": true, "refId": "B"},
+        {"editorMode": "code", "expr": "sum by (consumer_group, topic) (increase(luck_sink_dlq_total[$__rate_interval]))", "legendFormat": "DLQ {{consumer_group}} / {{topic}}", "range": true, "refId": "C"}
+      ],
+      "title": "Failures / retries / DLQ",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}, "overrides": []},
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"editorMode": "code", "expr": "up{job=\"luck-security-sinks\"}", "instant": true, "legendFormat": "{{instance}}", "range": false, "refId": "A"}],
+      "title": "Security sink targets",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "loki", "uid": "loki"},
+      "description": "Only centrally masked log streams are included.",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 21},
+      "id": 6,
+      "options": {"dedupStrategy": "signature", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [{"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\"} | json", "queryType": "range", "refId": "A"}],
+      "title": "Masked log search",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["luck", "security-monitoring", "kafka", "loki"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Luck Security Consumers",
+  "uid": "luck-security-consumers",
+  "version": 1
+}

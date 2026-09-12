@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: Luck Security Monitoring
+    orgId: 1
+    folder: Security Monitoring
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards/security-monitoring
+      foldersFromFilesStructure: false

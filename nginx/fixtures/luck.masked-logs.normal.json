@@ -1,0 +1,17 @@
+{
+  "event_id": "raw_evt_fixture_0001",
+  "schema_version": "1.0",
+  "request_id": "req_fixture_0001",
+  "occurred_at": "2026-09-07T01:00:00.000Z",
+  "environment": "test",
+  "source_service": "luck-was",
+  "source_type": "llm_prompt",
+  "masking_policy_version": "masking-fixture-1.0",
+  "masked_message": "사용자 연락처 [PHONE_NUMBER]가 포함된 요청",
+  "body_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "safe_metadata": {
+    "route": "/api/saju/chat",
+    "method": "POST",
+    "fixture": true
+  }
+}

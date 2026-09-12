@@ -1,0 +1,92 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "description": "Selected Grafana time range, grouped by final event risk.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right"}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": true}},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY risk_level ORDER BY FIELD(risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW')", "refId": "A"}],
+      "title": "Events by risk level",
+      "type": "piechart"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "options": {"orientation": "horizontal", "showValue": "always"},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT d.category AS category, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.category ORDER BY detections DESC", "refId": "A"}],
+      "title": "Detections by category",
+      "type": "barchart"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlYlRd"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"orientation": "horizontal", "showValue": "always"},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT d.entity_type AS entity_type, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.entity_type ORDER BY detections DESC LIMIT 20", "refId": "A"}],
+      "title": "Top entity types",
+      "type": "barchart"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "fieldConfig": {"defaults": {"color": {"mode": "continuous-BlPu"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "id": 4,
+      "options": {"orientation": "horizontal", "showValue": "always"},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT d.rule_id AS rule_id, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.rule_id ORDER BY detections DESC LIMIT 20", "refId": "A"}],
+      "title": "Top detection rules",
+      "type": "barchart"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "id": 5,
+      "options": {"displayLabels": ["name", "value"], "legend": {"displayMode": "table", "placement": "right"}, "pieType": "pie", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": true}},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT status AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY status", "refId": "A"}],
+      "title": "Events by status",
+      "type": "piechart"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [{"format": "time_series", "rawQuery": true, "rawSql": "SELECT $__timeGroupAlias(detected_at, '5m'), risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY 1, risk_level ORDER BY 1", "refId": "A"}],
+      "title": "Security events over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "description": "OPEN or INVESTIGATING events older than this visibility threshold. Alerts use risk-specific 1/4/24/72-hour thresholds.",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+      "id": 7,
+      "options": {"cellHeight": "sm", "showHeader": true, "sortBy": [{"desc": true, "displayName": "unresolved_hours"}]},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT event_id, detected_at, TIMESTAMPDIFF(HOUR, detected_at, UTC_TIMESTAMP()) AS unresolved_hours, risk_level, status, source_service, event_name, assigned_to, masked_excerpt FROM security_event WHERE status IN ('OPEN', 'INVESTIGATING') AND detected_at <= UTC_TIMESTAMP() - INTERVAL ${unresolved_hours:raw} HOUR ORDER BY detected_at ASC LIMIT 200", "refId": "A"}],
+      "title": "Untreated / long-unresolved events",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["luck", "security-monitoring", "events"],
+  "templating": {"list": [{"current": {"selected": true, "text": "24", "value": "24"}, "description": "Provisional visibility threshold; finalize alert value in Part 10.", "hide": 0, "label": "Unresolved hours", "name": "unresolved_hours", "options": [{"selected": false, "text": "1", "value": "1"}, {"selected": false, "text": "6", "value": "6"}, {"selected": true, "text": "24", "value": "24"}, {"selected": false, "text": "72", "value": "72"}], "query": "1,6,24,72", "type": "custom"}]},
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Luck Security Events",
+  "uid": "luck-security-events",
+  "version": 1
+}

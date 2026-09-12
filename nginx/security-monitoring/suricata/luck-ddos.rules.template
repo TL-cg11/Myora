@@ -1,0 +1,7 @@
+# LUCK local detection-only rules. The installer replaces @MONITORED_IP@.
+# These rules only emit alerts. They do not drop, reject, or bypass traffic.
+
+alert tcp any any -> @MONITORED_IP@ any (msg:"LUCK DDOS TCP SYN flood"; flags:S; ack:0; flow:stateless; detection_filter:track by_src,count 100,seconds 1; classtype:attempted-dos; sid:1000001; rev:1;)
+alert udp any any -> @MONITORED_IP@ any (msg:"LUCK DDOS UDP flood"; detection_filter:track by_src,count 500,seconds 1; classtype:attempted-dos; sid:1000002; rev:1;)
+alert icmp any any -> @MONITORED_IP@ any (msg:"LUCK DDOS ICMP flood"; itype:8; detection_filter:track by_src,count 100,seconds 1; classtype:attempted-dos; sid:1000003; rev:1;)
+alert tcp any any -> @MONITORED_IP@ [80,443,8080] (msg:"LUCK DDOS TCP web connection flood"; flow:to_server,established; flags:PA; detection_filter:track by_src,count 300,seconds 10; classtype:attempted-dos; sid:1000004; rev:1;)

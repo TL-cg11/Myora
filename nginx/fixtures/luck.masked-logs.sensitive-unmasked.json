@@ -1,0 +1,11 @@
+{
+  "event_id": "raw_evt_sensitive_0001",
+  "schema_version": "1.0",
+  "occurred_at": "2026-09-07T01:03:00.000Z",
+  "environment": "test",
+  "source_service": "luck-was",
+  "source_type": "llm_prompt",
+  "masking_policy_version": "masking-fixture-1.0",
+  "masked_message": "resident_id=900101-1234567 api_key=sk-test-not-real",
+  "safe_metadata": { "fixture": true, "expected": "masking-rejection" }
+}
