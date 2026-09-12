@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from security_sink.common import KafkaMetadata
+from security_sink.fault_injection import crash_once
 from security_sink.kafka_loop import KafkaSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.masked_logs import TOPIC, ConsumptionRepository, LokiClient, MaskedLogSink
@@ -46,6 +47,11 @@ def main() -> int:
         LokiClient(
             required("LOKI_URL"),
             timeout=float(os.getenv("LOKI_PUSH_TIMEOUT_SECONDS", "5")),
+        ),
+        after_loki_push=lambda metadata: crash_once(
+            "MASKED_LOG_TEST_CRASH_AFTER_LOKI_MARKER",
+            "loki_pushed_before_consumption_and_kafka_commit",
+            metadata,
         ),
     )
     consumer = Consumer(config)

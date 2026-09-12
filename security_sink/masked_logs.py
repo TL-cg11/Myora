@@ -126,10 +126,15 @@ class ConsumptionRepository:
 
 class MaskedLogSink:
     def __init__(
-        self, consumption: ConsumptionRepository, loki: LokiClient
+        self,
+        consumption: ConsumptionRepository,
+        loki: LokiClient,
+        *,
+        after_loki_push: Callable[[KafkaMetadata], None] | None = None,
     ) -> None:
         self._consumption = consumption
         self._loki = loki
+        self._after_loki_push = after_loki_push
 
     def handle(
         self,
@@ -143,6 +148,8 @@ class MaskedLogSink:
 
         payload_hash = sha256_hex(raw_bytes)
         self._loki.push(event)
+        if self._after_loki_push is not None:
+            self._after_loki_push(metadata)
         self._consumption.record_processed(metadata, payload_hash, event["event_id"])
         return ProcessResult(event_db_id=None)
 

@@ -9,7 +9,8 @@ import signal
 import time
 from typing import Any
 
-from security_sink.common import KafkaMetadata
+from security_sink.common import KafkaMetadata, decode_message_key
+from security_sink.fault_injection import crash_once
 from security_sink.kafka_loop import KafkaSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.resilience import (
@@ -112,10 +113,21 @@ def main() -> int:
         KafkaSinkLoop(
             consumer,
             consumer_group=consumer_group,
-            process=process,
-            should_stop=lambda: stopping,
-            is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
-            on_processed=processed,
+        process=process,
+        should_stop=lambda: stopping,
+        is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
+        before_commit=lambda message, _result: crash_once(
+            "SECURITY_EVENT_TEST_CRASH_BEFORE_COMMIT_MARKER",
+            "security_event_db_committed_before_kafka_commit",
+            KafkaMetadata(
+                consumer_group=consumer_group,
+                topic=message.topic(),
+                partition=message.partition(),
+                offset=message.offset(),
+                key=decode_message_key(message.key()),
+            ),
+        ),
+        on_processed=processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__
             ) or metrics.record_failure(TOPIC, "broker_poll"),

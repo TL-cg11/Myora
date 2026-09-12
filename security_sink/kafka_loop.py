@@ -18,6 +18,7 @@ class KafkaSinkLoop:
         should_stop: Callable[[], bool],
         is_partition_eof: Callable[[Any], bool],
         before_poll: Callable[[], None] | None = None,
+        before_commit: Callable[[Any, ProcessResult], None] | None = None,
         on_processed: Callable[[Any, ProcessResult], None] | None = None,
         on_broker_error: Callable[[Exception | Any, int], None] | None = None,
         sleeper: Callable[[float], None] = time.sleep,
@@ -30,6 +31,7 @@ class KafkaSinkLoop:
         self._should_stop = should_stop
         self._is_partition_eof = is_partition_eof
         self._before_poll = before_poll
+        self._before_commit = before_commit
         self._on_processed = on_processed
         self._on_broker_error = on_broker_error
         self._sleeper = sleeper
@@ -71,6 +73,8 @@ class KafkaSinkLoop:
                 key=decode_message_key(message.key()),
             )
             result = self._process(raw_value, metadata)
+            if self._before_commit is not None:
+                self._before_commit(message, result)
             self._consumer.commit(message=message, asynchronous=False)
             if self._on_processed is not None:
                 self._on_processed(message, result)

@@ -79,6 +79,23 @@ def make_loop(
 
 
 class KafkaSinkLoopTests(unittest.TestCase):
+    def test_before_commit_checkpoint_runs_after_processing(self) -> None:
+        consumer = FakeConsumer([FakeMessage()])
+        order: list[str] = []
+        loop = KafkaSinkLoop(
+            consumer,
+            consumer_group="security-event-sink",
+            process=lambda _raw, _item: order.append("process") or ProcessResult(10),
+            should_stop=lambda: False,
+            is_partition_eof=lambda error: error.code() == 1,
+            before_commit=lambda _message, _result: order.append("checkpoint"),
+        )
+
+        loop.run(max_polls=1)
+
+        self.assertEqual(order, ["process", "checkpoint"])
+        self.assertEqual(len(consumer.commits), 1)
+
     def test_broker_errors_back_off_then_recover_without_commit(self) -> None:
         delays: list[float] = []
         consumer = FakeConsumer(
