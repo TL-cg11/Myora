@@ -8,7 +8,7 @@ import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,11 @@ from app.config import settings
 from app.models import AppUser, AuthSession
 
 PBKDF2_ITERATIONS = 310_000
+
+# Bearer 토큰과 같은 AuthSession을 가리키는 cookie 세션의 이름. nginx
+# auth_request(Grafana iframe 관리자 검증 등)는 원래 요청의 Authorization
+# 헤더를 기본적으로 전달하지 않으므로, 그 경로는 사실상 이 cookie로만 인증된다.
+SESSION_COOKIE_NAME = "myohan_session"
 
 def utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
@@ -64,11 +69,36 @@ def bearer_token(authorization: str | None) -> str | None:
     return token if scheme.lower() == "bearer" and token else None
 
 
+def set_session_cookie(response: Response, token: str, expires_at: datetime) -> None:
+    """Bearer 토큰과 같은 세션을 가리키는 cookie를 심는다.
+
+    수명은 초 단위 max_age로 넘긴다. datetime을 그대로 넘기면 타임존 표기가
+    구현마다 갈릴 수 있어, 여기서 직접 남은 초를 계산해 모호함을 없앤다.
+    """
+    max_age = max(0, int((expires_at - utc_now()).total_seconds()))
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=max_age,
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite=settings.session_cookie_samesite,
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+
 def optional_user(
     authorization: str | None = Header(default=None),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
     session: Session = Depends(get_session),
 ) -> AppUser | None:
-    token = bearer_token(authorization)
+    # Authorization을 우선한다. nginx auth_request 같은 경로는 애초에 그 헤더가
+    # 없으므로 자연히 session_cookie로만 인증된다.
+    token = bearer_token(authorization) or session_cookie
     if token is None:
         return None
     auth_session = session.scalar(

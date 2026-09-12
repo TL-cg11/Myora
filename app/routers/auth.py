@@ -4,13 +4,25 @@ from datetime import datetime, timedelta
 from math import ceil
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import bearer_token, create_session, current_user, hash_password, token_digest, utc_now, verify_password
+from app.auth import (
+    SESSION_COOKIE_NAME,
+    bearer_token,
+    clear_session_cookie,
+    create_session,
+    current_user,
+    hash_password,
+    require_admin,
+    set_session_cookie,
+    token_digest,
+    utc_now,
+    verify_password,
+)
 from app.config import settings
 from app.db import get_session
 from app.models import AppUser, AppUserRole, AuthSession, Reading, TarotReading
@@ -96,7 +108,7 @@ def locked_error(locked_until: datetime, now: datetime) -> HTTPException:
 
 
 @router.post("/register", response_model=AuthOut, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterIn, session: Session = Depends(get_session)) -> AuthOut:
+def register(payload: RegisterIn, response: Response, session: Session = Depends(get_session)) -> AuthOut:
     email = payload.email
     if session.scalar(select(AppUser.id).where(or_(AppUser.username == payload.username, AppUser.email == email))):
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일이에요.")
@@ -116,11 +128,12 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)) -> Au
         session.rollback()
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일이에요.") from exc
     token, expires_at = create_session(session, user)
+    set_session_cookie(response, token, expires_at)
     return AuthOut(access_token=token, expires_at=expires_at, user=user_out(user))
 
 
 @router.post("/login", response_model=AuthOut)
-def login(payload: LoginIn, session: Session = Depends(get_session)) -> AuthOut:
+def login(payload: LoginIn, response: Response, session: Session = Depends(get_session)) -> AuthOut:
     login_id = payload.login_id.strip().lower()
     user = session.scalar(
         select(AppUser)
@@ -148,6 +161,7 @@ def login(payload: LoginIn, session: Session = Depends(get_session)) -> AuthOut:
     claim_guest_readings(session, user, payload.guest_key)
     session.commit()
     token, expires_at = create_session(session, user)
+    set_session_cookie(response, token, expires_at)
     return AuthOut(access_token=token, expires_at=expires_at, user=user_out(user))
 
 
@@ -157,11 +171,35 @@ def me(user: AppUser = Depends(current_user)) -> UserOut:
 
 
 @router.post("/logout")
-def logout(authorization: str | None = Header(default=None), session: Session = Depends(get_session)) -> dict:
-    token = bearer_token(authorization)
+def logout(
+    response: Response,
+    authorization: str | None = Header(default=None),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    session: Session = Depends(get_session),
+) -> dict:
+    token = bearer_token(authorization) or session_cookie
     if token:
         auth_session = session.scalar(select(AuthSession).where(AuthSession.token_hash == token_digest(token)))
         if auth_session:
             session.delete(auth_session)
             session.commit()
+    # DB 세션이 이미 없었더라도(만료 등) 브라우저에 남은 cookie는 그대로면 다음
+    # 요청에도 계속 실려 나간다. 항상 지운다.
+    clear_session_cookie(response)
     return {"status": "ok"}
+
+
+@router.get("/admin-check", status_code=status.HTTP_204_NO_CONTENT)
+def admin_check(user: AppUser = Depends(require_admin)) -> Response:
+    """nginx auth_request가 그대로 호출하는 관리자 검증 endpoint.
+
+    Grafana iframe 같은 auth_request 경로는 원래 요청의 Authorization 헤더를
+    기본적으로 전달하지 않으므로, 실제로는 SESSION_COOKIE_NAME cookie로만
+    인증된다(require_admin -> current_user -> optional_user가 Authorization을
+    먼저 보고 없으면 cookie를 본다). 응답 본문은 nginx가 보지 않으므로 비운다.
+
+    - 관리자: 204
+    - 미인증: 401 (current_user에서)
+    - 일반 계정: 403 (require_admin에서)
+    """
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
