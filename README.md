@@ -19,6 +19,42 @@ Myora/
     └── docker/          compose 전용 초기화 스크립트
 ```
 
+## 팀원 시작 가이드 (가장 빠른 길)
+
+필요한 것 두 가지:
+
+1. **Docker Desktop** — https://www.docker.com/products/docker-desktop/ (Windows / Mac 모두, Apple Silicon 포함).
+   설치 후 한 번 실행해 둔다. Windows 는 설치 중 WSL2 옵션을 기본값 그대로 둔다.
+2. **팀 번들 zip** (`myora-team-bundle-<날짜>.zip`, 약 860MB) — 서버 접근 권한이 있는 팀원이
+   `bash scripts/export-team-bundle.sh` 로 만들어 **개인 메신저/드라이브로 직접** 전달한다.
+   안에 `.env`(DeepSeek 키·가명화 키·관제 토큰), 운영 DB 덤프, NER 모델 캐시가 들어 있어 git 에는 절대 올리지 않는다.
+
+그 다음 터미널에서 (Windows 는 **Git Bash**, Mac 은 기본 터미널):
+
+```bash
+git clone https://github.com/TL-cg11/Myora.git
+cd Myora
+bash scripts/import-team-bundle.sh ~/Downloads/myora-team-bundle-20260912.zip
+```
+
+처음엔 이미지 빌드·모델 복사·DB 이관까지 10분 정도 걸린다. 끝나면:
+
+| 주소 | 내용 |
+|---|---|
+| http://localhost | 묘한운세 (운영 서버와 같은 회원·기록·AI 채팅·NER 마스킹 상태) |
+| http://localhost:3000 | Grafana — `admin` / `.env` 의 `GRAFANA_ADMIN_PASSWORD` |
+
+번들 없이 코드만 돌려 보고 싶으면 아래 "빠른 시작"처럼 `.env.example` 만 복사해도 뜬다
+(그 경우 AI 채팅은 고정 안내만 나오고 회원·기록 데이터는 비어 있다).
+
+이후 평소에는:
+
+```bash
+git pull
+docker compose up -d --build     # 바뀐 서비스만 다시 빌드
+docker compose down              # 끝낼 때 (데이터는 볼륨에 남는다)
+```
+
 ## 빠른 시작
 
 필요한 것: [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows·Mac 모두 지원,
