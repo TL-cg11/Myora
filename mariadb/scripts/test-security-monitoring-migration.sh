@@ -15,6 +15,12 @@ for table_name in "${expected_tables[@]}"; do
   fi
 done
 
+notification_channels=$(sudo mysql -N -B -uroot -e "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'security_monitoring' AND TABLE_NAME = 'notification_log' AND COLUMN_NAME = 'channel';")
+if [[ "$notification_channels" != *"'DISCORD'"* ]]; then
+  echo 'notification_log.channel does not allow DISCORD.' >&2
+  exit 1
+fi
+
 index_columns=$(sudo mysql -N -B -uroot -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = 'security_monitoring' AND table_name = 'kafka_consumption' AND index_name = 'uk_kafka_consumption_message';")
 if [[ "$index_columns" != '4' ]]; then
   echo 'Missing composite idempotency index on kafka_consumption.' >&2

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS app_user (
     password_hash VARCHAR(255) NOT NULL,
     nickname      VARCHAR(40)  NULL COMMENT '이전 스키마 호환용. 신규 앱은 name 사용',
     status        ENUM('active','dormant','withdrawn') NOT NULL DEFAULT 'active',
+    role          ENUM('user','admin') NOT NULL DEFAULT 'user' COMMENT '관리자는 채팅 질문 한도가 늘어난다. 셀프서비스 승격 API는 없다',
     failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     locked_until  DATETIME NULL,
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -28,7 +29,8 @@ CREATE TABLE IF NOT EXISTS app_user (
 ALTER TABLE app_user
     ADD COLUMN IF NOT EXISTS username VARCHAR(40) NULL AFTER id,
     ADD COLUMN IF NOT EXISTS name VARCHAR(40) NULL AFTER username,
-    ADD COLUMN IF NOT EXISTS failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
+    ADD COLUMN IF NOT EXISTS role ENUM('user','admin') NOT NULL DEFAULT 'user' AFTER status,
+    ADD COLUMN IF NOT EXISTS failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER role,
     ADD COLUMN IF NOT EXISTS locked_until DATETIME NULL AFTER failed_login_attempts;
 UPDATE app_user SET name = COALESCE(NULLIF(name, ''), nickname, '묘한 사용자') WHERE name IS NULL OR name = '';
 UPDATE app_user SET username = CONCAT('legacy_', id) WHERE username IS NULL OR username = '';

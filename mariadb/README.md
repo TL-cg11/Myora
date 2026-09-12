@@ -44,6 +44,8 @@ sudo systemctl status mariadb --no-pager
 
 ## 타로 스키마
 
+전체 테이블 명세는 [`docs/schema.md`](docs/schema.md), 설계 배경은 [`docs/schema-design.html`](docs/schema-design.html)에 있습니다.
+
 `sql/init/`의 파일은 파일명 순서대로 전부 적용됩니다. `luck_user`에게는 DDL 권한이 없으므로 스키마 변경은 반드시 root로 적용해야 합니다.
 
 | 파일 | 내용 |
