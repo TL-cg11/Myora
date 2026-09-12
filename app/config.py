@@ -70,6 +70,8 @@ class Settings:
     chat_question_limit: int = int(os.getenv("CHAT_QUESTION_LIMIT", "5"))
     chat_question_limit_admin: int = int(os.getenv("CHAT_QUESTION_LIMIT_ADMIN", "20"))
     ai_guardrail_model: str = os.getenv("AI_GUARDRAIL_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+    display_masking_host: str = os.getenv("ADAPTER_DISPLAY_API_HOST", "127.0.0.1")
+    display_masking_port: int = int(os.getenv("ADAPTER_DISPLAY_API_PORT", "8765"))
 
     def __post_init__(self):
         for name in ("ai_request_timeout", "ai_connect_timeout", "ai_check_timeout",
@@ -88,6 +90,10 @@ class Settings:
                 "AI_TOTAL_TIMEOUT must cover AI_CHECK_TIMEOUT*2 + AI_REQUEST_TIMEOUT "
                 f"({self.ai_total_timeout} < {sequential})"
             )
+        if self.display_masking_host not in {"127.0.0.1", "::1", "localhost"}:
+            raise ValueError("ADAPTER_DISPLAY_API_HOST must be a loopback address")
+        if not 1 <= self.display_masking_port <= 65535:
+            raise ValueError("ADAPTER_DISPLAY_API_PORT must be between 1 and 65535")
 
     @property
     def tarot_llm_enabled(self) -> bool:

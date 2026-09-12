@@ -102,6 +102,8 @@ class Settings:
     pii_context_model: str  # Hugging Face 한국어 NLI 모델 또는 로컬 경로
     pii_context_non_pii_threshold: float  # 오탐으로 제외할 최소 비개인정보 확률
     pii_context_local_files_only: bool  # 원격 모델 다운로드를 금지할지 여부
+    display_api_host: str  # 채팅 화면이 같은 모델을 쓰는 로컬 전용 API 주소
+    display_api_port: int  # 로컬 전용 표시 마스킹 API 포트
 
     # consumer는 결과 발행이 끝난 뒤 직접 commit하므로 자동 commit을 끈다.
     def consumer_config(self) -> dict[str, Any]:
@@ -153,6 +155,12 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         raise ConfigError(
             "DETECTOR_PII_CONTEXT_NON_PII_THRESHOLD는 0.5 이상 1 이하여야 합니다."
         )
+    display_api_host = _text(env, "ADAPTER_DISPLAY_API_HOST", "127.0.0.1")
+    if display_api_host not in {"127.0.0.1", "::1", "localhost"}:
+        raise ConfigError("ADAPTER_DISPLAY_API_HOST는 loopback 주소여야 합니다.")
+    display_api_port = int(_text(env, "ADAPTER_DISPLAY_API_PORT", "8765"))
+    if not 1 <= display_api_port <= 65535:
+        raise ConfigError("ADAPTER_DISPLAY_API_PORT는 1 이상 65535 이하여야 합니다.")
     client_options = {
         key: env[name]
         for key, name in OPTIONAL_CLIENT_KEYS.items()
@@ -191,4 +199,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         pii_context_local_files_only=_boolean(
             env, "DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY", False
         ),
+        display_api_host=display_api_host,
+        display_api_port=display_api_port,
     )

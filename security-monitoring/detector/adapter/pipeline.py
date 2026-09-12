@@ -6,11 +6,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+import threading
 from typing import Any
 
 from app import jsonio
-from app.engine import process_log
+from app.engine import detect, process_log
 from app.hashing import stable_id
+from app.masking import mask
 from app.models import ProcessingFailure
 from app.rules.ner import NERRecognizer, TransformersNERRecognizer
 from app.rules.pii_context import (PIICandidateVerifier,
@@ -56,6 +58,7 @@ class MaskingPipeline:
                  pii_verifier: PIICandidateVerifier | None = None) -> None:
         self._settings = settings
         self._policy = policy
+        self._model_lock = threading.Lock()
         self._ner_recognizer = ner_recognizer
         if self._ner_recognizer is None and settings.ner_enabled:
             self._ner_recognizer = TransformersNERRecognizer(
@@ -95,12 +98,13 @@ class MaskingPipeline:
             stage = "VALIDATE"
             normalized = self._normalize(record, topic, digest)
 
-            result = process_log(
-                normalized.log,
-                fingerprint_key=self._settings.fingerprint_key,
-                ner_recognizer=self._ner_recognizer,
-                pii_verifier=self._pii_verifier,
-            )
+            with self._model_lock:
+                result = process_log(
+                    normalized.log,
+                    fingerprint_key=self._settings.fingerprint_key,
+                    ner_recognizer=self._ner_recognizer,
+                    pii_verifier=self._pii_verifier,
+                )
             if result.failure is not None:
                 return self._dead_letter(
                     result.failure, topic, partition, offset, message_key, digest
@@ -115,6 +119,14 @@ class MaskingPipeline:
             # 예외 문자열에는 원문이 들어갈 수 있어 고정 코드만 남긴다.
             failure = ProcessingFailure("1.0", "ADAPTER_ERROR", stage, True)
             return self._dead_letter(failure, topic, partition, offset, message_key, digest)
+
+    def mask_display_text(self, text: str) -> str:
+        """채팅 화면에 표시할 텍스트를 로그와 같은 문맥 검증기로 마스킹한다."""
+        if not isinstance(text, str) or not text or len(text) > 10_000:
+            raise ValueError("INVALID_DISPLAY_TEXT")
+        with self._model_lock:
+            findings = detect(text, pii_verifier=self._pii_verifier)
+        return mask(text, findings)
 
     # topic으로 원본 종류를 정하고, 알 수 없으면 로그의 source 필드로 판단한다.
     def _normalize(self, record: Any, topic: str, digest: str):

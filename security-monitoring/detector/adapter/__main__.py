@@ -7,6 +7,7 @@ import signal
 import sys
 
 from adapter.config import ConfigError, load_settings
+from adapter.display_api import DisplayMaskingServer
 from adapter.kafka_runner import KafkaBridge, PublishError, build_clients
 from adapter.pipeline import MaskingPipeline
 from adapter.policy import PolicyError, load_policy
@@ -85,6 +86,10 @@ def main() -> int:
 
     consumer, producer = build_clients(settings)
     bridge = KafkaBridge(settings, pipeline, consumer=consumer, producer=producer)
+    display_server = DisplayMaskingServer(
+        settings.display_api_host, settings.display_api_port, pipeline
+    )
+    display_server.start()
     # 처리 중인 메시지를 마친 뒤 종료해 commit되지 않은 결과가 남지 않게 한다.
     for name in ("SIGINT", "SIGTERM"):
         received = getattr(signal, name, None)
@@ -96,6 +101,8 @@ def main() -> int:
     except PublishError as error:
         print(f"PUBLISH_ERROR: {error}", file=sys.stderr)
         return 1
+    finally:
+        display_server.close()
     return 1 if counts["failed"] else 0
 
 
