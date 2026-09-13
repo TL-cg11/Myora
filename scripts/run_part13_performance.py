@@ -9,6 +9,7 @@ import json
 import math
 import re
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -222,25 +223,49 @@ def produce_phase(producer: Any, run_id: str, phase: str, rate: int, duration: i
                   security_url: str, masked_url: str) -> tuple[int, int, float]:
     total = rate * duration
     started = time.monotonic()
-    next_sample = started
     max_lag = 0
     max_age = 0.0
-    for sequence in range(total):
-        target = started + sequence / rate
-        delay = target - time.monotonic()
-        if delay > 0:
-            time.sleep(delay)
-        occurred_at = utc_now()
-        security_id = f"p13perf-{run_id}-s-{phase[0]}{sequence:05d}"
-        masked_id = f"p13perf-{run_id}-m-{phase[0]}{sequence:05d}"
-        producer.produce(SECURITY_TOPIC, key=security_id, value=json.dumps(security_record(security_id, occurred_at)))
-        producer.produce(MASKED_TOPIC, key=masked_id, value=json.dumps(masked_record(masked_id, occurred_at)))
-        producer.poll(0)
-        if time.monotonic() >= next_sample:
-            for url in (security_url, masked_url):
-                lag, age = lag_state(metric_samples(url))
-                max_lag, max_age = max(max_lag, lag), max(max_age, age)
-            next_sample = time.monotonic() + 1
+    sample_lock = threading.Lock()
+    sample_stop = threading.Event()
+    sample_errors: list[Exception] = []
+
+    def sample_lag() -> None:
+        nonlocal max_lag, max_age
+        while not sample_stop.is_set():
+            try:
+                observed_lag = 0
+                observed_age = 0.0
+                for url in (security_url, masked_url):
+                    lag, age = lag_state(metric_samples(url))
+                    observed_lag = max(observed_lag, lag)
+                    observed_age = max(observed_age, age)
+                with sample_lock:
+                    max_lag = max(max_lag, observed_lag)
+                    max_age = max(max_age, observed_age)
+            except Exception as exc:
+                sample_errors.append(exc)
+                return
+            sample_stop.wait(1)
+
+    sampler = threading.Thread(target=sample_lag, name="part13-lag-sampler", daemon=True)
+    sampler.start()
+    try:
+        for sequence in range(total):
+            target = started + sequence / rate
+            delay = target - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            occurred_at = utc_now()
+            security_id = f"p13perf-{run_id}-s-{phase[0]}{sequence:05d}"
+            masked_id = f"p13perf-{run_id}-m-{phase[0]}{sequence:05d}"
+            producer.produce(SECURITY_TOPIC, key=security_id, value=json.dumps(security_record(security_id, occurred_at)))
+            producer.produce(MASKED_TOPIC, key=masked_id, value=json.dumps(masked_record(masked_id, occurred_at)))
+            producer.poll(0)
+    finally:
+        sample_stop.set()
+        sampler.join(timeout=6)
+    if sample_errors:
+        raise RuntimeError(f"metric sampling failed: {type(sample_errors[0]).__name__}")
     remaining = producer.flush(30)
     if remaining:
         raise RuntimeError(f"Kafka producer flush left {remaining} messages")

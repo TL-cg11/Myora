@@ -58,6 +58,8 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
         self.assertIn("histogram_p95_or_none", script)
         self.assertIn("db_phase_throughput", script)
         self.assertIn("MIN(processed_at),MAX(processed_at)", script)
+        self.assertIn("part13-lag-sampler", script)
+        self.assertIn("threading.Thread", script)
 
     def test_server_wrapper_is_dry_run_by_default(self):
         root = Path(__file__).resolve().parents[1]
