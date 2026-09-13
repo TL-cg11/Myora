@@ -50,10 +50,14 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
             "preflight_throughput_by_topic",
             "terminal_results_by_topic",
             "average_seconds_by_topic",
+            "throughput_by_topic",
+            "terminal_results_ok",
         ):
             self.assertIn(field, script)
-        self.assertIn('counter(samples, topic, "processed")', script)
+        self.assertIn("result_counts", script)
         self.assertIn("histogram_p95_or_none", script)
+        self.assertIn("db_phase_throughput", script)
+        self.assertIn("MIN(processed_at),MAX(processed_at)", script)
 
     def test_server_wrapper_is_dry_run_by_default(self):
         root = Path(__file__).resolve().parents[1]

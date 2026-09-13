@@ -316,6 +316,29 @@ def db_topic_stats(run_id: str) -> dict[str, dict[str, float | int]]:
         connection.close()
 
 
+def db_phase_throughput(
+    run_id: str, phase: str, offered_rate: int
+) -> dict[str, float]:
+    connection = mysql_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_name, COUNT(*), "
+                "TIMESTAMPDIFF(MICROSECOND,MIN(processed_at),MAX(processed_at))/1000000 "
+                "FROM kafka_consumption WHERE event_id LIKE %s "
+                "AND processing_status='PROCESSED' GROUP BY topic_name",
+                (f"p13perf-{run_id}-%-{phase[0]}%",),
+            )
+            result = {}
+            for topic, count, window in cursor.fetchall():
+                elapsed = float(window or 0)
+                measured = int(count) / elapsed if elapsed > 0 else 0.0
+                result[str(topic)] = min(float(offered_rate), measured)
+            return result
+    finally:
+        connection.close()
+
+
 def loki_end_to_end(base_url: str, run_id: str) -> float:
     end_ns = time.time_ns()
     query = urlencode({
@@ -433,27 +456,19 @@ def main() -> int:
     )
 
     preflight_base = tuple(counter(samples, topic) for samples, topic in zip(initial, topics))
-    preflight_processed_base = tuple(
-        counter(samples, topic, "processed") for samples, topic in zip(initial, topics)
-    )
     preflight_count, preflight_lag, preflight_age = produce_phase(
         producer, run_id, "preflight", args.sustained_rate,
         args.preflight_duration, *urls
     )
-    preflight_end_samples = tuple(metric_samples(url) for url in urls)
-    preflight_processed_end = tuple(
-        counter(samples, topic, "processed")
-        for samples, topic in zip(preflight_end_samples, topics)
-    )
-    preflight_by_topic = {
-        topic: (value - baseline) / args.preflight_duration
-        for topic, value, baseline in zip(
-            topics, preflight_processed_end, preflight_processed_base
-        )
-    }
-    preflight_throughput = min(preflight_by_topic.values())
     wait_for_count(urls, topics, preflight_base, preflight_count, args.drain_timeout)
     preflight_final = tuple(metric_samples(url) for url in urls)
+    measured_preflight = db_phase_throughput(
+        run_id, "preflight", args.sustained_rate
+    )
+    preflight_by_topic = {
+        topic: measured_preflight.get(topic, 0.0) for topic in topics
+    }
+    preflight_throughput = min(preflight_by_topic.values())
     preflight_floor = args.sustained_rate * 0.8
     if preflight_throughput < preflight_floor:
         print(json.dumps({
@@ -499,43 +514,25 @@ def main() -> int:
     sustained_base = tuple(
         counter(samples, topic) for samples, topic in zip(sustained_initial, topics)
     )
-    sustained_processed_base = tuple(
-        counter(samples, topic, "processed")
-        for samples, topic in zip(sustained_initial, topics)
-    )
     sustained_count, sustained_lag, sustained_age = produce_phase(
         producer, run_id, "sustained", args.sustained_rate, args.duration, *urls
     )
-    sustained_end_samples = tuple(metric_samples(url) for url in urls)
-    sustained_processed_end = tuple(
-        counter(samples, topic, "processed")
-        for samples, topic in zip(sustained_end_samples, topics)
+    wait_for_count(urls, topics, sustained_base, sustained_count, args.drain_timeout)
+    sustained_by_topic = db_phase_throughput(
+        run_id, "sustained", args.sustained_rate
     )
     sustained_throughput = min(
-        (value - baseline) / args.duration
-        for value, baseline in zip(sustained_processed_end, sustained_processed_base)
+        sustained_by_topic.get(topic, 0.0) for topic in topics
     )
-    wait_for_count(urls, topics, sustained_base, sustained_count, args.drain_timeout)
 
     burst_base_samples = tuple(metric_samples(url) for url in urls)
     burst_base = tuple(counter(samples, topic) for samples, topic in zip(burst_base_samples, topics))
-    burst_processed_base = tuple(
-        counter(samples, topic, "processed")
-        for samples, topic in zip(burst_base_samples, topics)
-    )
     burst_count, burst_lag, burst_age = produce_phase(
         producer, run_id, "burst", args.burst_rate, args.duration, *urls
     )
-    burst_end_samples = tuple(metric_samples(url) for url in urls)
-    burst_processed_end = tuple(
-        counter(samples, topic, "processed")
-        for samples, topic in zip(burst_end_samples, topics)
-    )
-    burst_throughput = min(
-        (value - baseline) / args.duration
-        for value, baseline in zip(burst_processed_end, burst_processed_base)
-    )
     wait_for_count(urls, topics, burst_base, burst_count, args.drain_timeout)
+    burst_by_topic = db_phase_throughput(run_id, "burst", args.burst_rate)
+    burst_throughput = min(burst_by_topic.get(topic, 0.0) for topic in topics)
 
     final = tuple(metric_samples(url) for url in urls)
     db_p95 = histogram_p95(histogram(initial[0], SECURITY_TOPIC), histogram(final[0], SECURITY_TOPIC))
@@ -557,17 +554,29 @@ def main() -> int:
         oldest_message_seconds=max(preflight_age, sustained_age, burst_age),
     )
     result = assess(snapshot)
-    print(json.dumps({"status": "ok" if result.passed else "failed", "run_id": run_id,
+    terminal_results = {
+        topic: result_counts(before, after, topic)
+        for topic, before, after in zip(topics, initial, final)
+    }
+    terminal_results_ok = all(
+        counts.get("processed", 0) == estimated // 2
+        and sum(value for name, value in counts.items() if name != "processed") == 0
+        for counts in terminal_results.values()
+    )
+    passed = result.passed and terminal_results_ok
+    print(json.dumps({"status": "ok" if passed else "failed", "run_id": run_id,
                       "messages_total": estimated, "snapshot": snapshot.__dict__,
-                      "terminal_results_by_topic": {
-                          topic: result_counts(before, after, topic)
-                          for topic, before, after in zip(topics, initial, final)
+                      "throughput_by_topic": {
+                          "sustained": sustained_by_topic,
+                          "burst": burst_by_topic,
                       },
+                      "terminal_results_by_topic": terminal_results,
+                      "terminal_results_ok": terminal_results_ok,
                       "average_seconds_by_topic": latency_averages(
                           initial, final, topics
                       ),
                       "assessment": result.as_dict()}, ensure_ascii=False, sort_keys=True))
-    return 0 if result.passed else 1
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
