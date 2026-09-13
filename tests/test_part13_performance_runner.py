@@ -36,6 +36,7 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
             "end_to_end_p95_seconds",
             "consumer_lag",
             "oldest_message_seconds",
+            "preflight_throughput_by_topic",
         ):
             self.assertIn(field, script)
 

@@ -270,10 +270,11 @@ def main() -> int:
         args.preflight_duration, *urls
     )
     preflight_end = tuple(counter(metric_samples(url), topic) for url, topic in zip(urls, topics))
-    preflight_throughput = min(
-        (value - baseline) / args.preflight_duration
-        for value, baseline in zip(preflight_end, preflight_base)
-    )
+    preflight_by_topic = {
+        topic: (value - baseline) / args.preflight_duration
+        for topic, value, baseline in zip(topics, preflight_end, preflight_base)
+    }
+    preflight_throughput = min(preflight_by_topic.values())
     wait_for_count(urls, topics, preflight_base, preflight_count, args.drain_timeout)
     preflight_floor = args.sustained_rate * 0.8
     if preflight_throughput < preflight_floor:
@@ -282,6 +283,7 @@ def main() -> int:
             "run_id": run_id,
             "messages_total": preflight_count * 2,
             "preflight_throughput": preflight_throughput,
+            "preflight_throughput_by_topic": preflight_by_topic,
             "preflight_floor": preflight_floor,
             "max_lag": preflight_lag,
             "max_oldest_message_seconds": preflight_age,
