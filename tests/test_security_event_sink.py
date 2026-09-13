@@ -98,6 +98,87 @@ class FakeConnection:
 
 
 class SecurityEventSinkTests(unittest.TestCase):
+    def test_micro_batch_uses_one_transaction_and_bulk_writes(self) -> None:
+        class BatchCursor:
+            def __init__(self, connection):
+                self.connection = connection
+                self.rows = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def execute(self, sql, values):
+                self.connection.executions.append((sql, values))
+                if "FROM kafka_consumption WHERE" in sql:
+                    self.rows = []
+                elif "SELECT event_id,id FROM security_event" in sql:
+                    self.rows = list(self.connection.event_ids.items())
+                else:
+                    self.rows = []
+
+            def executemany(self, sql, values):
+                rows = list(values)
+                self.connection.bulk_executions.append((sql, rows))
+                if sql.startswith("INSERT INTO security_event ("):
+                    for row in rows:
+                        self.connection.event_ids[row[0]] = 100 + len(self.connection.event_ids)
+
+            def fetchall(self):
+                return self.rows
+
+        class BatchConnection:
+            def __init__(self):
+                self.executions = []
+                self.bulk_executions = []
+                self.event_ids = {}
+                self.begins = 0
+                self.commits = 0
+
+            def begin(self):
+                self.begins += 1
+
+            def cursor(self):
+                return BatchCursor(self)
+
+            def commit(self):
+                self.commits += 1
+
+            def rollback(self):
+                raise AssertionError("batch should not roll back")
+
+            def close(self):
+                return None
+
+        first = fixture()
+        second = copy.deepcopy(first)
+        second["event_id"] = "sec_evt_fixture_0002"
+        second["source_event_id"] = "raw_evt_fixture_0002"
+        second["request_id"] = "req_fixture_0002"
+        second["detections"][0]["detection_id"] = "det_fixture_0002"
+        connection = BatchConnection()
+        repository = SecurityEventRepository(lambda: connection)
+
+        results = repository.save_batch(
+            [
+                (first, metadata(offset=7), "a" * 64),
+                (second, metadata(offset=8), "b" * 64),
+            ]
+        )
+
+        self.assertEqual(connection.begins, 1)
+        self.assertEqual(connection.commits, 1)
+        self.assertEqual([result.duplicate for result in results], [None, None])
+        consumption_batches = [
+            rows
+            for sql, rows in connection.bulk_executions
+            if "INSERT INTO kafka_consumption" in sql
+        ]
+        self.assertEqual(len(consumption_batches), 1)
+        self.assertEqual(len(consumption_batches[0]), 2)
+
     def test_event_children_action_and_offset_are_one_transaction(self) -> None:
         connection = FakeConnection()
         sink = SecurityEventSink(SecurityEventRepository(lambda: connection))

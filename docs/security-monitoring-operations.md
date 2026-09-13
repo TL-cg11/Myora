@@ -39,6 +39,13 @@ Sink worker는 메시지별 TCP 연결 비용을 제거하기 위해 worker당 M
 사용하며, `SECURITY_DB_PING_INTERVAL_SECONDS` 주기로 연결 상태를 확인해 끊긴 연결을
 재생성한다. worker 종료 시에는 물리 연결을 닫는다.
 
+각 worker는 기본적으로 최대 100건 또는 0.1초 동안 모은 동일 partition 메시지를 순서대로
+micro-batch 처리한다. security event는 한 DB transaction의 bulk write로, masked log는 한
+Loki push와 한 consumption transaction으로 묶고 마지막 offset만 동기 commit한다. batch가
+실패하면 기존 메시지별 retry·DLQ 경로로 순서대로 fallback하므로 실패 격리 정책은 유지된다.
+크기는 `SECURITY_SINK_BATCH_SIZE`, `MASKED_LOG_SINK_BATCH_SIZE`, 대기 시간은 각
+`*_BATCH_WAIT_SECONDS` 환경 변수로 조정한다.
+
 ### Verification commands
 
 외부 I/O를 제외한 계약 검증·메시지 처리 core의 회귀 성능은 아래 명령으로 60초씩 측정한다. 이 결과는 코드 자체의 병목을 찾는 기준이며 실제 DB·Loki latency 또는 Kafka lag 측정값으로 대체할 수 없다.

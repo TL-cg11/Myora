@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 import unittest
@@ -72,6 +73,48 @@ class FakeConnection:
 
 
 class MaskedLogSinkTests(unittest.TestCase):
+    def test_micro_batch_uses_one_loki_push_and_one_consumption_batch(self) -> None:
+        class BatchConsumption:
+            def __init__(self) -> None:
+                self.recorded = []
+
+            def processed_batch(self, _items):
+                return set()
+
+            def record_processed_batch(self, items):
+                self.recorded.extend(items)
+
+        first = fixture()
+        second = copy.deepcopy(first)
+        second["event_id"] = "raw_evt_fixture_0002"
+        sent: list[dict] = []
+
+        def transport(_url: str, body: bytes, _timeout: float) -> None:
+            sent.append(json.loads(body))
+
+        consumption = BatchConsumption()
+        sink = MaskedLogSink(consumption, LokiClient("http://loki", transport=transport))
+        first_metadata = metadata()
+        second_metadata = KafkaMetadata(
+            consumer_group=first_metadata.consumer_group,
+            topic=first_metadata.topic,
+            partition=first_metadata.partition,
+            offset=first_metadata.offset + 1,
+            key="raw_evt_fixture_0002",
+        )
+
+        results = sink.handle_batch(
+            [
+                (json.dumps(first).encode(), first_metadata),
+                (json.dumps(second).encode(), second_metadata),
+            ]
+        )
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sum(len(stream["values"]) for stream in sent[0]["streams"]), 2)
+        self.assertEqual(len(consumption.recorded), 2)
+
     def test_loki_succeeds_before_offset_is_recorded(self) -> None:
         read_connection = FakeConnection()
         write_connection = FakeConnection()

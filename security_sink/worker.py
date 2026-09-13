@@ -11,7 +11,7 @@ from typing import Any
 
 from security_sink.common import KafkaMetadata, decode_message_key, payload_age_seconds
 from security_sink.fault_injection import crash_once
-from security_sink.kafka_loop import KafkaSinkLoop
+from security_sink.kafka_batch_loop import BatchItem, KafkaBatchSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.resilience import (
     DlqPublisher,
@@ -92,66 +92,90 @@ def main() -> int:
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
     consumer.subscribe([TOPIC])
-    pending_observation: tuple[float, bytes] | None = None
+    pending_observations: list[tuple[float, bytes]] = []
 
-    def process(raw_value: bytes, metadata: KafkaMetadata):
-        nonlocal pending_observation
+    def process_batch(items: list[BatchItem]):
+        nonlocal pending_observations
         started = time.monotonic()
-        result = processor.execute(
-            lambda: sink.handle(raw_value, metadata), raw_value, metadata
-        )
-        pending_observation = (time.monotonic() - started, raw_value)
-        return result
+        values = [(raw_value, metadata) for _message, raw_value, metadata in items]
+        try:
+            results = sink.handle_batch(values)
+            per_message = (time.monotonic() - started) / len(items)
+            pending_observations = [(per_message, raw_value) for _message, raw_value, _ in items]
+            return results
+        except Exception:
+            results = []
+            pending_observations = []
+            for _message, raw_value, metadata in items:
+                item_started = time.monotonic()
+                results.append(
+                    processor.execute(
+                        lambda raw_value=raw_value, metadata=metadata: sink.handle(
+                            raw_value, metadata
+                        ),
+                        raw_value,
+                        metadata,
+                    )
+                )
+                pending_observations.append((time.monotonic() - item_started, raw_value))
+            return results
 
     def processed(message: Any, result: Any) -> None:
-        nonlocal pending_observation
-        if pending_observation is None:
+        nonlocal pending_observations
+        if not pending_observations:
             raise RuntimeError("message observation is missing after Kafka commit")
-        processing_duration, raw_value = pending_observation
-        pending_observation = None
+        processing_duration, raw_value = pending_observations.pop(0)
         metrics.record_message(
             message.topic(), result.duplicate or "processed", processing_duration,
             payload_age_seconds(raw_value),
         )
+
+    def batch_processed(messages: list[Any], results: list[Any]) -> None:
+        last = messages[-1]
         try:
-            observe_kafka_position(metrics, consumer, message, TopicPartition)
+            observe_kafka_position(metrics, consumer, last, TopicPartition)
         except Exception as exc:
-            metrics.record_failure(message.topic(), "lag_collection")
+            metrics.record_failure(last.topic(), "lag_collection")
             LOGGER.warning("Kafka lag collection failed: %s", type(exc).__name__)
         LOGGER.info(
-            "processed security event db_id=%s duplicate=%s topic=%s partition=%s offset=%s",
-            result.event_db_id,
-            result.duplicate or "no",
-            message.topic(),
-            message.partition(),
-            message.offset(),
+            "processed security event batch count=%s duplicates=%s topic=%s "
+            "partition=%s offsets=%s-%s",
+            len(messages),
+            sum(result.duplicate is not None for result in results),
+            last.topic(),
+            last.partition(),
+            messages[0].offset(),
+            last.offset(),
         )
 
     try:
-        KafkaSinkLoop(
+        KafkaBatchSinkLoop(
             consumer,
             consumer_group=consumer_group,
-        process=process,
-        should_stop=lambda: stopping,
-        is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
-        before_commit=lambda message, _result: crash_once(
-            "SECURITY_EVENT_TEST_CRASH_BEFORE_COMMIT_MARKER",
-            "security_event_db_committed_before_kafka_commit",
-            KafkaMetadata(
-                consumer_group=consumer_group,
-                topic=message.topic(),
-                partition=message.partition(),
-                offset=message.offset(),
-                key=decode_message_key(message.key()),
+            process_batch=process_batch,
+            should_stop=lambda: stopping,
+            is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
+            before_commit=lambda message, _result: crash_once(
+                "SECURITY_EVENT_TEST_CRASH_BEFORE_COMMIT_MARKER",
+                "security_event_db_committed_before_kafka_commit",
+                KafkaMetadata(
+                    consumer_group=consumer_group,
+                    topic=message.topic(),
+                    partition=message.partition(),
+                    offset=message.offset(),
+                    key=decode_message_key(message.key()),
+                ),
             ),
-        ),
-        on_committed=lambda message, duration: metrics.record_commit(
-            message.topic(), duration
-        ),
-        on_processed=processed,
+            on_committed=lambda messages, duration: metrics.record_commit(
+                messages[-1].topic(), duration
+            ),
+            on_processed=processed,
+            on_batch_processed=batch_processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__
             ) or metrics.record_failure(TOPIC, "broker_poll"),
+            batch_size=int(os.getenv("SECURITY_SINK_BATCH_SIZE", "100")),
+            consume_timeout=float(os.getenv("SECURITY_SINK_BATCH_WAIT_SECONDS", "0.1")),
         ).run()
     finally:
         consumer.close()
