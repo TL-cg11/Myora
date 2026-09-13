@@ -185,7 +185,7 @@ def wait_for_count(urls: tuple[str, str], topics: tuple[str, str], baselines: tu
     raise TimeoutError(f"consumers did not process {expected} messages within {timeout}s")
 
 
-def db_end_to_end(run_id: str) -> float:
+def db_end_to_end(run_id: str) -> float | None:
     connection = mysql_connection()
     try:
         with connection.cursor() as cursor:
@@ -197,7 +197,20 @@ def db_end_to_end(run_id: str) -> float:
             samples = [max(0.0, float(row[0])) for row in cursor.fetchall()]
     finally:
         connection.close()
-    return percentile_95(samples)
+    return percentile_95(samples) if samples else None
+
+
+def db_event_count(run_id: str) -> int:
+    connection = mysql_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM security_event WHERE event_id LIKE %s",
+                (f"p13perf-{run_id}-s-%",),
+            )
+            return int(cursor.fetchone()[0])
+    finally:
+        connection.close()
 
 
 def db_topic_stats(run_id: str) -> dict[str, dict[str, float | int]]:
@@ -207,6 +220,8 @@ def db_topic_stats(run_id: str) -> dict[str, dict[str, float | int]]:
             cursor.execute(
                 "SELECT topic_name, COUNT(*), "
                 "TIMESTAMPDIFF(MICROSECOND,MIN(processed_at),MAX(processed_at))/1000000 "
+                ", SUM(processing_status='PROCESSED'), SUM(processing_status='DLQ'), "
+                "SUM(processing_status='FAILED') "
                 "FROM kafka_consumption WHERE event_id LIKE %s GROUP BY topic_name",
                 (f"p13perf-{run_id}-%",),
             )
@@ -217,8 +232,11 @@ def db_topic_stats(run_id: str) -> dict[str, dict[str, float | int]]:
                     "drain_throughput": (
                         int(count) / float(window) if float(window or 0) > 0 else 0.0
                     ),
+                    "processed": int(processed),
+                    "dlq": int(dlq),
+                    "failed": int(failed),
                 }
-                for topic, count, window in cursor.fetchall()
+                for topic, count, window, processed, dlq, failed in cursor.fetchall()
             }
     finally:
         connection.close()
@@ -278,6 +296,7 @@ def main() -> int:
         report = {
             "status": "diagnostic",
             "run_id": args.diagnose_run_id,
+            "security_event_count": db_event_count(args.diagnose_run_id),
             "db_topic_stats": db_topic_stats(args.diagnose_run_id),
             "processing_p95_upper_bound_seconds": {
                 SECURITY_TOPIC: histogram_p95({}, histogram(security_samples, SECURITY_TOPIC)),
@@ -373,7 +392,10 @@ def main() -> int:
     final = tuple(metric_samples(url) for url in urls)
     db_p95 = histogram_p95(histogram(initial[0], SECURITY_TOPIC), histogram(final[0], SECURITY_TOPIC))
     loki_p95 = histogram_p95(histogram(initial[1], MASKED_TOPIC), histogram(final[1], MASKED_TOPIC))
-    end_to_end = max(db_end_to_end(run_id), loki_end_to_end(args.loki_url, run_id))
+    security_end_to_end = db_end_to_end(run_id)
+    if security_end_to_end is None:
+        raise RuntimeError("performance security events were not stored")
+    end_to_end = max(security_end_to_end, loki_end_to_end(args.loki_url, run_id))
     snapshot = PerformanceSnapshot(
         sustained_throughput=sustained_throughput,
         burst_throughput=burst_throughput,
