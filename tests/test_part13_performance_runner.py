@@ -23,6 +23,13 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
         self.assertEqual(report["messages_total"], 49_000)
         self.assertTrue(report["requires_execute"])
 
+    def test_diagnostic_mode_is_run_id_scoped(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "scripts/run_part13_performance.py").read_text()
+        self.assertIn('parser.add_argument("--diagnose-run-id")', script)
+        self.assertIn('re.fullmatch(r"[0-9a-f]{12}"', script)
+        self.assertIn("db_topic_stats(args.diagnose_run_id)", script)
+
     def test_runner_uses_actual_topics_and_all_acceptance_inputs(self):
         root = Path(__file__).resolve().parents[1]
         script = (root / "scripts/run_part13_performance.py").read_text()

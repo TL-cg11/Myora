@@ -201,6 +201,30 @@ def db_end_to_end(run_id: str) -> float:
     return percentile_95(samples)
 
 
+def db_topic_stats(run_id: str) -> dict[str, dict[str, float | int]]:
+    connection = mysql_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_name, COUNT(*), "
+                "TIMESTAMPDIFF(MICROSECOND,MIN(processed_at),MAX(processed_at))/1000000 "
+                "FROM kafka_consumption WHERE event_id LIKE %s GROUP BY topic_name",
+                (f"p13perf-{run_id}-%",),
+            )
+            return {
+                str(topic): {
+                    "count": int(count),
+                    "processing_window_seconds": float(window or 0),
+                    "drain_throughput": (
+                        int(count) / float(window) if float(window or 0) > 0 else 0.0
+                    ),
+                }
+                for topic, count, window in cursor.fetchall()
+            }
+    finally:
+        connection.close()
+
+
 def loki_end_to_end(base_url: str, run_id: str) -> float:
     end_ns = time.time_ns()
     query = urlencode({
@@ -223,6 +247,7 @@ def loki_end_to_end(base_url: str, run_id: str) -> float:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--diagnose-run-id")
     parser.add_argument("--preflight-duration", type=int, default=5)
     parser.add_argument("--duration", type=int, default=60)
     parser.add_argument("--sustained-rate", type=int, default=100)
@@ -244,6 +269,34 @@ def main() -> int:
         args.drain_timeout,
     ) <= 0:
         raise ValueError("durations, rates, and drain timeout must be positive")
+    if args.diagnose_run_id:
+        if re.fullmatch(r"[0-9a-f]{12}", args.diagnose_run_id) is None:
+            raise ValueError("diagnose run id must be 12 lowercase hexadecimal characters")
+        security_samples = metric_samples(args.security_metrics_url)
+        masked_samples = metric_samples(args.masked_metrics_url)
+        security_lag, security_age = lag_state(security_samples)
+        masked_lag, masked_age = lag_state(masked_samples)
+        report = {
+            "status": "diagnostic",
+            "run_id": args.diagnose_run_id,
+            "db_topic_stats": db_topic_stats(args.diagnose_run_id),
+            "processing_p95_upper_bound_seconds": {
+                SECURITY_TOPIC: histogram_p95({}, histogram(security_samples, SECURITY_TOPIC)),
+                MASKED_TOPIC: histogram_p95({}, histogram(masked_samples, MASKED_TOPIC)),
+            },
+            "end_to_end_p95_seconds": {
+                SECURITY_TOPIC: db_end_to_end(args.diagnose_run_id),
+                MASKED_TOPIC: loki_end_to_end(args.loki_url, args.diagnose_run_id),
+            },
+            "current_lag": {SECURITY_TOPIC: security_lag, MASKED_TOPIC: masked_lag},
+            "current_oldest_message_seconds": {
+                SECURITY_TOPIC: security_age,
+                MASKED_TOPIC: masked_age,
+            },
+        }
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
+
     estimated = 2 * (
         args.preflight_duration * args.sustained_rate
         + args.duration * (args.sustained_rate + args.burst_rate)
