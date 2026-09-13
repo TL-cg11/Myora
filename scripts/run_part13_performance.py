@@ -190,9 +190,8 @@ def db_end_to_end(run_id: str) -> float:
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT TIMESTAMPDIFF(MICROSECOND,e.detected_at,k.processed_at)/1000000 "
-                "FROM security_event e JOIN kafka_consumption k ON k.event_id=e.event_id "
-                "WHERE e.event_id LIKE %s",
+                "SELECT TIMESTAMPDIFF(MICROSECOND,detected_at,created_at)/1000000 "
+                "FROM security_event WHERE event_id LIKE %s",
                 (f"p13perf-{run_id}-s-%",),
             )
             samples = [max(0.0, float(row[0])) for row in cursor.fetchall()]
@@ -286,8 +285,11 @@ def main() -> int:
             },
             "end_to_end_p95_seconds": {
                 SECURITY_TOPIC: db_end_to_end(args.diagnose_run_id),
-                MASKED_TOPIC: loki_end_to_end(args.loki_url, args.diagnose_run_id),
+                MASKED_TOPIC: None,
             },
+            "masked_end_to_end_note": (
+                "unavailable from stored logs because Loki preserves the source occurred_at timestamp"
+            ),
             "current_lag": {SECURITY_TOPIC: security_lag, MASKED_TOPIC: masked_lag},
             "current_oldest_message_seconds": {
                 SECURITY_TOPIC: security_age,

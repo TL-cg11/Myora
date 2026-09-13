@@ -29,6 +29,8 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
         self.assertIn('parser.add_argument("--diagnose-run-id")', script)
         self.assertIn('re.fullmatch(r"[0-9a-f]{12}"', script)
         self.assertIn("db_topic_stats(args.diagnose_run_id)", script)
+        self.assertIn("detected_at,created_at", script)
+        self.assertIn('MASKED_TOPIC: None', script)
 
     def test_runner_uses_actual_topics_and_all_acceptance_inputs(self):
         root = Path(__file__).resolve().parents[1]
