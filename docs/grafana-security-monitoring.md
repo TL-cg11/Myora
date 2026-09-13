@@ -31,6 +31,33 @@ Each sink exposes zero-valued DLQ counters for every terminal failure stage at
 startup. The DLQ rule combines the five-minute counter increase with new-series
 detection so that the first DLQ message after process startup is not missed.
 
+## Administrator dashboard
+
+The public site exposes the monitoring view only at `/dashboard`; it embeds
+Grafana through the same-origin `/grafana/` reverse proxy. The Nginx
+`auth_request` calls WAS `/api/auth/admin-check`, which accepts the existing
+one-hour HttpOnly session cookie (or a valid Bearer session) and requires
+`app_user.role = 'admin'`. Nginx copies the returned identity to Grafana's
+auth-proxy header, and clears client-provided cookies, Bearer credentials, and
+identity headers before proxying to Grafana.
+
+Run the one-batch server application from the Nginx host after the normal
+Grafana installer environment variables are available:
+
+```bash
+cd ~/luck-nginx
+bash scripts/run-part14-dashboard.sh --dry-run
+sudo bash scripts/run-part14-dashboard.sh --execute
+```
+
+On the MariaDB host, assign an already-registered account separately with the
+existing role migration comment as the template; the Nginx script never opens a
+database connection. Verify that `ss -ltn` reports Grafana only at `127.0.0.1:3000`, then
+check unauthenticated and ordinary-user `/dashboard` and `/grafana/` requests
+are rejected, while an administrator sees both embedded dashboards. Grafana
+starts with no anonymous access or native login form; SSH-tunnel access to
+port 3000 is intentionally outside the supported browser path.
+
 ## Server prerequisites
 
 Create a dedicated MariaDB login and grant it only the existing read-only role:

@@ -100,6 +100,8 @@ install -m 0644 "$ROOT_DIR/observability/grafana/provisioning/dashboards/dashboa
   /etc/grafana/provisioning/dashboards/luck-security.yml
 install -m 0644 "$ROOT_DIR/observability/grafana/provisioning/alerting/security-consumer-alerts.yml" \
   /etc/grafana/provisioning/alerting/luck-security-consumer-alerts.yml
+install -o root -g grafana -m 0640 "$ROOT_DIR/observability/grafana/grafana.ini" \
+  /etc/grafana/grafana.ini
 install -m 0644 "$ROOT_DIR/observability/grafana/dashboards/"*.json \
   /var/lib/grafana/dashboards/security-monitoring/
 chown -R grafana:grafana /var/lib/grafana/dashboards/security-monitoring
@@ -108,9 +110,6 @@ install -m 0644 "$ROOT_DIR/observability/systemd/prometheus.service" /etc/system
 
 install -d -m 0755 /etc/systemd/system/grafana-server.service.d
 {
-  printf '%s\n' 'GF_SERVER_HTTP_ADDR=127.0.0.1'
-  printf '%s\n' 'GF_SERVER_HTTP_PORT=3000'
-  printf '%s\n' 'GF_SERVER_ROOT_URL=http://127.0.0.1:3000'
   printf 'GF_SECURITY_ADMIN_USER=%q\n' "$GRAFANA_ADMIN_USER"
   printf 'GF_SECURITY_ADMIN_PASSWORD=%q\n' "$GRAFANA_ADMIN_PASSWORD"
   printf 'GRAFANA_SECURITY_DB_HOST=%q\n' "$GRAFANA_SECURITY_DB_HOST"
