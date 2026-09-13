@@ -202,4 +202,9 @@ def admin_check(user: AppUser = Depends(require_admin)) -> Response:
     - 미인증: 401 (current_user에서)
     - 일반 계정: 403 (require_admin에서)
     """
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # nginx copies this response-only value into Grafana's auth-proxy header.
+    # Client-provided identity headers are discarded by the Nginx location.
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"X-Auth-Request-User": user.username},
+    )

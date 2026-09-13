@@ -165,6 +165,7 @@ class AdminCheckEndpointTests(unittest.TestCase):
         self.register("admin_user", AppUserRole.admin)
         response = self.client.get("/api/auth/admin-check")
         self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.headers.get("x-auth-request-user"), "admin_user")
 
     def test_admin_via_bearer_header_also_passes(self):
         """직접 curl로 확인할 때 Authorization으로도 되는지."""

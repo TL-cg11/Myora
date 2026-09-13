@@ -7,7 +7,9 @@ router = APIRouter(include_in_schema=False)
 
 DIST_DIR = Path(__file__).resolve().parents[2] / "dist"
 INDEX_FILE = DIST_DIR / "index.html"
-PAGE_PATHS = ("/", "/saju", "/tarot", "/face", "/mypage", "/login", "/signup")
+PAGE_PATHS = (
+    "/", "/saju", "/tarot", "/face", "/mypage", "/dashboard", "/login", "/signup",
+)
 
 
 def _index_response() -> FileResponse:
