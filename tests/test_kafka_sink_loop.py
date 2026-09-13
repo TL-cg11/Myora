@@ -96,6 +96,24 @@ class KafkaSinkLoopTests(unittest.TestCase):
         self.assertEqual(order, ["process", "checkpoint"])
         self.assertEqual(len(consumer.commits), 1)
 
+    def test_successful_synchronous_commit_duration_is_reported(self) -> None:
+        consumer = FakeConsumer([FakeMessage()])
+        clock = iter([10.0, 10.025])
+        observed: list[float] = []
+        loop = KafkaSinkLoop(
+            consumer,
+            consumer_group="security-event-sink",
+            process=lambda _raw, _item: ProcessResult(10),
+            should_stop=lambda: False,
+            is_partition_eof=lambda error: error.code() == 1,
+            on_committed=lambda _message, duration: observed.append(duration),
+            clock=lambda: next(clock),
+        )
+
+        loop.run(max_polls=1)
+
+        self.assertAlmostEqual(observed[0], 0.025)
+
     def test_broker_errors_back_off_then_recover_without_commit(self) -> None:
         delays: list[float] = []
         consumer = FakeConsumer(

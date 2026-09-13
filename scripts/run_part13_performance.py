@@ -108,12 +108,36 @@ def metric_samples(url: str) -> list[tuple[str, dict[str, str], float]]:
     return samples
 
 
-def counter(samples: list[tuple[str, dict[str, str], float]], topic: str) -> float:
+def counter(
+    samples: list[tuple[str, dict[str, str], float]],
+    topic: str,
+    result: str | None = None,
+) -> float:
     return sum(
         value
         for name, labels, value in samples
-        if name == "luck_sink_messages_total" and labels.get("topic") == topic
+        if name == "luck_sink_messages_total"
+        and labels.get("topic") == topic
+        and (result is None or labels.get("result") == result)
     )
+
+
+def result_counts(
+    before: list[tuple[str, dict[str, str], float]],
+    after: list[tuple[str, dict[str, str], float]],
+    topic: str,
+) -> dict[str, int]:
+    results = {
+        labels["result"]
+        for name, labels, _value in before + after
+        if name == "luck_sink_messages_total"
+        and labels.get("topic") == topic
+        and "result" in labels
+    }
+    return {
+        result: int(max(0.0, counter(after, topic, result) - counter(before, topic, result)))
+        for result in sorted(results)
+    }
 
 
 def lag_state(samples: list[tuple[str, dict[str, str], float]]) -> tuple[int, float]:
@@ -122,10 +146,14 @@ def lag_state(samples: list[tuple[str, dict[str, str], float]]) -> tuple[int, fl
     return int(max(lag, default=0)), max(age, default=0.0)
 
 
-def histogram(samples: list[tuple[str, dict[str, str], float]], topic: str) -> dict[float, float]:
+def histogram(
+    samples: list[tuple[str, dict[str, str], float]],
+    topic: str,
+    metric_name: str = "luck_sink_processing_duration_seconds_bucket",
+) -> dict[float, float]:
     result = {}
     for name, labels, value in samples:
-        if name != "luck_sink_processing_duration_seconds_bucket" or labels.get("topic") != topic:
+        if name != metric_name or labels.get("topic") != topic:
             continue
         bound = math.inf if labels.get("le") == "+Inf" else float(labels["le"])
         result[bound] = value
@@ -142,6 +170,15 @@ def histogram_p95(before: dict[float, float], after: dict[float, float]) -> floa
         if deltas[bound] >= threshold:
             return bound
     return math.inf
+
+
+def histogram_p95_or_none(
+    before: dict[float, float], after: dict[float, float]
+) -> float | None:
+    try:
+        return histogram_p95(before, after)
+    except RuntimeError:
+        return None
 
 
 def produce_phase(producer: Any, run_id: str, phase: str, rate: int, duration: int,
@@ -299,8 +336,28 @@ def main() -> int:
             "security_event_count": db_event_count(args.diagnose_run_id),
             "db_topic_stats": db_topic_stats(args.diagnose_run_id),
             "processing_p95_upper_bound_seconds": {
-                SECURITY_TOPIC: histogram_p95({}, histogram(security_samples, SECURITY_TOPIC)),
-                MASKED_TOPIC: histogram_p95({}, histogram(masked_samples, MASKED_TOPIC)),
+                SECURITY_TOPIC: histogram_p95_or_none({}, histogram(security_samples, SECURITY_TOPIC)),
+                MASKED_TOPIC: histogram_p95_or_none({}, histogram(masked_samples, MASKED_TOPIC)),
+            },
+            "commit_p95_upper_bound_seconds": {
+                SECURITY_TOPIC: histogram_p95_or_none(
+                    {}, histogram(security_samples, SECURITY_TOPIC,
+                                  "luck_sink_commit_duration_seconds_bucket")
+                ),
+                MASKED_TOPIC: histogram_p95_or_none(
+                    {}, histogram(masked_samples, MASKED_TOPIC,
+                                  "luck_sink_commit_duration_seconds_bucket")
+                ),
+            },
+            "measured_end_to_end_p95_upper_bound_seconds": {
+                SECURITY_TOPIC: histogram_p95_or_none(
+                    {}, histogram(security_samples, SECURITY_TOPIC,
+                                  "luck_sink_end_to_end_duration_seconds_bucket")
+                ),
+                MASKED_TOPIC: histogram_p95_or_none(
+                    {}, histogram(masked_samples, MASKED_TOPIC,
+                                  "luck_sink_end_to_end_duration_seconds_bucket")
+                ),
             },
             "end_to_end_p95_seconds": {
                 SECURITY_TOPIC: db_end_to_end(args.diagnose_run_id),
@@ -339,17 +396,27 @@ def main() -> int:
     )
 
     preflight_base = tuple(counter(samples, topic) for samples, topic in zip(initial, topics))
+    preflight_processed_base = tuple(
+        counter(samples, topic, "processed") for samples, topic in zip(initial, topics)
+    )
     preflight_count, preflight_lag, preflight_age = produce_phase(
         producer, run_id, "preflight", args.sustained_rate,
         args.preflight_duration, *urls
     )
-    preflight_end = tuple(counter(metric_samples(url), topic) for url, topic in zip(urls, topics))
+    preflight_end_samples = tuple(metric_samples(url) for url in urls)
+    preflight_processed_end = tuple(
+        counter(samples, topic, "processed")
+        for samples, topic in zip(preflight_end_samples, topics)
+    )
     preflight_by_topic = {
         topic: (value - baseline) / args.preflight_duration
-        for topic, value, baseline in zip(topics, preflight_end, preflight_base)
+        for topic, value, baseline in zip(
+            topics, preflight_processed_end, preflight_processed_base
+        )
     }
     preflight_throughput = min(preflight_by_topic.values())
     wait_for_count(urls, topics, preflight_base, preflight_count, args.drain_timeout)
+    preflight_final = tuple(metric_samples(url) for url in urls)
     preflight_floor = args.sustained_rate * 0.8
     if preflight_throughput < preflight_floor:
         print(json.dumps({
@@ -359,8 +426,32 @@ def main() -> int:
             "preflight_throughput": preflight_throughput,
             "preflight_throughput_by_topic": preflight_by_topic,
             "preflight_floor": preflight_floor,
+            "terminal_results_by_topic": {
+                topic: result_counts(before, after, topic)
+                for topic, before, after in zip(topics, initial, preflight_final)
+            },
             "max_lag": preflight_lag,
             "max_oldest_message_seconds": preflight_age,
+            "processing_p95_upper_bound_seconds": {
+                topic: histogram_p95(
+                    histogram(before, topic), histogram(after, topic)
+                )
+                for topic, before, after in zip(topics, initial, preflight_final)
+            },
+            "commit_p95_upper_bound_seconds": {
+                topic: histogram_p95(
+                    histogram(before, topic, "luck_sink_commit_duration_seconds_bucket"),
+                    histogram(after, topic, "luck_sink_commit_duration_seconds_bucket"),
+                )
+                for topic, before, after in zip(topics, initial, preflight_final)
+            },
+            "end_to_end_p95_upper_bound_seconds": {
+                topic: histogram_p95(
+                    histogram(before, topic, "luck_sink_end_to_end_duration_seconds_bucket"),
+                    histogram(after, topic, "luck_sink_end_to_end_duration_seconds_bucket"),
+                )
+                for topic, before, after in zip(topics, initial, preflight_final)
+            },
         }, ensure_ascii=False, sort_keys=True))
         return 1
 
@@ -368,34 +459,54 @@ def main() -> int:
     sustained_base = tuple(
         counter(samples, topic) for samples, topic in zip(sustained_initial, topics)
     )
+    sustained_processed_base = tuple(
+        counter(samples, topic, "processed")
+        for samples, topic in zip(sustained_initial, topics)
+    )
     sustained_count, sustained_lag, sustained_age = produce_phase(
         producer, run_id, "sustained", args.sustained_rate, args.duration, *urls
     )
-    sustained_end = tuple(counter(metric_samples(url), topic) for url, topic in zip(urls, topics))
+    sustained_end_samples = tuple(metric_samples(url) for url in urls)
+    sustained_processed_end = tuple(
+        counter(samples, topic, "processed")
+        for samples, topic in zip(sustained_end_samples, topics)
+    )
     sustained_throughput = min(
         (value - baseline) / args.duration
-        for value, baseline in zip(sustained_end, sustained_base)
+        for value, baseline in zip(sustained_processed_end, sustained_processed_base)
     )
     wait_for_count(urls, topics, sustained_base, sustained_count, args.drain_timeout)
 
     burst_base_samples = tuple(metric_samples(url) for url in urls)
     burst_base = tuple(counter(samples, topic) for samples, topic in zip(burst_base_samples, topics))
+    burst_processed_base = tuple(
+        counter(samples, topic, "processed")
+        for samples, topic in zip(burst_base_samples, topics)
+    )
     burst_count, burst_lag, burst_age = produce_phase(
         producer, run_id, "burst", args.burst_rate, args.duration, *urls
     )
-    burst_end = tuple(counter(metric_samples(url), topic) for url, topic in zip(urls, topics))
+    burst_end_samples = tuple(metric_samples(url) for url in urls)
+    burst_processed_end = tuple(
+        counter(samples, topic, "processed")
+        for samples, topic in zip(burst_end_samples, topics)
+    )
     burst_throughput = min(
-        (value - baseline) / args.duration for value, baseline in zip(burst_end, burst_base)
+        (value - baseline) / args.duration
+        for value, baseline in zip(burst_processed_end, burst_processed_base)
     )
     wait_for_count(urls, topics, burst_base, burst_count, args.drain_timeout)
 
     final = tuple(metric_samples(url) for url in urls)
     db_p95 = histogram_p95(histogram(initial[0], SECURITY_TOPIC), histogram(final[0], SECURITY_TOPIC))
     loki_p95 = histogram_p95(histogram(initial[1], MASKED_TOPIC), histogram(final[1], MASKED_TOPIC))
-    security_end_to_end = db_end_to_end(run_id)
-    if security_end_to_end is None:
-        raise RuntimeError("performance security events were not stored")
-    end_to_end = max(security_end_to_end, loki_end_to_end(args.loki_url, run_id))
+    end_to_end = max(
+        histogram_p95(
+            histogram(before, topic, "luck_sink_end_to_end_duration_seconds_bucket"),
+            histogram(after, topic, "luck_sink_end_to_end_duration_seconds_bucket"),
+        )
+        for topic, before, after in zip(topics, initial, final)
+    )
     snapshot = PerformanceSnapshot(
         sustained_throughput=sustained_throughput,
         burst_throughput=burst_throughput,
@@ -408,9 +519,21 @@ def main() -> int:
     result = assess(snapshot)
     print(json.dumps({"status": "ok" if result.passed else "failed", "run_id": run_id,
                       "messages_total": estimated, "snapshot": snapshot.__dict__,
+                      "terminal_results_by_topic": {
+                          topic: result_counts(before, after, topic)
+                          for topic, before, after in zip(topics, initial, final)
+                      },
                       "assessment": result.as_dict()}, ensure_ascii=False, sort_keys=True))
     return 0 if result.passed else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(json.dumps({
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:300],
+        }, ensure_ascii=False, sort_keys=True))
+        raise SystemExit(2)

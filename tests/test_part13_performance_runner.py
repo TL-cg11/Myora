@@ -48,8 +48,25 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
             "consumer_lag",
             "oldest_message_seconds",
             "preflight_throughput_by_topic",
+            "terminal_results_by_topic",
         ):
             self.assertIn(field, script)
+        self.assertIn('counter(samples, topic, "processed")', script)
+        self.assertIn("histogram_p95_or_none", script)
+
+    def test_server_wrapper_is_dry_run_by_default(self):
+        root = Path(__file__).resolve().parents[1]
+        wrapper = (root / "scripts/run-part13-11.sh").read_text()
+        self.assertIn("requires_execute", wrapper)
+        self.assertIn("systemctl restart luck-security-event-sink luck-masked-log-sink", wrapper)
+        self.assertIn("luck_sink_commit_duration_seconds", wrapper)
+        self.assertIn('run_part13_performance.py" --execute', wrapper)
+
+        combined = (root / "scripts/run-part13-remaining.sh").read_text()
+        self.assertIn('"13-11","13-12","13-13","13-14"', combined)
+        self.assertIn("configuration_snapshot", combined)
+        self.assertIn("production_configuration_modified", combined)
+        self.assertIn('run-part13-11.sh" --execute', combined)
 
 
 if __name__ == "__main__":

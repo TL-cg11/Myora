@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from security_sink.common import KafkaMetadata
+from security_sink.common import KafkaMetadata, payload_age_seconds
 from security_sink.fault_injection import crash_once
 from security_sink.kafka_loop import KafkaSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
@@ -134,17 +134,27 @@ def main() -> int:
                 break
         next_replay = time.monotonic() + replay_interval
 
+    pending_observation: tuple[float, bytes] | None = None
+
     def process(raw_value: bytes, metadata: KafkaMetadata):
+        nonlocal pending_observation
         started = time.monotonic()
         result = processor.execute(
             lambda: sink.handle(raw_value, metadata), raw_value, metadata
         )
-        metrics.record_message(
-            metadata.topic, result.duplicate or "processed", time.monotonic() - started
-        )
+        pending_observation = (time.monotonic() - started, raw_value)
         return result
 
     def processed(message: Any, result: Any) -> None:
+        nonlocal pending_observation
+        if pending_observation is None:
+            raise RuntimeError("message observation is missing after Kafka commit")
+        processing_duration, raw_value = pending_observation
+        pending_observation = None
+        metrics.record_message(
+            message.topic(), result.duplicate or "processed", processing_duration,
+            payload_age_seconds(raw_value),
+        )
         try:
             observe_kafka_position(metrics, consumer, message, TopicPartition)
         except Exception as exc:
@@ -166,6 +176,9 @@ def main() -> int:
             should_stop=lambda: stopping,
             is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
             before_poll=replay_buffer,
+            on_committed=lambda message, duration: metrics.record_commit(
+                message.topic(), duration
+            ),
             on_processed=processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__

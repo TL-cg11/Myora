@@ -16,6 +16,8 @@ REQUIRED_METRICS = frozenset(
         "luck_sink_retries_total",
         "luck_sink_dlq_total",
         "luck_sink_processing_duration_seconds",
+        "luck_sink_commit_duration_seconds",
+        "luck_sink_end_to_end_duration_seconds",
         "luck_consumer_lag_messages",
         "luck_consumer_oldest_message_age_seconds",
     }
