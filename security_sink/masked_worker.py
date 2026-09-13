@@ -23,6 +23,7 @@ from security_sink.resilience import (
     TerminalConsumptionRepository,
 )
 from security_sink.runtime import (
+    ReusableMySQLConnectionFactory,
     kafka_config,
     kafka_producer_config,
     mysql_connection,
@@ -40,10 +41,14 @@ def main() -> int:
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    db_connections = ReusableMySQLConnectionFactory(
+        mysql_connection,
+        ping_interval=float(os.getenv("SECURITY_DB_PING_INTERVAL_SECONDS", "1")),
+    )
     config = kafka_config("masked-log-sink", "MASKED_LOG_CONSUMER_GROUP")
     consumer_group = str(config["group.id"])
     sink = MaskedLogSink(
-        ConsumptionRepository(mysql_connection),
+        ConsumptionRepository(db_connections),
         LokiClient(
             required("LOKI_URL"),
             timeout=float(os.getenv("LOKI_PUSH_TIMEOUT_SECONDS", "5")),
@@ -64,7 +69,7 @@ def main() -> int:
         int(os.getenv("MASKED_LOG_METRICS_PORT", "9109")),
     )
     metrics_server.start()
-    failures = FailureRepository(mysql_connection)
+    failures = FailureRepository(db_connections)
     buffer = FilesystemBuffer(
         Path(
             os.getenv(
@@ -89,7 +94,7 @@ def main() -> int:
 
     processor = ResilientProcessor(
         failures,
-        TerminalConsumptionRepository(mysql_connection),
+        TerminalConsumptionRepository(db_connections),
         DlqPublisher(send_dlq),
         buffer=buffer,
         on_retry=lambda metadata, details: (
@@ -187,6 +192,7 @@ def main() -> int:
     finally:
         consumer.close()
         metrics_server.close()
+        db_connections.close()
     return 0
 
 

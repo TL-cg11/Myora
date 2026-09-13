@@ -34,6 +34,11 @@
 
 측정값은 메시지 수신 시각부터 DB/Loki 저장 성공 시각까지 계산한다. 실제 운영 수치가 목표를 초과하면 partition 수, consumer 수, DB batch size, Loki buffer를 조정하고 기준을 개정한다.
 
+Sink worker는 메시지별 TCP 연결 비용을 제거하기 위해 worker당 MariaDB 연결 하나를
+재사용한다. 각 write는 기존과 동일하게 명시적 transaction으로 처리하고 read는 autocommit을
+사용하며, `SECURITY_DB_PING_INTERVAL_SECONDS` 주기로 연결 상태를 확인해 끊긴 연결을
+재생성한다. worker 종료 시에는 물리 연결을 닫는다.
+
 ### Verification commands
 
 외부 I/O를 제외한 계약 검증·메시지 처리 core의 회귀 성능은 아래 명령으로 60초씩 측정한다. 이 결과는 코드 자체의 병목을 찾는 기준이며 실제 DB·Loki latency 또는 Kafka lag 측정값으로 대체할 수 없다.

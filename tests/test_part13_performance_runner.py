@@ -49,6 +49,7 @@ class Part13PerformanceRunnerTests(unittest.TestCase):
             "oldest_message_seconds",
             "preflight_throughput_by_topic",
             "terminal_results_by_topic",
+            "average_seconds_by_topic",
         ):
             self.assertIn(field, script)
         self.assertIn('counter(samples, topic, "processed")', script)

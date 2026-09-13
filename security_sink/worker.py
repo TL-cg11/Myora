@@ -19,7 +19,12 @@ from security_sink.resilience import (
     ResilientProcessor,
     TerminalConsumptionRepository,
 )
-from security_sink.runtime import kafka_config, kafka_producer_config, mysql_connection
+from security_sink.runtime import (
+    ReusableMySQLConnectionFactory,
+    kafka_config,
+    kafka_producer_config,
+    mysql_connection,
+)
 from security_sink.security_events import TOPIC, SecurityEventRepository, SecurityEventSink
 
 
@@ -33,7 +38,11 @@ def main() -> int:
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    sink = SecurityEventSink(SecurityEventRepository(mysql_connection))
+    db_connections = ReusableMySQLConnectionFactory(
+        mysql_connection,
+        ping_interval=float(os.getenv("SECURITY_DB_PING_INTERVAL_SECONDS", "1")),
+    )
+    sink = SecurityEventSink(SecurityEventRepository(db_connections))
     config = kafka_config(
         "security-event-sink", "SECURITY_EVENT_CONSUMER_GROUP"
     )
@@ -62,8 +71,8 @@ def main() -> int:
             raise RuntimeError("Kafka DLQ publish failed")
 
     processor = ResilientProcessor(
-        FailureRepository(mysql_connection),
-        TerminalConsumptionRepository(mysql_connection),
+        FailureRepository(db_connections),
+        TerminalConsumptionRepository(db_connections),
         DlqPublisher(send_dlq),
         on_retry=lambda metadata, details: (
             metrics.record_failure(metadata.topic, details.stage),
@@ -147,6 +156,7 @@ def main() -> int:
     finally:
         consumer.close()
         metrics_server.close()
+        db_connections.close()
     return 0
 
 

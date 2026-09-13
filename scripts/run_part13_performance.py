@@ -181,6 +181,43 @@ def histogram_p95_or_none(
         return None
 
 
+def histogram_average(
+    before: list[tuple[str, dict[str, str], float]],
+    after: list[tuple[str, dict[str, str], float]],
+    topic: str,
+    metric_name: str,
+) -> float | None:
+    def value(samples: list[tuple[str, dict[str, str], float]], suffix: str) -> float:
+        return sum(
+            sample
+            for name, labels, sample in samples
+            if name == f"{metric_name}_{suffix}" and labels.get("topic") == topic
+        )
+
+    count = max(0.0, value(after, "count") - value(before, "count"))
+    total = max(0.0, value(after, "sum") - value(before, "sum"))
+    return total / count if count else None
+
+
+def latency_averages(
+    before_samples: tuple[list[tuple[str, dict[str, str], float]], ...],
+    after_samples: tuple[list[tuple[str, dict[str, str], float]], ...],
+    topics: tuple[str, str],
+) -> dict[str, dict[str, float | None]]:
+    metrics = {
+        "processing": "luck_sink_processing_duration_seconds",
+        "commit": "luck_sink_commit_duration_seconds",
+        "end_to_end": "luck_sink_end_to_end_duration_seconds",
+    }
+    return {
+        topic: {
+            label: histogram_average(before, after, topic, metric)
+            for label, metric in metrics.items()
+        }
+        for topic, before, after in zip(topics, before_samples, after_samples)
+    }
+
+
 def produce_phase(producer: Any, run_id: str, phase: str, rate: int, duration: int,
                   security_url: str, masked_url: str) -> tuple[int, int, float]:
     total = rate * duration
@@ -430,6 +467,9 @@ def main() -> int:
                 topic: result_counts(before, after, topic)
                 for topic, before, after in zip(topics, initial, preflight_final)
             },
+            "average_seconds_by_topic": latency_averages(
+                initial, preflight_final, topics
+            ),
             "max_lag": preflight_lag,
             "max_oldest_message_seconds": preflight_age,
             "processing_p95_upper_bound_seconds": {
@@ -523,6 +563,9 @@ def main() -> int:
                           topic: result_counts(before, after, topic)
                           for topic, before, after in zip(topics, initial, final)
                       },
+                      "average_seconds_by_topic": latency_averages(
+                          initial, final, topics
+                      ),
                       "assessment": result.as_dict()}, ensure_ascii=False, sort_keys=True))
     return 0 if result.passed else 1
 
