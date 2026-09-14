@@ -60,6 +60,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
         masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
         self.assertNotIn("| limit", json.dumps(masked_panel))
         self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
+        self.assertIn('masked_message != \\"\\"', json.dumps(masked_panel))
         self.assertIn('line_format \\"{{.masked_message}}\\"', json.dumps(masked_panel))
 
     def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
