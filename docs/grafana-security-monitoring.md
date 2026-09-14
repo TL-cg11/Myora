@@ -20,6 +20,9 @@
   graphs, and recent alert logs remain in the third tab so raw IDS alert volume is
   not compared directly with application-event counts. Shipper health remains on
   the operations dashboard.
+- The Suricata IDS tab displays only the four local Flood types. Its attack and
+  severity legends remain visible as zero-valued series during quiet periods;
+  generic `community_alert` records stay in Loki but are excluded from this view.
 - The masked-log panel renders only `masked_message`; the complete validated JSON
   remains stored in Loki for controlled troubleshooting.
 

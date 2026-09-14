@@ -1,11 +1,20 @@
 {
   "annotations":{"list":[]},"editable":false,"graphTooltip":1,"id":null,"links":[],
   "panels":[
-    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"id":1,"targets":[{"expr":"sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type != \"\" [$__range]))","refId":"A"}],"title":"IDS alerts by attack type","type":"timeseries"},
-    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"targets":[{"expr":"sum by (severity) (count_over_time({job=\"luck-suricata-ids\"} | json | severity != \"\" [$__range]))","refId":"A"}],"title":"IDS alerts by severity","type":"timeseries"},
-    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":10,"w":24,"x":0,"y":8},"id":3,"targets":[{"expr":"{job=\"luck-suricata-ids\"} | json","refId":"A"}],"title":"Recent IDS alerts","type":"logs"}
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"id":1,"options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi"}},"targets":[
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"tcp_syn_flood\" [$__interval])) or on() vector(0)","legendFormat":"TCP SYN Flood","refId":"A"},
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"udp_flood\" [$__interval])) or on() vector(0)","legendFormat":"UDP Flood","refId":"B"},
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"icmp_flood\" [$__interval])) or on() vector(0)","legendFormat":"ICMP Flood","refId":"C"},
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"web_connection_flood\" [$__interval])) or on() vector(0)","legendFormat":"Web Connection Flood","refId":"D"}
+    ],"title":"IDS flood alerts by attack type","type":"timeseries"},
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi"}},"targets":[
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"critical\" [$__interval])) or on() vector(0)","legendFormat":"CRITICAL","refId":"A"},
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"high\" [$__interval])) or on() vector(0)","legendFormat":"HIGH","refId":"B"},
+      {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"medium\" [$__interval])) or on() vector(0)","legendFormat":"MEDIUM","refId":"C"}
+    ],"title":"IDS flood alerts by severity","type":"timeseries"},
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":10,"w":24,"x":0,"y":8},"id":3,"targets":[{"expr":"{job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\"","maxLines":200,"refId":"A"}],"title":"Recent IDS flood alerts","type":"logs"}
   ],
   "refresh":"1m","schemaVersion":39,"tags":["luck","suricata","ids","security-monitoring"],
   "time":{"from":"now-1h","to":"now"},"timepicker":{"refresh_intervals":["30s","1m","5m"],"time_options":["1h","6h","24h"]},
-  "title":"Luck Suricata IDS","uid":"luck-suricata-ids","version":1
+  "title":"Luck Suricata IDS","uid":"luck-suricata-ids","version":2
 }

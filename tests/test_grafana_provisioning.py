@@ -68,8 +68,22 @@ class GrafanaProvisioningTests(unittest.TestCase):
     def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
         ids_payload = json.dumps(self.ids)
         operations_payload = json.dumps(self.ids_shipper)
-        for field in ("attack_type", "severity", "Recent IDS alerts"):
+        for field in ("attack_type", "severity", "Recent IDS flood alerts"):
             self.assertIn(field, ids_payload)
+        attack_panel = next(panel for panel in self.ids["panels"] if panel["id"] == 1)
+        self.assertEqual(
+            [target["legendFormat"] for target in attack_panel["targets"]],
+            ["TCP SYN Flood", "UDP Flood", "ICMP Flood", "Web Connection Flood"],
+        )
+        severity_panel = next(panel for panel in self.ids["panels"] if panel["id"] == 2)
+        self.assertEqual(
+            [target["legendFormat"] for target in severity_panel["targets"]],
+            ["CRITICAL", "HIGH", "MEDIUM"],
+        )
+        for target in attack_panel["targets"] + severity_panel["targets"]:
+            self.assertIn("or on() vector(0)", target["expr"])
+            self.assertIn("$__interval", target["expr"])
+        self.assertNotIn("community_alert", ids_payload)
         for metric in (
             "luck_ids_shipper_buffer_bytes", "luck_ids_shipper_buffer_limit_bytes",
             "luck_ids_shipper_retries_total", "luck_ids_shipper_lost_total",
