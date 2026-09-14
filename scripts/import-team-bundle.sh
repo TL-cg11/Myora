@@ -18,10 +18,11 @@ python -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[
 echo "[1/4] .env 적용"
 if [ -f .env ]; then cp .env ".env.backup-$(date +%Y%m%d%H%M%S)"; echo "      기존 .env 는 백업했습니다."; fi
 cp "$WORK/.env" .env
-# 번들의 .env 는 NER 이미지를 켜 둔 상태다. 모델이 번들에 없으면 정규식 전용으로 내린다.
+# 번들의 .env 는 NER 을 오프라인 캐시로 켜 둔 상태다. 모델이 번들에 없으면(경량 번들) 온라인 모드로
+# 바꿔 첫 실행 때 Hugging Face 에서 내려받게 한다 (약 900MB, 인터넷 필요. 받는 동안 WAS 는 정상 동작).
 if [ ! -f "$WORK/hf-cache.tar" ]; then
-  sed -i.bak -E 's/^ADAPTER_BUILD_TARGET=.*/ADAPTER_BUILD_TARGET=runtime/; s/^DETECTOR_NER_ENABLED=.*/DETECTOR_NER_ENABLED=false/; s/^DETECTOR_PII_CONTEXT_ENABLED=.*/DETECTOR_PII_CONTEXT_ENABLED=false/' .env && rm -f .env.bak
-  echo "      모델 캐시가 번들에 없어 NER/문맥 재검증은 끈 상태로 둡니다."
+  sed -i.bak -E 's/^DETECTOR_NER_LOCAL_FILES_ONLY=.*/DETECTOR_NER_LOCAL_FILES_ONLY=false/; s/^DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY=.*/DETECTOR_PII_CONTEXT_LOCAL_FILES_ONLY=false/; s/^HF_HUB_OFFLINE=.*/HF_HUB_OFFLINE=0/; s/^TRANSFORMERS_OFFLINE=.*/TRANSFORMERS_OFFLINE=0/' .env && rm -f .env.bak
+  echo "      모델 캐시가 번들에 없어 첫 실행 때 NER 모델을 인터넷에서 내려받습니다 (약 900MB)."
 fi
 
 if [ -f "$WORK/hf-cache.tar" ]; then
