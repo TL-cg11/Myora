@@ -7,6 +7,13 @@ from app.evals import run_guardrail_eval as evaluator
 
 
 class GuardrailEvalTests(unittest.IsolatedAsyncioTestCase):
+    def test_case_catalog_has_twenty_cases_per_service(self):
+        self.assertEqual(len(evaluator.CASES), 60)
+        for service in ("saju", "tarot", "face"):
+            cases = [case for case in evaluator.CASES if case["service"] == service]
+            self.assertEqual(len(cases), 20, service)
+        self.assertEqual(len({case["id"] for case in evaluator.CASES}), 60)
+
     def test_case_selection_enforces_limit_and_service(self):
         selected = evaluator.selected_cases("tarot", 2)
         self.assertEqual([case["id"] for case in selected], ["LIVE-T-01", "LIVE-T-02"])
