@@ -27,7 +27,7 @@ def _integer(name: str, default: int, minimum: int = 1) -> int:
 
 def policy_from_environment() -> NotificationPolicy:
     return NotificationPolicy(
-        group_window_seconds=_integer("NOTIFICATION_GROUP_WINDOW_SECONDS", 60, 0),
+        group_window_seconds=_integer("NOTIFICATION_GROUP_WINDOW_SECONDS", 0, 0),
         max_batch_size=_integer("NOTIFICATION_MAX_BATCH_SIZE", 20),
         max_retries=_integer("NOTIFICATION_MAX_RETRIES", 5),
         retry_base_seconds=_integer("NOTIFICATION_RETRY_BASE_SECONDS", 60),
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    interval = _integer("NOTIFICATION_POLL_SECONDS", 60)
+    interval = _integer("NOTIFICATION_POLL_SECONDS", 10)
     while not stopping:
         try:
             LOGGER.info("notification cycle result=%s", run_once())

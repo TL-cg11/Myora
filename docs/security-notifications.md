@@ -26,8 +26,9 @@ rows are claimed with `FOR UPDATE SKIP LOCKED`, so multiple workers do not send
 the same row concurrently; stale `SENDING` rows become eligible again after 10
 minutes.
 
-The worker claims no more than 20 rows per cycle and sends one grouped message
-per channel. A failed delivery becomes `FAILED`, increments `retry_count`, and
+Each event is eligible for delivery immediately; the worker polls every 10
+seconds and may group rows claimed in the same cycle into one message per
+channel. A failed delivery becomes `FAILED`, increments `retry_count`, and
 uses 1, 2, 4, 8 minute exponential backoff plus bounded jitter for at most 5
 attempts. Discord HTTP 429 responses honor a numeric or HTTP-date `Retry-After`
 value (or the JSON `retry_after` fallback) without scheduling earlier than the

@@ -13,7 +13,9 @@ VALID_CHANNELS = ("DISCORD",)
 
 @dataclass(frozen=True)
 class NotificationPolicy:
-    group_window_seconds: int = 60
+    # Every security event is actionable; make it eligible immediately. Events
+    # claimed in the same notifier cycle can still share one Discord message.
+    group_window_seconds: int = 0
     max_batch_size: int = 20
     max_retries: int = 5
     retry_base_seconds: int = 60

@@ -157,7 +157,10 @@ class NotificationPolicyTests(unittest.TestCase):
         rows = queue_rows(fixture(), configured_channels("DISCORD"))
         self.assertEqual(len(rows), 1)
         self.assertEqual(len({row[0] for row in rows}), 1)
-        self.assertTrue(all(row[4] > datetime.utcnow() for row in rows))
+        self.assertTrue(all(row[4] <= datetime.utcnow() for row in rows))
+
+    def test_default_policy_queues_events_without_a_grouping_delay(self):
+        self.assertEqual(NotificationPolicy().group_window_seconds, 0)
 
     def test_only_discord_is_a_valid_channel(self):
         self.assertEqual(configured_channels(), ("DISCORD",))
