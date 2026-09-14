@@ -1,20 +1,13 @@
 import { useMemo, useState } from 'react';
 import './dashboard.css';
-
-const DASHBOARDS = [
-  { key: 'events', label: '보안 이벤트', uid: 'luck-security-events' },
-  { key: 'consumers', label: 'Consumer · 마스킹 로그', uid: 'luck-security-consumers' },
-];
-const RANGES = [
-  { label: '최근 1시간', value: 'now-1h' }, { label: '최근 6시간', value: 'now-6h' }, { label: '최근 24시간', value: 'now-24h' },
-];
+import { DASHBOARDS, RANGES, grafanaDashboardSource } from './dashboardConfig.js';
 
 export default function DashboardPage() {
   const [dashboard, setDashboard] = useState(DASHBOARDS[0]);
   const [range, setRange] = useState(RANGES[0].value);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const source = useMemo(() => `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=1m`, [dashboard, range]);
+  const source = useMemo(() => grafanaDashboardSource(dashboard, range), [dashboard, range]);
   return <main className="dashboard-page"><section className="dashboard-shell">
     <div className="dashboard-heading"><div><span>ADMIN ONLY</span><h1>보안 모니터링</h1><p>Grafana는 같은 사이트의 보호된 경로에서만 표시됩니다.</p></div><a href="/grafana/" target="_blank" rel="noreferrer">Grafana 새 창</a></div>
     <div className="dashboard-controls"><div className="dashboard-tabs">{DASHBOARDS.map((item) => <button key={item.key} className={item.key === dashboard.key ? 'active' : ''} onClick={() => { setDashboard(item); setLoading(true); setFailed(false); }}>{item.label}</button>)}</div><label>조회 기간<select value={range} onChange={(event) => { setRange(event.target.value); setLoading(true); setFailed(false); }}>{RANGES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label></div>
