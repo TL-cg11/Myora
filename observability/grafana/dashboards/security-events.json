@@ -7,31 +7,24 @@
   "links": [],
   "panels": [
     {
-      "datasource": {"type": "datasource", "uid": "-- Mixed --"},
-      "description": "Application security-event risk and Suricata flood-alert severity in the selected time range.",
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "description": "Selected Grafana time range, grouped by final event risk.",
       "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
       "id": 1,
       "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right"}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": true}},
-      "targets": [
-        {"datasource": {"type": "mysql", "uid": "security-monitoring-mysql"}, "format": "table", "rawQuery": true, "rawSql": "SELECT risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY risk_level ORDER BY FIELD(risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW')", "refId": "A"},
-        {"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "sum by (severity) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" [$__range]))", "instant": true, "legendFormat": "IDS {{severity}}", "queryType": "instant", "range": false, "refId": "B"}
-      ],
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY risk_level ORDER BY FIELD(risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW')", "refId": "A"}],
       "title": "Events by risk level",
       "type": "piechart"
     },
     {
-      "datasource": {"type": "datasource", "uid": "-- Mixed --"},
-      "description": "Application detector categories and Suricata flood attack types in the selected time range.",
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}}, "overrides": []},
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
       "id": 2,
       "options": {"orientation": "horizontal", "showValue": "always"},
-      "targets": [
-        {"datasource": {"type": "mysql", "uid": "security-monitoring-mysql"}, "format": "table", "rawQuery": true, "rawSql": "SELECT d.category AS category, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.category ORDER BY detections DESC", "refId": "A"},
-        {"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" [$__range]))", "instant": true, "legendFormat": "IDS {{attack_type}}", "queryType": "instant", "range": false, "refId": "B"}
-      ],
-      "title": "Detections by category / IDS flood type",
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT d.category AS category, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.category ORDER BY detections DESC", "refId": "A"}],
+      "title": "Detections by category",
       "type": "barchart"
     },
     {
@@ -65,16 +58,13 @@
       "type": "piechart"
     },
     {
-      "datasource": {"type": "datasource", "uid": "-- Mixed --"},
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}}, "overrides": []},
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "id": 6,
       "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
-      "targets": [
-        {"datasource": {"type": "mysql", "uid": "security-monitoring-mysql"}, "format": "time_series", "rawQuery": true, "rawSql": "SELECT $__timeGroupAlias(detected_at, '5m'), risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY 1, risk_level ORDER BY 1", "refId": "A"},
-        {"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" [$__interval]))", "legendFormat": "IDS {{attack_type}}", "queryType": "range", "range": true, "refId": "B"}
-      ],
-      "title": "Security events / IDS flood alerts over time",
+      "targets": [{"format": "time_series", "rawQuery": true, "rawSql": "SELECT $__timeGroupAlias(detected_at, '5m'), risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY 1, risk_level ORDER BY 1", "refId": "A"}],
+      "title": "Security events over time",
       "type": "timeseries"
     },
     {
@@ -98,5 +88,5 @@
   "timezone": "browser",
   "title": "Luck Security Events",
   "uid": "luck-security-events",
-  "version": 5
+  "version": 6
 }

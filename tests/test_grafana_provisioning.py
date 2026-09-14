@@ -31,8 +31,8 @@ class GrafanaProvisioningTests(unittest.TestCase):
         titles = {panel["title"] for panel in self.events["panels"]}
         self.assertTrue(
             {
-                "Events by risk level", "Detections by category / IDS flood type", "Top entity types",
-                "Top detection rules", "Events by status", "Security events / IDS flood alerts over time",
+                "Events by risk level", "Detections by category", "Top entity types",
+                "Top detection rules", "Events by status", "Security events over time",
                 "Untreated / long-unresolved events",
             }.issubset(titles),
         )
@@ -47,19 +47,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertNotIn("UPDATE ", sql.upper())
         self.assertNotIn("DELETE ", sql.upper())
         event_payload = json.dumps(self.events)
-        self.assertIn("luck-suricata-ids", event_payload)
-        flood_filter = "tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood"
-        self.assertEqual(event_payload.count(flood_filter), 3)
-        for title in (
-            "Events by risk level", "Detections by category / IDS flood type",
-            "Security events / IDS flood alerts over time",
-        ):
-            panel = next(panel for panel in self.events["panels"] if panel["title"] == title)
-            self.assertEqual(panel["datasource"]["uid"], "-- Mixed --")
-            self.assertEqual(
-                {target["datasource"]["uid"] for target in panel["targets"]},
-                {"security-monitoring-mysql", "loki"},
-            )
+        self.assertNotIn("luck-suricata-ids", event_payload)
         self.assertNotIn("Recent Suricata IDS alerts", titles)
 
     def test_consumer_dashboard_covers_metrics_and_masked_logs(self):
