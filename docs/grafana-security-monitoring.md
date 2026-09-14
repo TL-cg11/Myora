@@ -16,8 +16,10 @@
   code and are not UI-editable.
 - The site administrator page exposes three tabs in order: `Luck Security Events`,
   `Luck Security Consumers`, and `Luck Suricata IDS`. Application security events
-  remain MariaDB-backed, while Suricata IDS alert content remains a separate Loki
-  view. Shipper health remains on the operations dashboard.
+  remain MariaDB-backed. The first tab mixes Loki counts for the four local flood
+  types into its risk, detection-type, and time-series summaries; detailed IDS
+  severity graphs and recent alert logs remain in the third tab. Shipper health
+  remains on the operations dashboard.
 - The masked-log panel renders only `masked_message`; the complete validated JSON
   remains stored in Loki for controlled troubleshooting.
 
