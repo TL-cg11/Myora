@@ -198,11 +198,35 @@ async def run(cases: list[dict], repeat: int) -> dict:
     if missing:
         raise RuntimeError("API 키가 없는 서비스: " + ", ".join(missing))
     results = []
+    total_executions = len(cases) * repeat
+    run_started = perf_counter()
+    print(
+        f"평가 시작: 고유 사례 {len(cases)}개 × {repeat}회 = "
+        f"총 {total_executions}회",
+        file=sys.stderr,
+        flush=True,
+    )
     for case in cases:
         for attempt in range(1, repeat + 1):
             result = await evaluate_case(case)
             result["attempt"] = attempt
             results.append(result)
+            completed = len(results)
+            passed = sum(item["passed"] for item in results)
+            failed = completed - passed
+            status = "PASS" if result["passed"] else "FAIL"
+            percent = completed / total_executions * 100
+            print(
+                f"[{completed}/{total_executions} {percent:5.1f}%] "
+                f"{case['id']} ({case['service']}/{case['kind']}, "
+                f"반복 {attempt}/{repeat}) {status} "
+                f"판정={result['actual']} 호출={result['call_count']} "
+                f"소요={result['elapsed_ms'] / 1000:.1f}초 "
+                f"누적=PASS {passed} / FAIL {failed} "
+                f"전체={perf_counter() - run_started:.1f}초",
+                file=sys.stderr,
+                flush=True,
+            )
     elapsed = [item["elapsed_ms"] for item in results]
     calls = [call for item in results for call in item["calls"]]
     known_tokens = [call["total_tokens"] for call in calls if isinstance(call.get("total_tokens"), int)]

@@ -1,5 +1,6 @@
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from io import StringIO
 from unittest.mock import AsyncMock, patch
 
@@ -37,6 +38,31 @@ class PromptInjectionEvalTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["passed"])
         self.assertNotIn("question", result)
         self.assertNotIn("answer", result)
+
+    async def test_run_prints_progress_without_prompt_or_answer(self):
+        case = evaluator.load_cases(evaluator.DEFAULT_CASES)[0]
+        result = {
+            "case_id": case["id"], "kind": case["kind"],
+            "service": case["service"], "expected": case["expected"],
+            "actual": "restrict", "rules": ["G11"], "generated": False,
+            "rule_match": True, "generated_match": True,
+            "forbidden_token_leak": False, "passed": True,
+            "elapsed_ms": 1234.0, "call_count": 1, "calls": [],
+        }
+        with (
+            patch.object(evaluator, "evaluate_case", AsyncMock(return_value=result)),
+            patch.object(
+                evaluator,
+                "settings",
+                replace(evaluator.settings, deepseek_tarot_api_key="fake"),
+            ),
+            redirect_stderr(StringIO()) as progress,
+        ):
+            await evaluator.run([case], repeat=1)
+        output = progress.getvalue()
+        self.assertIn("[1/1 100.0%]", output)
+        self.assertIn("PASS", output)
+        self.assertNotIn(case["question"], output)
 
     def test_live_confirmation_is_required(self):
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
