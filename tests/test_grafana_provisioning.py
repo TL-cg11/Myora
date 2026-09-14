@@ -71,6 +71,9 @@ class GrafanaProvisioningTests(unittest.TestCase):
         ):
             self.assertIn(metric, payload)
         self.assertIn('{pipeline=\\"security-masked-logs\\", data_class=\\"masked\\"} | json', payload)
+        masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
+        self.assertNotIn("| limit", json.dumps(masked_panel))
+        self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
 
     def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
         ids_payload = json.dumps(self.ids)
@@ -133,7 +136,8 @@ class GrafanaProvisioningTests(unittest.TestCase):
     def test_dashboard_defaults_limit_log_queries_and_refreshes(self):
         self.assertEqual(self.consumers["time"]["from"], "now-1h")
         self.assertEqual(self.consumers["refresh"], "1m")
-        self.assertIn("limit 200", json.dumps(self.consumers))
+        masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
+        self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
         self.assertEqual(self.events["time"]["from"], "now-1h")
         self.assertEqual(self.events["refresh"], "1m")
         for dashboard in (self.events, self.consumers):
