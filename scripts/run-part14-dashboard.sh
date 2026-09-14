@@ -32,6 +32,12 @@ fi
 install -m 0644 "$ROOT_DIR/nginx.conf" /etc/nginx/nginx.conf
 install -m 0644 "$ROOT_DIR/conf.d/luck.conf" /etc/nginx/conf.d/luck.conf
 install -o root -g grafana -m 0640 "$ROOT_DIR/observability/grafana/grafana.ini" /etc/grafana/grafana.ini
+# Older Part 9/13 installations wrote these GF_SERVER_* overrides to the
+# EnvironmentFile. Environment variables win over grafana.ini, so remove only
+# those obsolete server-path overrides before restarting Grafana.
+if [[ -f /etc/luck-observability.env ]]; then
+  sed -i -E '/^GF_SERVER_(HTTP_ADDR|HTTP_PORT|ROOT_URL|SERVE_FROM_SUB_PATH)=/d' /etc/luck-observability.env
+fi
 install -d -o grafana -g grafana -m 0755 /var/lib/grafana/dashboards/security-monitoring
 install -m 0644 "$ROOT_DIR/observability/grafana/dashboards/"*.json /var/lib/grafana/dashboards/security-monitoring/
 chown grafana:grafana /var/lib/grafana/dashboards/security-monitoring/*.json
@@ -39,7 +45,13 @@ nginx -t
 systemctl restart grafana-server nginx
 systemctl is-active --quiet grafana-server
 systemctl is-active --quiet nginx
-ss -ltn | grep -Eq '127\.0\.0\.1:3000' || { echo 'Grafana is not loopback-bound.' >&2; exit 1; }
+for _ in {1..20}; do
+  if ss -ltn | grep -Eq '127\.0\.0\.1:3000'; then
+    break
+  fi
+  sleep 1
+done
+ss -ltn | grep -Eq '127\.0\.0\.1:3000' || { echo 'Grafana did not become loopback-bound within 20 seconds.' >&2; exit 1; }
 if ss -ltn | grep -Eq '(^|[[:space:]])(0\.0\.0\.0|\[::\]):3000'; then
   echo 'Grafana must not listen publicly on port 3000.' >&2
   exit 1

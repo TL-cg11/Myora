@@ -2,9 +2,11 @@
 
 ## Thresholds and ownership
 
-Application notifications are created for HIGH and CRITICAL events, behavior
-detections whose `match_count` is at least 3, and unresolved events. Unresolved
-thresholds are CRITICAL 1 hour, HIGH 4 hours, MEDIUM 24 hours, and LOW 72 hours.
+Application notifications are created once for every newly persisted security
+event, regardless of risk level or detection rule, and for unresolved events.
+Each event notification uses the `SECURITY_EVENT` alert type; risk level remains
+in the message for triage rather than filtering delivery. Unresolved thresholds
+are CRITICAL 1 hour, HIGH 4 hours, MEDIUM 24 hours, and LOW 72 hours.
 The security-event sink queues immediate alerts in the event DB transaction;
 the notifier polls unresolved events once per minute.
 

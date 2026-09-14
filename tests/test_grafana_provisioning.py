@@ -127,6 +127,8 @@ class GrafanaProvisioningTests(unittest.TestCase):
         ):
             self.assertIn(value, self.nginx)
         self.assertIn("ss -ltn", self.part14_runner)
+        self.assertIn("for _ in {1..20}", self.part14_runner)
+        self.assertIn("GF_SERVER_(HTTP_ADDR|HTTP_PORT|ROOT_URL|SERVE_FROM_SUB_PATH)", self.part14_runner)
         self.assertIn("dashboards/security-monitoring", self.part14_runner)
 
 

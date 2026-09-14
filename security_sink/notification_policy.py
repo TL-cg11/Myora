@@ -8,14 +8,11 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 
-RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 VALID_CHANNELS = ("DISCORD",)
 
 
 @dataclass(frozen=True)
 class NotificationPolicy:
-    immediate_risk_level: str = "HIGH"
-    repeated_behavior_matches: int = 3
     group_window_seconds: int = 60
     max_batch_size: int = 20
     max_retries: int = 5
@@ -62,18 +59,14 @@ def configured_channels(raw: str | None = None) -> tuple[str, ...]:
 def initial_alert_types(
     event: dict[str, Any], policy: NotificationPolicy = DEFAULT_POLICY
 ) -> tuple[str, ...]:
-    alerts: list[str] = []
-    risk_level = str(event["risk_level"])
-    if RISK_ORDER[risk_level] >= RISK_ORDER[policy.immediate_risk_level]:
-        alerts.append(f"RISK_{risk_level}")
-    repeated = any(
-        detection.get("category") == "BEHAVIOR"
-        and int(detection.get("match_count", 0)) >= policy.repeated_behavior_matches
-        for detection in event.get("detections", ())
-    )
-    if repeated:
-        alerts.append("REPEATED_BEHAVIOR")
-    return tuple(alerts)
+    """Queue one Discord delivery for every persisted security event.
+
+    Event severity is included in the notification body; it is deliberately not
+    used as a delivery filter.  A stable alert type preserves one-delivery
+    idempotency through ``event_id:alert_type:channel``.
+    """
+    del event, policy
+    return ("SECURITY_EVENT",)
 
 
 def dedup_key(event_id: str, alert_type: str, channel: str) -> str:

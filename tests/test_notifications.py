@@ -37,7 +37,7 @@ def pending(identifier: int, channel: str = "DISCORD", retry_count: int = 0) -> 
     return PendingNotification(
         identifier,
         f"event-{identifier}",
-        "RISK_HIGH",
+        "SECURITY_EVENT",
         channel,
         retry_count,
         "HIGH",
@@ -128,17 +128,12 @@ class FakeConnection:
 
 
 class NotificationPolicyTests(unittest.TestCase):
-    def test_high_risk_and_repeated_behavior_create_both_alerts(self):
-        self.assertEqual(
-            initial_alert_types(fixture()),
-            ("RISK_HIGH", "REPEATED_BEHAVIOR"),
-        )
-
-    def test_low_or_medium_non_repeated_event_does_not_alert_immediately(self):
+    def test_every_event_creates_one_immediate_alert(self):
+        self.assertEqual(initial_alert_types(fixture()), ("SECURITY_EVENT",))
         event = copy.deepcopy(fixture())
         event["risk_level"] = "MEDIUM"
         event["detections"][1]["match_count"] = 2
-        self.assertEqual(initial_alert_types(event), ())
+        self.assertEqual(initial_alert_types(event), ("SECURITY_EVENT",))
 
     def test_thresholds_and_retry_backoff_are_bounded(self):
         policy = NotificationPolicy()
@@ -156,12 +151,12 @@ class NotificationPolicyTests(unittest.TestCase):
 
     def test_dedup_key_is_event_alert_and_channel_based(self):
         self.assertEqual(
-            dedup_key("event-1", "RISK_HIGH", "DISCORD"),
-            "event-1:RISK_HIGH:DISCORD",
+            dedup_key("event-1", "SECURITY_EVENT", "DISCORD"),
+            "event-1:SECURITY_EVENT:DISCORD",
         )
         rows = queue_rows(fixture(), configured_channels("DISCORD"))
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(len({row[0] for row in rows}), 2)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len({row[0] for row in rows}), 1)
         self.assertTrue(all(row[4] > datetime.utcnow() for row in rows))
 
     def test_only_discord_is_a_valid_channel(self):
