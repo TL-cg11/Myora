@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import { sendReadingChat } from '../../lib/api.js';
 import { displayMessageContent, useContextualMessages } from '../../lib/useContextualDisplay.js';
@@ -11,7 +11,12 @@ export default function SajuChat({ result }) {
   const [loading, setLoading] = useState(false);
   const { chatQuestionLimit: questionLimit, messageMaxChars } = useAiConfig();
   const [questionCount, setQuestionCount] = useState(0);
+  const listRef = useRef(null);
   const limitReached = questionCount >= questionLimit;
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, loading]);
 
   async function sendMessage(value) {
     const text = value.trim();
@@ -31,7 +36,7 @@ export default function SajuChat({ result }) {
     <div className={`chat-limit ${limitReached ? 'exhausted' : ''}`}>{limitReached
       ? `AI 질문 ${questionLimit}회를 모두 사용했어요.`
       : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${questionLimit - questionCount}회`}</div>
-    <div className="chat-messages" aria-live="polite">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{displayMessageContent(message)}</div>)}{loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}</div>
+    <div className="chat-messages" ref={listRef} aria-live="polite">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{displayMessageContent(message)}</div>)}{loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}</div>
     <div className="chat-suggestions">{suggestions.map((item) => <button key={item} type="button" onClick={() => sendMessage(item)} disabled={loading || limitReached}>{item}</button>)}</div>
     <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(question); }}><input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="결과에 관해 궁금한 점을 물어보세요" maxLength={messageMaxChars} /><button type="submit" disabled={loading || !question.trim() || limitReached}>보내기</button></form>
     <p className="chat-notice">AI 해석은 재미와 참고용이며 중요한 결정은 스스로 충분히 검토해 주세요.</p>

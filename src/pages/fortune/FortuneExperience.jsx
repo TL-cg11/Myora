@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sendReadingChat } from '../../lib/api.js';
 import { useAiConfig } from '../../lib/useChatLimit.js';
 import FaceReadingInput from '../../features/face-reading/components/FaceReadingInput.jsx';
@@ -27,8 +27,13 @@ function ChatPanel({ readingId, fortuneType }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
+  const listRef = useRef(null);
   const remainingQuestions = Math.max(0, questionLimit - questionCount);
   const limitReached = remainingQuestions === 0;
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, loading]);
 
   async function sendMessage(text) {
     const question = text.trim();
@@ -66,7 +71,7 @@ function ChatPanel({ readingId, fortuneType }) {
     <p className={`chat-limit ${limitReached ? 'exhausted' : ''}`} role="status">
       {limitReached ? `AI 질문 ${questionLimit}회를 모두 사용했어요.` : `AI 질문은 최대 ${questionLimit}회 가능해요 · 남은 질문 ${remainingQuestions}회`}
     </p>
-    <div className="chat-messages" aria-live="polite">
+    <div className="chat-messages" ref={listRef} aria-live="polite">
       {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role} ${message.error ? 'error' : ''}`}>{displayMessageContent(message)}</div>)}
       {loading && <div className="chat-bubble assistant typing"><span/><span/><span/></div>}
     </div>
