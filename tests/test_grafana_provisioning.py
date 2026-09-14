@@ -29,21 +29,28 @@ class GrafanaProvisioningTests(unittest.TestCase):
 
     def test_event_dashboard_covers_planned_views(self):
         titles = {panel["title"] for panel in self.events["panels"]}
-        self.assertEqual(
-            titles,
+        self.assertTrue(
             {
                 "Events by risk level", "Detections by category", "Top entity types",
                 "Top detection rules", "Events by status", "Security events over time",
-                "Untreated / long-unresolved events",
-            },
+                "Untreated / long-unresolved events", "Suricata IDS alerts by attack type",
+                "Suricata IDS alerts by severity", "Recent Suricata IDS alerts",
+            }.issubset(titles),
         )
-        sql = "\n".join(target["rawSql"] for panel in self.events["panels"] for target in panel["targets"])
+        sql = "\n".join(
+            target["rawSql"] for panel in self.events["panels"]
+            for target in panel["targets"] if "rawSql" in target
+        )
         for field in ("risk_level", "category", "entity_type", "rule_id", "status", "detected_at"):
             self.assertIn(field, sql)
         self.assertIn("${unresolved_hours:raw}", sql)
         self.assertNotIn("INSERT ", sql.upper())
         self.assertNotIn("UPDATE ", sql.upper())
         self.assertNotIn("DELETE ", sql.upper())
+        event_payload = json.dumps(self.events)
+        self.assertIn('{job=\\"luck-suricata-ids\\"}', event_payload)
+        self.assertIn("attack_type", event_payload)
+        self.assertIn("severity", event_payload)
 
     def test_consumer_dashboard_covers_metrics_and_masked_logs(self):
         payload = json.dumps(self.consumers)
