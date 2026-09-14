@@ -31,10 +31,9 @@ class GrafanaProvisioningTests(unittest.TestCase):
         titles = {panel["title"] for panel in self.events["panels"]}
         self.assertTrue(
             {
-                "Events by risk level", "Detections by category / IDS attack type", "Top entity types",
+                "Events by risk level", "Detections by category", "Top entity types",
                 "Top detection rules", "Events by status", "Security events over time",
-                "Untreated / long-unresolved events", "Suricata IDS alerts by attack type",
-                "Suricata IDS alerts by severity", "Recent Suricata IDS alerts",
+                "Untreated / long-unresolved events",
             }.issubset(titles),
         )
         sql = "\n".join(
@@ -47,20 +46,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertNotIn("INSERT ", sql.upper())
         self.assertNotIn("UPDATE ", sql.upper())
         self.assertNotIn("DELETE ", sql.upper())
-        event_payload = json.dumps(self.events)
-        self.assertIn('{job=\\"luck-suricata-ids\\"}', event_payload)
-        self.assertIn("attack_type", event_payload)
-        self.assertIn("severity", event_payload)
-        category_panel = next(
-            panel for panel in self.events["panels"]
-            if panel["title"] == "Detections by category / IDS attack type"
-        )
-        self.assertEqual(category_panel["datasource"]["uid"], "-- Mixed --")
-        self.assertEqual(
-            {target["datasource"]["uid"] for target in category_panel["targets"]},
-            {"security-monitoring-mysql", "loki"},
-        )
-        self.assertIn("IDS {{attack_type}}", json.dumps(category_panel))
+        self.assertNotIn("luck-suricata-ids", json.dumps(self.events))
 
     def test_consumer_dashboard_covers_metrics_and_masked_logs(self):
         payload = json.dumps(self.consumers)
@@ -74,6 +60,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
         masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
         self.assertNotIn("| limit", json.dumps(masked_panel))
         self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
+        self.assertIn('line_format \\"{{.masked_message}}\\"', json.dumps(masked_panel))
 
     def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
         ids_payload = json.dumps(self.ids)

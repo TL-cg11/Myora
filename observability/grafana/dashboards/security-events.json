@@ -18,17 +18,13 @@
       "type": "piechart"
     },
     {
-      "datasource": {"type": "datasource", "uid": "-- Mixed --"},
-      "description": "Application detector categories and Suricata IDS attack types in the selected time range.",
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "fieldConfig": {"defaults": {"color": {"mode": "continuous-GrYlRd"}}, "overrides": []},
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
       "id": 2,
       "options": {"orientation": "horizontal", "showValue": "always"},
-      "targets": [
-        {"datasource": {"type": "mysql", "uid": "security-monitoring-mysql"}, "format": "table", "rawQuery": true, "rawSql": "SELECT d.category AS category, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.category ORDER BY detections DESC", "refId": "A"},
-        {"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type != \"\" [$__range]))", "instant": true, "legendFormat": "IDS {{attack_type}}", "queryType": "instant", "range": false, "refId": "B"}
-      ],
-      "title": "Detections by category / IDS attack type",
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT d.category AS category, SUM(d.match_count) AS detections FROM security_event_detection d JOIN security_event e ON e.id = d.security_event_id WHERE $__timeFilter(e.detected_at) GROUP BY d.category ORDER BY detections DESC", "refId": "A"}],
+      "title": "Detections by category",
       "type": "barchart"
     },
     {
@@ -81,36 +77,6 @@
       "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT event_id, detected_at, TIMESTAMPDIFF(HOUR, detected_at, UTC_TIMESTAMP()) AS unresolved_hours, risk_level, status, source_service, event_name, assigned_to, masked_excerpt FROM security_event WHERE status IN ('OPEN', 'INVESTIGATING') AND detected_at <= UTC_TIMESTAMP() - INTERVAL ${unresolved_hours:raw} HOUR ORDER BY detected_at ASC LIMIT 200", "refId": "A"}],
       "title": "Untreated / long-unresolved events",
       "type": "table"
-    },
-    {
-      "datasource": {"type": "loki", "uid": "loki"},
-      "description": "Suricata IDS alerts confirmed after the configured threshold, grouped by attack type.",
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 26},
-      "id": 8,
-      "targets": [{"expr": "sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type != \"\" [$__range]))", "refId": "A"}],
-      "title": "Suricata IDS alerts by attack type",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "loki", "uid": "loki"},
-      "description": "Suricata IDS alerts grouped by classifier severity.",
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 26},
-      "id": 9,
-      "targets": [{"expr": "sum by (severity) (count_over_time({job=\"luck-suricata-ids\"} | json | severity != \"\" [$__range]))", "refId": "A"}],
-      "title": "Suricata IDS alerts by severity",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "loki", "uid": "loki"},
-      "description": "Recent IDS alerts with masked network prefixes instead of individual IP addresses.",
-      "fieldConfig": {"defaults": {}, "overrides": []},
-      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 34},
-      "id": 10,
-      "targets": [{"expr": "{job=\"luck-suricata-ids\"} | json", "refId": "A"}],
-      "title": "Recent Suricata IDS alerts",
-      "type": "logs"
     }
   ],
   "refresh": "1m",
@@ -122,5 +88,5 @@
   "timezone": "browser",
   "title": "Luck Security Events",
   "uid": "luck-security-events",
-  "version": 3
+  "version": 4
 }

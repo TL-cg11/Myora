@@ -14,13 +14,12 @@
 - Provisioned dashboards are `Luck Security Events`, `Luck Security Consumers`,
   `Luck Suricata IDS`, and `Luck IDS Shipper Operations`. They are managed as
   code and are not UI-editable.
-- `Luck Security Events` is the unified security view: its MariaDB panels show
-  WAS/Nginx `security_event` records, while its Suricata section shows IDS alert
-  counts and recent records from Loki. `Luck Suricata IDS` remains a focused
-  drill-down view, and shipper health remains on the operations dashboard.
-  The `Detections by category / IDS attack type` mixed-source graph places
-  application categories such as sensitive-data and injection detections beside
-  Suricata DDoS attack types in the same graph.
+- The site administrator page exposes three tabs in order: `Luck Security Events`,
+  `Luck Security Consumers`, and `Luck Suricata IDS`. Application security events
+  remain MariaDB-backed, while Suricata IDS alert content remains a separate Loki
+  view. Shipper health remains on the operations dashboard.
+- The masked-log panel renders only `masked_message`; the complete validated JSON
+  remains stored in Loki for controlled troubleshooting.
 
 The long-unresolved table has a 24-hour visibility filter by default. Application
 alert thresholds are risk-specific: CRITICAL 1 hour, HIGH 4 hours, MEDIUM 24
