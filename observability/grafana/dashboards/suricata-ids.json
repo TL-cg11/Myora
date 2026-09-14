@@ -1,0 +1,11 @@
+{
+  "annotations":{"list":[]},"editable":false,"graphTooltip":1,"id":null,"links":[],
+  "panels":[
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"id":1,"targets":[{"expr":"sum by (attack_type) (count_over_time({job=\"luck-suricata-ids\"} | json | attack_type != \"\" [$__range]))","refId":"A"}],"title":"IDS alerts by attack type","type":"timeseries"},
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"targets":[{"expr":"sum by (severity) (count_over_time({job=\"luck-suricata-ids\"} | json | severity != \"\" [$__range]))","refId":"A"}],"title":"IDS alerts by severity","type":"timeseries"},
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":10,"w":24,"x":0,"y":8},"id":3,"targets":[{"expr":"{job=\"luck-suricata-ids\"} | json","refId":"A"}],"title":"Recent IDS alerts","type":"logs"}
+  ],
+  "refresh":"1m","schemaVersion":39,"tags":["luck","suricata","ids","security-monitoring"],
+  "time":{"from":"now-1h","to":"now"},"timepicker":{"refresh_intervals":["30s","1m","5m"],"time_options":["1h","6h","24h"]},
+  "title":"Luck Suricata IDS","uid":"luck-suricata-ids","version":1
+}

@@ -35,6 +35,10 @@ dashboards=$(curl --fail --silent --show-error \
   'http://127.0.0.1:3000/api/search?tag=security-monitoring')
 grep -q '"uid":"luck-security-events"' <<<"$dashboards"
 grep -q '"uid":"luck-security-consumers"' <<<"$dashboards"
+grep -q '"uid":"luck-suricata-ids"' <<<"$dashboards"
+grep -q '"uid":"luck-ids-shipper"' <<<"$dashboards"
+
+grep -q 'luck-ids-shipper' /etc/prometheus/ids-shipper-targets.yml
 
 alert_rules=$(curl --fail --silent --show-error \
   --user "${GF_SECURITY_ADMIN_USER}:${GF_SECURITY_ADMIN_PASSWORD}" \
@@ -56,4 +60,4 @@ fi
 
 python3 "$ROOT_DIR/scripts/verify_loki_security.py" --allow-empty
 
-echo 'Grafana datasources, security dashboards, alert rules, Loki, and Prometheus are ready.'
+echo 'Grafana datasources, security/IDS dashboards, alert rules, Loki, and Prometheus are ready.'

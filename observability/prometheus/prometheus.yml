@@ -10,3 +10,7 @@ scrape_configs:
   - job_name: luck-security-sinks
     file_sd_configs:
       - files: ["/etc/prometheus/kafka-consumer-targets.yml"]
+
+  - job_name: luck-ids-shipper
+    file_sd_configs:
+      - files: ["/etc/prometheus/ids-shipper-targets.yml"]

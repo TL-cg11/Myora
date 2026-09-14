@@ -94,6 +94,8 @@ install -m 0644 "$ROOT_DIR/observability/loki/config.yml" /etc/loki/config.yml
 install -m 0644 "$ROOT_DIR/observability/prometheus/prometheus.yml" /etc/prometheus/prometheus.yml
 install -m 0644 "$ROOT_DIR/observability/prometheus/kafka-consumer-targets.yml" \
   /etc/prometheus/kafka-consumer-targets.yml
+install -m 0644 "$ROOT_DIR/observability/prometheus/ids-shipper-targets.yml" \
+  /etc/prometheus/ids-shipper-targets.yml
 install -m 0644 "$ROOT_DIR/observability/grafana/provisioning/datasources/datasources.yml" \
   /etc/grafana/provisioning/datasources/luck-observability.yml
 install -m 0644 "$ROOT_DIR/observability/grafana/provisioning/dashboards/dashboards.yml" \

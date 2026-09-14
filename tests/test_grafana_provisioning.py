@@ -12,6 +12,8 @@ class GrafanaProvisioningTests(unittest.TestCase):
     def setUpClass(cls):
         cls.events = json.loads((GRAFANA / "dashboards" / "security-events.json").read_text())
         cls.consumers = json.loads((GRAFANA / "dashboards" / "security-consumers.json").read_text())
+        cls.ids = json.loads((GRAFANA / "dashboards" / "suricata-ids.json").read_text())
+        cls.ids_shipper = json.loads((GRAFANA / "dashboards" / "ids-shipper.json").read_text())
         cls.datasources = (GRAFANA / "provisioning" / "datasources" / "datasources.yml").read_text()
         cls.alerts = (GRAFANA / "provisioning" / "alerting" / "security-consumer-alerts.yml").read_text()
         cls.installer = (ROOT / "scripts" / "observability-install.sh").read_text()
@@ -53,6 +55,19 @@ class GrafanaProvisioningTests(unittest.TestCase):
             self.assertIn(metric, payload)
         self.assertIn('{pipeline=\\"security-masked-logs\\", data_class=\\"masked\\"} | json', payload)
 
+    def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
+        ids_payload = json.dumps(self.ids)
+        operations_payload = json.dumps(self.ids_shipper)
+        for field in ("attack_type", "severity", "Recent IDS alerts"):
+            self.assertIn(field, ids_payload)
+        for metric in (
+            "luck_ids_shipper_buffer_bytes", "luck_ids_shipper_buffer_limit_bytes",
+            "luck_ids_shipper_retries_total", "luck_ids_shipper_lost_total",
+            "luck_ids_shipper_last_loki_success_unixtime",
+        ):
+            self.assertIn(metric, operations_payload)
+        self.assertNotIn("discord", ids_payload.lower())
+
     def test_alerts_cover_lag_dlq_and_target_failure(self):
         for uid in (
             "luck-security-lag-high", "luck-security-lag-critical",
@@ -83,6 +98,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "/etc/grafana/provisioning/dashboards",
             "/etc/grafana/provisioning/alerting",
             "/var/lib/grafana/dashboards/security-monitoring",
+            "/etc/prometheus/ids-shipper-targets.yml",
         ):
             self.assertIn(path, self.installer)
         runtime_test = (ROOT / "scripts" / "observability-test.sh").read_text()

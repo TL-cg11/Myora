@@ -4,14 +4,16 @@
 
 - `Prometheus` (`uid=prometheus`) supplies sink lag, throughput, latency, retry,
   failure, DLQ, and target-health metrics.
-- `Loki` (`uid=loki`) supplies only streams labeled
-  `pipeline=security-masked-logs,data_class=masked` to the masked-log panel.
+- `Loki` (`uid=loki`) supplies masked application-log streams and the separate
+  `job=luck-suricata-ids` IDS stream. IDS JSON fields include only normalized
+  detection data; individual IP addresses and raw EVE payloads are excluded.
 - `Security Monitoring MariaDB` (`uid=security-monitoring-mysql`) uses the
   `security_monitoring_readonly` role through a dedicated `security_grafana`
   account. Its password is injected from `/etc/luck-observability.env` and is
   never stored in dashboard JSON.
-- Provisioned dashboards are `Luck Security Events` and
-  `Luck Security Consumers`. They are managed as code and are not UI-editable.
+- Provisioned dashboards are `Luck Security Events`, `Luck Security Consumers`,
+  `Luck Suricata IDS`, and `Luck IDS Shipper Operations`. They are managed as
+  code and are not UI-editable.
 
 The long-unresolved table has a 24-hour visibility filter by default. Application
 alert thresholds are risk-specific: CRITICAL 1 hour, HIGH 4 hours, MEDIUM 24
@@ -30,6 +32,12 @@ is injected from `/etc/luck-observability.env`; Slack and SMTP are disabled.
 Each sink exposes zero-valued DLQ counters for every terminal failure stage at
 startup. The DLQ rule combines the five-minute counter increase with new-series
 detection so that the first DLQ message after process startup is not missed.
+
+Suricata IDS entries are intentionally query-only. A Suricata rule has already
+performed the flood threshold decision, so Grafana displays its normalized alert
+without re-aggregating it and without emitting a per-entry Discord message. The
+separate IDS shipper operations dashboard is where buffer capacity, retries,
+parse isolation, and loss must be checked.
 
 ## Administrator dashboard
 
