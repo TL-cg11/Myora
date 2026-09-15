@@ -21,6 +21,7 @@ from app.routers.security_events import router as security_events_router
 from app.routers.tarot import router as tarot_router
 from app.routers.tarot_chat import router as tarot_chat_router
 from app.kafka_logging import api_request_log_middleware, flush_was_logs
+from app.services.ai_client import close_client as close_ai_client
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 app.add_middleware(
@@ -50,8 +51,9 @@ async def expire_stale_session_cookie(request, call_next):
 
 
 @app.on_event("shutdown")
-def shutdown_was_log_producer() -> None:
+async def shutdown_was_log_producer() -> None:
     flush_was_logs()
+    await close_ai_client()
 
 
 @app.get("/health")

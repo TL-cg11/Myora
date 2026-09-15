@@ -10,6 +10,8 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.config = patch.object(g, 'settings', replace(g.settings, deepseek_face_api_key='fake'))
         self.config.start()
         self.addCleanup(self.config.stop)
+        # completion()이 재사용하는 전역 클라이언트가 테스트 사이에 새지 않게 한다.
+        self.addCleanup(setattr, ai_client, '_client', None)
 
     async def run_with(self, responses, question='얼굴형 설명', context='{"aspect_ratio":1.3}'):
         with patch.object(g, 'completion', AsyncMock(side_effect=responses)) as call:
@@ -228,19 +230,26 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(g.contains_direct_identifier(value), value)
 
     async def test_check_calls_use_the_shorter_check_timeout(self):
+        # 클라이언트는 하나만 재사용되므로(connection pooling), timeout은
+        # 생성 시점이 아니라 매 client.post() 호출에서 넘어와야 한다.
         import httpx
         seen = []
-        original = httpx.AsyncClient
+        client = httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={'choices': [
+                {'finish_reason': 'stop', 'message': {'content': '{}'}}]})))
+        real_post = client.post
 
-        def client(**kw):
-            seen.append(kw['timeout'].read)
-            return original(transport=httpx.MockTransport(
-                lambda request: httpx.Response(200, json={'choices': [
-                    {'finish_reason': 'stop', 'message': {'content': '{}'}}]})), **kw)
+        async def post(*args, **kwargs):
+            seen.append(kwargs['timeout'].read)
+            return await real_post(*args, **kwargs)
 
-        with patch.object(ai_client.httpx, 'AsyncClient', client):
+        client.post = post
+        ai_client._client = client
+        try:
             await ai_client.completion([], 'fake', 'model', check=True)
             await ai_client.completion([], 'fake', 'model')
+        finally:
+            await client.aclose()
         self.assertEqual(seen, [ai_client.settings.ai_check_timeout,
                                 ai_client.settings.ai_request_timeout])
 
@@ -251,15 +260,33 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             import json
             captured.append(json.loads(request.content))
             return httpx.Response(200, json={'choices':[{'finish_reason':'length','message':{'content':'partial'}}]})
-        original = httpx.AsyncClient
-        with patch.object(ai_client.httpx, 'AsyncClient', lambda **kw: original(transport=httpx.MockTransport(handler), **kw)):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        ai_client._client = client
+        try:
             with ai_client.capture_ai_calls() as calls:
                 with self.assertRaises(ValueError):
                     await ai_client.completion([], 'fake', 'model')
+        finally:
+            await client.aclose()
         self.assertFalse(captured[0]['stream'])
         self.assertEqual(captured[0]['max_tokens'], ai_client.settings.ai_max_tokens)
         self.assertEqual(calls[0]['phase'], 'generation')
         self.assertFalse(calls[0]['success'])
+
+    async def test_client_is_reused_across_calls(self):
+        """전역 클라이언트가 호출마다 새로 만들어지지 않고 재사용되는지 확인한다."""
+        import httpx
+        client = httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={'choices': [
+                {'finish_reason': 'stop', 'message': {'content': '{}'}}]})))
+        ai_client._client = client
+        try:
+            await ai_client.completion([], 'fake', 'model', check=True)
+            self.assertIs(ai_client._client, client)
+            await ai_client.completion([], 'fake', 'model')
+            self.assertIs(ai_client._client, client)
+        finally:
+            await client.aclose()
 
 
 class TimeoutBudgetTests(unittest.TestCase):
