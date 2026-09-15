@@ -23,6 +23,7 @@ from security_sink.notifications import (
     NotificationRepository,
     NotificationService,
     PendingNotification,
+    render_batch,
 )
 
 
@@ -170,6 +171,35 @@ class NotificationPolicyTests(unittest.TestCase):
 
 
 class NotificationServiceTests(unittest.TestCase):
+    def test_notification_is_rendered_as_a_readable_korean_summary(self):
+        subject, body = render_batch([pending(1)])
+
+        self.assertEqual(subject, "Luck 보안 알림 1건")
+        self.assertIn("🟠 **위험도 높음**", body)
+        self.assertIn("• 알림: 신규 보안 이벤트", body)
+        self.assertIn("• 탐지 유형: 사주 AI 상담 요청", body)
+        self.assertIn("• 발생 서비스: WAS 애플리케이션", body)
+        self.assertIn("• 처리 상태: 미처리", body)
+        self.assertIn("• 탐지 시각: 2026-09-08 09:00:00 KST", body)
+        self.assertIn("• 내용 요약: email=[EMAIL] token=[API_KEY]", body)
+        self.assertIn("• 이벤트 ID: `event-1`", body)
+
+    def test_unknown_metadata_is_bounded_and_kept_on_one_line(self):
+        item = replace(
+            pending(1),
+            risk_level="CUSTOM\nRISK",
+            status="CUSTOM\nSTATUS",
+            source_service="custom\nservice",
+            event_name="custom\nevent",
+        )
+
+        _subject, body = render_batch([item])
+
+        self.assertIn("위험도 CUSTOM RISK", body)
+        self.assertIn("처리 상태: CUSTOM STATUS", body)
+        self.assertIn("발생 서비스: custom service", body)
+        self.assertIn("탐지 유형: custom event", body)
+
     def test_same_channel_notifications_are_grouped_into_one_delivery(self):
         repository = FakeRepository([pending(1), pending(2)])
         sender = FakeSender()

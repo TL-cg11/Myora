@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Iterable, Protocol
 from urllib.error import HTTPError
@@ -312,20 +312,98 @@ class DiscordWebhookSender:
                 raise
 
 
+KST = timezone(timedelta(hours=9))
+
+RISK_LABELS = {
+    "LOW": ("낮음", "🟢"),
+    "MEDIUM": ("주의", "🟡"),
+    "HIGH": ("높음", "🟠"),
+    "CRITICAL": ("긴급", "🔴"),
+}
+
+STATUS_LABELS = {
+    "OPEN": "미처리",
+    "INVESTIGATING": "조사 중",
+    "RESOLVED": "처리 완료",
+    "FALSE_POSITIVE": "오탐",
+}
+
+SERVICE_LABELS = {
+    "luck-was": "WAS 애플리케이션",
+    "luck-nginx": "Nginx",
+}
+
+EVENT_LABELS = {
+    "saju.chat.requested": "사주 AI 상담 요청",
+    "face.chat.requested": "관상 AI 상담 요청",
+    "tarot.chat.requested": "타로 AI 상담 요청",
+}
+
+
+def _clean_display(value: str | None, *, limit: int) -> str:
+    """Keep untrusted event metadata on one bounded Discord line."""
+
+    normalized = " ".join((value or "-").split())
+    return normalized[:limit] or "-"
+
+
+def _alert_label(alert_type: str) -> str:
+    if alert_type == "SECURITY_EVENT":
+        return "신규 보안 이벤트"
+    if alert_type.startswith("LONG_UNRESOLVED_"):
+        parts = alert_type.rsplit("_", 2)
+        if len(parts) == 3:
+            risk = RISK_LABELS.get(parts[1], (parts[1], ""))[0]
+            hours = parts[2].removesuffix("H")
+            return f"장기 미처리 이벤트 ({risk}, {hours}시간 이상)"
+    return _clean_display(alert_type, limit=80)
+
+
+def _event_label(event_name: str | None) -> str:
+    if not event_name:
+        return "분류되지 않은 보안 이벤트"
+    return EVENT_LABELS.get(event_name, _clean_display(event_name, limit=128))
+
+
+def _detected_at_kst(value: datetime) -> str:
+    utc_value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return utc_value.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
 def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
     notifications = tuple(items)
     if not notifications:
         raise ValueError("cannot render an empty notification batch")
-    lines = []
+    blocks = []
     for item in notifications:
         validate_masking_safety(item.masked_excerpt)
-        excerpt = (item.masked_excerpt or "-").replace("\n", " ")[:240]
-        lines.append(
-            f"[{item.risk_level}] event_id={item.event_id} alert={item.alert_type} "
-            f"service={item.source_service} status={item.status} "
-            f"detected_at={item.detected_at.isoformat()}Z excerpt={excerpt}"
+        risk_label, risk_icon = RISK_LABELS.get(
+            item.risk_level,
+            (_clean_display(item.risk_level, limit=32), "⚪"),
         )
-    return f"Luck security alerts ({len(notifications)})", "\n".join(lines)
+        status_label = STATUS_LABELS.get(
+            item.status, _clean_display(item.status, limit=32)
+        )
+        service_label = SERVICE_LABELS.get(
+            item.source_service, _clean_display(item.source_service, limit=64)
+        )
+        excerpt = _clean_display(item.masked_excerpt, limit=240)
+        event_id = _clean_display(item.event_id, limit=64)
+        blocks.append(
+            "\n".join(
+                (
+                    f"{risk_icon} **위험도 {risk_label}**",
+                    f"• 알림: {_alert_label(item.alert_type)}",
+                    f"• 탐지 유형: {_event_label(item.event_name)}",
+                    f"• 발생 서비스: {service_label}",
+                    f"• 처리 상태: {status_label}",
+                    f"• 탐지 시각: {_detected_at_kst(item.detected_at)}",
+                    f"• 내용 요약: {excerpt}",
+                    f"• 이벤트 ID: `{event_id}`",
+                )
+            )
+        )
+    return f"Luck 보안 알림 {len(notifications)}건", "\n\n".join(blocks)
 
 
 class NotificationService:
