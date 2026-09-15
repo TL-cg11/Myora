@@ -44,11 +44,14 @@ Each sink exposes zero-valued DLQ counters for every terminal failure stage at
 startup. The DLQ rule combines the five-minute counter increase with new-series
 detection so that the first DLQ message after process startup is not missed.
 
-Suricata IDS entries are intentionally query-only. A Suricata rule has already
-performed the flood threshold decision, so Grafana displays its normalized alert
-without re-aggregating it and without emitting a per-entry Discord message. The
-separate IDS shipper operations dashboard is where buffer capacity, retries,
-parse isolation, and loss must be checked.
+Suricata IDS entries remain Loki-backed and are not copied to Kafka or MariaDB.
+Grafana evaluates the four local Flood types once per minute, groups matches by
+`attack_type` and `severity`, and routes one Korean summary per group to the
+dedicated Discord contact point. Individual Suricata entries never create their
+own Discord delivery. An active group repeats at most every 10 minutes and sends
+a resolved message after the quiet period. The separate IDS shipper operations
+dashboard is where buffer capacity, retries, parse isolation, and loss must be
+checked.
 
 ## Administrator dashboard
 

@@ -26,9 +26,11 @@ into `/var/lib/suricata/rules/suricata.rules`, which is the runtime rules file.
 The ET Open feed and local rules are rebuilt daily by
 `luck-suricata-update.timer`, followed by a live Suricata rule reload.
 
-The classified file is the live source of record. The IDS shipper sends this one
-normalized alert record per Suricata detection to Loki for Grafana query only; it
-does not publish Kafka events or send Discord notifications.
+The classified file is the live source of record. The IDS shipper sends one
+normalized alert record per Suricata detection to Loki and does not publish Kafka
+events. Grafana separately aggregates the four local Flood types over one minute
+and sends one Discord notification per attack type and severity group instead of
+notifying for every IDS entry.
 
 ## Install
 

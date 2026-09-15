@@ -236,6 +236,61 @@ groups:
           runbook_url: docs/security-monitoring-operations.md
         labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
 
+  - orgId: 1
+    name: luck-suricata-flood-alerts
+    folder: Security Monitoring
+    interval: 1m
+    rules:
+      - uid: luck-ids-flood-detected
+        title: IDS Flood attack detected
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange: {from: 120, to: 0}
+            model:
+              datasource: {type: loki, uid: loki}
+              editorMode: code
+              expr: 'sum by (attack_type, severity) (count_over_time({job="luck-suricata-ids"} | json | attack_type=~"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood" [1m])) or on() vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-suricata-ids
+        panelId: 1
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        keepFiringFor: 2m
+        annotations:
+          flood_count: '{{ printf "%.0f" $values.B.Value }}'
+          summary: '최근 1분간 {{ $labels.attack_type }} 공격 {{ printf "%.0f" $values.B.Value }}건 탐지'
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: suricata-ids, notification_scope: ids-flood, owner: security-monitoring}
+
 deleteContactPoints:
   - orgId: 1
     uid: luck-security-slack
@@ -252,6 +307,48 @@ contactPoints:
         settings:
           url: $GRAFANA_DISCORD_WEBHOOK_URL
           use_discord_username: true
+  - orgId: 1
+    name: Luck IDS Flood Alerts
+    receivers:
+      - uid: luck-ids-flood-discord
+        type: discord
+        disableResolveMessage: false
+        settings:
+          url: $GRAFANA_DISCORD_WEBHOOK_URL
+          use_discord_username: true
+          message: '{{ template "luck.ids.flood.message" . }}'
+
+templates:
+  - orgId: 1
+    name: luck-ids-flood-message
+    template: |
+      {{ define "luck.ids.attack_name" -}}
+      {{- if eq . "tcp_syn_flood" -}}TCP SYN Flood
+      {{- else if eq . "udp_flood" -}}UDP Flood
+      {{- else if eq . "icmp_flood" -}}ICMP Flood
+      {{- else if eq . "web_connection_flood" -}}Web Connection Flood
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.ids.severity_name" -}}
+      {{- if eq . "critical" -}}긴급
+      {{- else if eq . "high" -}}높음
+      {{- else if eq . "medium" -}}주의
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.ids.flood.message" -}}
+      {{- range .Alerts.Firing }}
+      🔴 **Luck IDS Flood 공격 알림**
+      • 공격 유형: {{ template "luck.ids.attack_name" .Labels.attack_type }}
+      • 위험도: {{ template "luck.ids.severity_name" .Labels.severity }}
+      • 탐지 건수: 최근 1분간 {{ .Annotations.flood_count }}건
+      • 대상 서비스: Nginx / Suricata IDS
+      {{ end -}}
+      {{- range .Alerts.Resolved }}
+      ✅ **Luck IDS Flood 공격 종료**
+      • 공격 유형: {{ template "luck.ids.attack_name" .Labels.attack_type }}
+      • 상태: 최근 1분간 추가 탐지 없음
+      {{ end -}}
+      {{- end }}
 
 policies:
   - orgId: 1
@@ -260,3 +357,11 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      - receiver: Luck IDS Flood Alerts
+        object_matchers:
+          - [notification_scope, '=', ids-flood]
+        group_by: [alertname, attack_type, severity]
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 10m

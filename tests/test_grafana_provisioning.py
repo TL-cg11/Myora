@@ -15,7 +15,9 @@ class GrafanaProvisioningTests(unittest.TestCase):
         cls.ids = json.loads((GRAFANA / "dashboards" / "suricata-ids.json").read_text())
         cls.ids_shipper = json.loads((GRAFANA / "dashboards" / "ids-shipper.json").read_text())
         cls.datasources = (GRAFANA / "provisioning" / "datasources" / "datasources.yml").read_text()
-        cls.alerts = (GRAFANA / "provisioning" / "alerting" / "security-consumer-alerts.yml").read_text()
+        cls.alerts = (
+            GRAFANA / "provisioning" / "alerting" / "security-consumer-alerts.yml"
+        ).read_text(encoding="utf-8")
         cls.installer = (ROOT / "scripts" / "observability-install.sh").read_text()
         cls.nginx = (ROOT / "conf.d" / "luck.conf").read_text()
         cls.grafana_ini = (GRAFANA / "grafana.ini").read_text()
@@ -116,6 +118,27 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertIn("group_wait: 30s", self.alerts)
         self.assertIn("repeat_interval: 4h", self.alerts)
 
+    def test_suricata_flood_alerts_are_grouped_and_routed_to_korean_discord(self):
+        for value in (
+            "name: luck-suricata-flood-alerts",
+            "interval: 1m",
+            "uid: luck-ids-flood-detected",
+            "count_over_time",
+            'attack_type=~"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood" [1m]',
+            "sum by (attack_type, severity)",
+            "keepFiringFor: 2m",
+            "name: Luck IDS Flood Alerts",
+            "uid: luck-ids-flood-discord",
+            "name: luck-ids-flood-message",
+            "Luck IDS Flood 공격 알림",
+            "최근 1분간",
+            "notification_scope: ids-flood",
+            "group_by: [alertname, attack_type, severity]",
+            "group_interval: 1m",
+            "repeat_interval: 10m",
+        ):
+            self.assertIn(value, self.alerts)
+
     def test_installer_provisions_all_grafana_assets(self):
         for path in (
             "/etc/grafana/provisioning/datasources",
@@ -131,6 +154,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "luck-security-consumers", "luck-security-lag-high",
             "luck-security-lag-critical", "luck-security-message-stale",
             "luck-security-dlq-detected", "luck-security-sink-down",
+            "luck-ids-flood-detected",
         ):
             self.assertIn(uid, runtime_test)
         self.assertIn(

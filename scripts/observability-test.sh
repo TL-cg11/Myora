@@ -44,7 +44,8 @@ alert_rules=$(curl --fail --silent --show-error \
   --user "${GF_SECURITY_ADMIN_USER}:${GF_SECURITY_ADMIN_PASSWORD}" \
   http://127.0.0.1:3000/api/v1/provisioning/alert-rules)
 for rule_uid in luck-security-lag-high luck-security-lag-critical \
-  luck-security-message-stale luck-security-dlq-detected luck-security-sink-down; do
+  luck-security-message-stale luck-security-dlq-detected luck-security-sink-down \
+  luck-ids-flood-detected; do
   grep -q "\"uid\":\"${rule_uid}\"" <<<"$alert_rules"
 done
 
@@ -53,6 +54,8 @@ contact_points=$(curl --fail --silent --show-error \
   http://127.0.0.1:3000/api/v1/provisioning/contact-points)
 grep -q '"name":"Luck Security Operations"' <<<"$contact_points"
 grep -q '"uid":"luck-security-discord"' <<<"$contact_points"
+grep -q '"name":"Luck IDS Flood Alerts"' <<<"$contact_points"
+grep -q '"uid":"luck-ids-flood-discord"' <<<"$contact_points"
 if grep -qE '"uid":"luck-security-(slack|email)"' <<<"$contact_points"; then
   echo 'Legacy Slack or email contact point is still provisioned.' >&2
   exit 1

@@ -46,11 +46,13 @@ alert after four hours. Slack and SMTP are disabled.
 ## Suricata IDS log shipper
 
 The IDS classifier's normalized `/var/log/luck-security/ids-events.jsonl` is sent
-to Loki by `luck-ids-loki-shipper`. It is a query-only observability stream: one
-Suricata-confirmed alert becomes one Loki log entry. It neither writes Kafka nor
-creates a Discord notification. The shipper saves records to a bounded filesystem
-buffer before Loki submission; after a Loki outage it retries those records in
-order. Records arriving after the configured buffer limit are counted as loss.
+to Loki by `luck-ids-loki-shipper`; it does not write Kafka. One
+Suricata-confirmed alert becomes one Loki log entry. Grafana aggregates the four
+local Flood types over a one-minute window and sends grouped Korean Discord
+notifications, while individual log entries are never delivered directly. The
+shipper saves records to a bounded filesystem buffer before Loki submission;
+after a Loki outage it retries those records in order. Records arriving after
+the configured buffer limit are counted as loss.
 
 Install it on the Nginx/Suricata host only after the main observability stack is
 ready:
