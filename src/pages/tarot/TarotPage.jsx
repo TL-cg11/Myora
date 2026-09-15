@@ -178,7 +178,18 @@ function ChatPanel({ reading }) {
     try {
       const result = await sendChatMessage(reading.id, question);
       // 서버가 돌려준 전체 대화로 맞춰 두면 낙관적으로 넣은 말풍선과 어긋나지 않는다.
-      setMessages(result.messages);
+      // 단, 방금 보낸 질문은 안전 판정에 따라 DB에 다른 문구로 저장될 수 있으므로
+      // 화면에는 사용자가 실제로 입력한 원문을 유지한다.
+      const lastUserIndex = result.messages.reduce(
+        (found, message, index) => (message.role === 'user' ? index : found), -1,
+      );
+      setMessages(
+        lastUserIndex === -1
+          ? result.messages
+          : result.messages.map((message, index) =>
+              index === lastUserIndex ? { ...message, content: question } : message,
+            ),
+      );
       setSource(result.source);
     } catch (cause) {
       setMessages((current) => [...current, { seq: `error-${current.length}`, role: 'assistant', content: cause.message, error: true }]);
