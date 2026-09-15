@@ -71,7 +71,8 @@ class TarotGuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(session.committed)
         self.assertEqual(safe.await_count, 1)
         self.assertEqual([item.role for item in session.added], [ChatRole.user, ChatRole.assistant])
-        self.assertNotIn("위험한 원문", " ".join(item.content for item in session.added))
+        self.assertEqual(session.added[0].content, "위험한 원문")
+        self.assertEqual(response.messages[0].content, "위험한 원문")
 
 
 class TarotAdminQuestionLimitTests(unittest.IsolatedAsyncioTestCase):

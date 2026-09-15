@@ -15,7 +15,7 @@ from app.kafka_logging import emit_guardrail_decision_log
 from app.prompts.guardrail import COMMON_POLICY, POLICY_VERSION
 from app.prompts.policy_versions import ACTIVE
 from app.services.ai_client import completion
-from app.services.profanity import contains_profanity, mask_profanity
+from app.services.profanity import contains_profanity
 from app.services.guardrail_responses import (
     CRISIS,
     FALLBACK,
@@ -203,7 +203,8 @@ async def safe_answer(
     history: tuple | list = (),
 ) -> SafeAnswer:
     key = getattr(settings, f"deepseek_{service}_api_key")
-    safe_question = "[안전 검사로 저장하지 않은 질문]"
+    # 답변 안전 판정은 사용자가 작성한 질문의 저장값을 변경하지 않는다.
+    safe_question = question
     decision = None
 
     try:
@@ -230,11 +231,10 @@ async def safe_answer(
             # 위기 신호가 먼저다. 힘든 사람이 욕설을 섞었다는 이유로 안전 안내를
             # 놓치면 안 된다. 위기가 아닐 때만 거친 표현을 사유로 답변을 멈춘다.
             if decision.decision != "crisis":
-                masked, profane = mask_profanity(question)
-                if profane:
+                if contains_profanity(question):
                     _emit_decision(service, "input", "restrict", ["G09"])
                     return SafeAnswer(
-                        INCIVILITY, masked, decision="restrict", rules=("G09",)
+                        INCIVILITY, question, decision="restrict", rules=("G09",)
                     )
 
             if decision.decision in {"crisis", "restrict"}:

@@ -516,15 +516,14 @@ LIMIT 20;
 확인 기준:
 
 - 승인된 새 대화의 `policy_version`은 `1.1`이다.
-- 제한된 입력 원문 대신 `[안전 검사로 저장하지 않은 질문]`이 저장된다.
+- 상담 질문은 제한·위기·검사 오류와 관계없이 입력 원문으로 저장된다.
 - 미승인 모델 출력은 저장되지 않는다.
 - `ai_request` 로그에는 호출 단계와 길이 등 메타데이터만 있고 질문 원문이 없다.
 - `ai_guardrail_decision` 로그에는 판정, 위험도, 규칙 ID, 정책 버전만 있고 질문·답변 원문이 없다.
 - `chat_exchange` 로그에는 사용자에게 확정해 돌려준 질문·답변이 담긴다. 이 이벤트만 원문을 가지며
   `schemas/was-log-masking-policy-v1.json`의 `detect_and_mask` 대상이다. 마스킹 어댑터를 거친
   `myohan.masked-logs` 토픽에서 이름·연락처·주소가 남지 않았는지 확인한다.
-- `restrict`·`crisis`로 차단된 질문은 `chat_exchange`에도 `[안전 검사로 저장하지 않은 질문]`으로
-  기록되어야 한다. 원문이 보이면 정책 9장 위반이다.
+- `restrict`·`crisis` 질문도 `chat_exchange`에 원문으로 전달하며 로그 적재 시 마스킹 어댑터를 거친다.
 - `policy_version IS NULL`이고 오래된 `[검사 중인 질문]` 행의 수와 생성 시각을 점검한다.
 
 ## 11. 결과 보고서 양식

@@ -178,8 +178,8 @@ function ChatPanel({ reading }) {
     try {
       const result = await sendChatMessage(reading.id, question);
       // 서버가 돌려준 전체 대화로 맞춰 두면 낙관적으로 넣은 말풍선과 어긋나지 않는다.
-      // 단, 방금 보낸 질문은 안전 판정에 따라 DB에 다른 문구로 저장될 수 있으므로
-      // 화면에는 사용자가 실제로 입력한 원문을 유지한다.
+      // 구버전 서버의 대체 문구가 돌아오더라도 방금 입력한 원문은 유지한다.
+      // 현재 서버는 안전 판정과 관계없이 질문 원문을 저장한다.
       const lastUserIndex = result.messages.reduce(
         (found, message, index) => (message.role === 'user' ? index : found), -1,
       );

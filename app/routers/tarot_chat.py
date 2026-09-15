@@ -124,7 +124,7 @@ async def create_chat_message(
         reading_id=reading.id,
         seq=max((item.seq for item in reading.messages), default=0) + 1,
         role=ChatRole.user,
-        content="[검사 중인 질문]",
+        content=payload.message,
         policy_version=None,
     )
     session.add(pending)
@@ -135,13 +135,13 @@ async def create_chat_message(
     result = await safe_answer('tarot', PERSONA['tarot'], _reading_context(reading), payload.message, history)
     answer = result.answer
     source = InterpretationSource.llm if result.generated else InterpretationSource.rule
-    pending.content = result.question
+    pending.content = payload.message
     pending.policy_version = POLICY_VERSION
     _append_chat(session, reading, ChatRole.assistant, answer, source=source)
     session.commit()
     emit_chat_exchange_log(
         feature="tarot",
-        question=result.question,
+        question=payload.message,
         answer=answer,
         guest_key=guest_key,
         reading_id=reading_id,

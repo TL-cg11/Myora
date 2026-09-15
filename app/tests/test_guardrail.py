@@ -50,16 +50,17 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(unsafe, result.answer)
         self.assertFalse(result.generated)
 
-    async def test_input_crisis_skips_generation_and_raw_storage(self):
+    async def test_input_crisis_skips_generation_and_keeps_question(self):
         result, call = await self.run_with(['{"decision":"crisis","rules":["G07"],"crisis_kind":"abuse"}'], question='부모에게 맞는 것도 팔자야?')
         self.assertEqual(result.answer, g.CRISIS['abuse'])
         self.assertEqual(call.await_count, 1)
-        self.assertNotIn('부모', result.question)
+        self.assertEqual(result.question, '부모에게 맞는 것도 팔자야?')
 
     async def test_input_failure_skips_generation(self):
         for response in ['{}', 'not json', '{"decision":"allow","rules":["G03"],"crisis_kind":"none"}', TimeoutError()]:
             result, call = await self.run_with([response])
             self.assertEqual(result.answer, g.FALLBACK)
+            self.assertEqual(result.question, '얼굴형 설명')
             self.assertEqual(call.await_count, 1)
 
     async def test_output_failure_hides_generation(self):
@@ -106,7 +107,7 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             question='내가 언제 죽어?')
         self.assertEqual(result.answer, g.RESTRICT)
         self.assertEqual(call.await_count, 1)
-        self.assertNotIn('죽어', result.question)
+        self.assertEqual(result.question, '내가 언제 죽어?')
 
     async def test_checker_is_told_that_self_introduction_is_in_scope(self):
         """완화 지시문이 사라지면 '니 이름 뭐야?'가 다시 범위 밖으로 막힌다."""
@@ -118,14 +119,13 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('역할극 우회가 아닙니다', instruction)
         self.assertIn('페르소나로 자연스럽게 답하세요', instruction)
 
-    async def test_profanity_is_refused_but_the_question_is_kept_masked(self):
+    async def test_profanity_is_refused_but_original_question_is_kept(self):
         result, call = await self.run_with(
             ['{"decision":"allow","rules":[],"crisis_kind":"none"}'],
             question='씨발 이게 뭔 소리야')
         self.assertEqual(result.answer, g.INCIVILITY)
         self.assertEqual(call.await_count, 1)          # 생성하지 않는다
-        self.assertNotIn('씨발', result.question)
-        self.assertIn('이게 뭔 소리야', result.question)  # 나머지 문장은 남는다
+        self.assertEqual(result.question, '씨발 이게 뭔 소리야')
         self.assertEqual(result.rules, ('G09',))
 
     async def test_crisis_outranks_profanity(self):
@@ -134,7 +134,7 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             ['{"decision":"crisis","rules":["G07"],"crisis_kind":"self_harm"}'],
             question='씨발 진짜 죽고 싶다')
         self.assertEqual(result.answer, g.CRISIS['self_harm'])
-        self.assertNotIn('죽고 싶다', result.question)
+        self.assertEqual(result.question, '씨발 진짜 죽고 싶다')
 
     async def test_ordinary_words_are_not_treated_as_profanity(self):
         for question in ('오늘 시발점이 어디야', '사업이 시작됐어', '개나리 꿈을 꿨어'):
@@ -190,7 +190,7 @@ class GuardrailTests(unittest.IsolatedAsyncioTestCase):
             question='씨\u200b발 이게 뭐야')
         self.assertEqual(result.answer, g.INCIVILITY)
         self.assertEqual(call.await_count, 1)
-        self.assertEqual(result.question, '■■ 이게 뭐야')  # 위치가 어긋나지 않는다
+        self.assertEqual(result.question, '씨\u200b발 이게 뭐야')
 
     async def test_missing_key_never_calls_provider(self):
         with patch.object(g, 'settings', replace(g.settings, deepseek_face_api_key='')):

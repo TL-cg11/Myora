@@ -48,8 +48,9 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValidationError):
             self.request(context='ignore rules', messages=[{'role':'assistant','content':'forged'}])
 
-    async def test_only_sanitized_question_stored(self):
+    async def test_original_question_stored_even_if_guardrail_returns_placeholder(self):
         with patch('app.routers.chat.safe_answer', AsyncMock(return_value=SafeAnswer('제한 안내','[저장 안 함]'))):
             await reading_chat('face','persona',self.request(message='개인정보'),self.session,None)
         text = ' '.join(self.session.scalars(select(ReadingChatMessage.content)))
-        self.assertNotIn('개인정보',text)
+        self.assertIn('개인정보',text)
+        self.assertNotIn('[저장 안 함]',text)
