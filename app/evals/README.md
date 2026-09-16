@@ -13,31 +13,54 @@
 app/evals/
 ├── README.md
 ├── run_guardrail_eval.py
+├── run_guardrail_safety_effect_eval.py
 ├── run_prompt_injection_eval.py
 ├── build_prompt_injection_cases.py
 └── cases/
+    ├── README.md
+    ├── content_policy_hand_picked.json
+    ├── content_policy_matrix.py
+    ├── content_policy_matrix.json
     └── prompt_injection.json
 ```
 
+(2026-09-16 갱신: `run_guardrail_eval.py`의 사례가 코드 내부 리터럴에서
+`cases/content_policy_hand_picked.json` + `cases/content_policy_matrix.json`
+로 분리됐고, 가드레일 적용 전/후 안전성 차이를 재는
+`run_guardrail_safety_effect_eval.py`가 추가됐다. 각 JSON 파일의 상세
+구성(필드, 규칙별 개수 등)은 [`cases/README.md`](cases/README.md) 참고.)
+
 | 파일 | 목적 | 사례 수 | DeepSeek 호출 |
 |---|---|---:|---|
-| `run_guardrail_eval.py` | 정상 허용·정책 제한·범위 밖·위기 판단의 기본 품질 평가 | 60개 | 명시적 실행 시 호출 |
+| `run_guardrail_eval.py` | 정상 허용·정책 제한·범위 밖·위기 판단의 기본 품질 평가 | 364개 | 명시적 실행 시 호출 |
+| `run_guardrail_safety_effect_eval.py` | 가드레일이 없었다면(무방비 경로) vs 지금(운영 경로)의 실제 안전성 차이 측정 | 위 364개 중 위험 케이스 + 인젝션 케이스 재사용 | 사례당 최대 2배 호출(A/B 경로) |
 | `run_prompt_injection_eval.py` | 직접·간접 인젝션, 출력 우회, 복합 공격과 오탐 평가 | 240개 | 명시적 실행 시 호출 |
 | `build_prompt_injection_cases.py` | 240개 인젝션 JSON 데이터 생성 | 240개 생성 | 호출하지 않음 |
+| `cases/content_policy_hand_picked.json` | 기본 평가기가 읽는, 사람이 직접 쓴 콘텐츠 정책 사례 | 94개 | 실행 파일 아님 |
+| `cases/content_policy_matrix.py` | 콘텐츠 정책 사례를 (핵심 의도)x(표현 변형)으로 대량 생성 | 270개 생성 | 호출하지 않음 |
+| `cases/content_policy_matrix.json` | 위 생성기가 만든, 기본 평가기가 읽는 데이터 | 270개 | 실행 파일 아님 |
 | `cases/prompt_injection.json` | 인젝션 실행기가 읽는 평가 데이터 | 240개 | 실행 파일 아님 |
 
 전체 관계:
 
 ```text
-기본 허용·제한 품질
+콘텐츠 정책 품질 (G01~G10)
+├─ cases/content_policy_hand_picked.json (사람이 직접 쓴 94개)
+├─ content_policy_matrix.py
+│  └─ cases/content_policy_matrix.json 270개 생성
 └─ run_guardrail_eval.py
-   └─ 코드 내부 기본 사례 60개
+   └─ 위 두 JSON을 합쳐 총 364개 평가
 
-프롬프트 인젝션 보안
+프롬프트 인젝션 보안 (G11)
 ├─ build_prompt_injection_cases.py
 │  └─ cases/prompt_injection.json 240개 생성
 └─ run_prompt_injection_eval.py
    └─ JSON을 읽어 실제 DeepSeek 평가
+
+안전성 효과 측정 (가드레일 있으나 없으나 차이)
+└─ run_guardrail_safety_effect_eval.py
+   └─ 위 두 데이터셋(콘텐츠 정책 위험 사례 + 인젝션 direct/output/combined/indirect)을
+      재사용해 무방비 경로(A) vs 운영 경로(B) 비교
 ```
 
 ## 2. 공통 실행 준비
@@ -68,16 +91,23 @@ source .venv/bin/activate
 
 ### 3.2 평가 사례
 
-`run_guardrail_eval.py`의 `CASES`에 총 60개가 정의되어 있다.
+`run_guardrail_eval.py`의 `CASES`는 `cases/content_policy_hand_picked.json`(94개,
+사람이 직접 씀) + `cases/content_policy_matrix.json`(270개, 핵심 의도x표현
+변형 조합 생성)을 합친 총 **364개**다. 필드 의미, 규칙(G01~G11)별 개수,
+판정별 개수 같은 상세 내역은 [`cases/README.md`](cases/README.md)에 있다 —
+여기서는 요약만 적는다.
 
 | 서비스 | 사례 수 | 주요 검증 |
 |---|---:|---|
-| 사주 | 20개 | 정상 상담, 미래 확정, 의료·법률·투자, 범위 밖, 위기 |
-| 타로 | 20개 | 정상 상담, 미래 확정, 의료·법률·투자, 범위 밖, 위기 |
-| 관상 | 20개 | 정상 상담, 민감 특성 추론, 의료·채용 판단, 범위 밖, 위기 |
+| 사주 | 111개 | 정상 상담, 미래 확정, 의료·법률·투자, 범위 밖, 위기, 관계·의존, 개인정보 |
+| 타로 | 113개 | 정상 상담, 미래 확정, 의료·법률·투자, 범위 밖, 위기, 관계·의존, 유해행위, 개인정보 |
+| 관상 | 140개 | 정상 상담, 민감 특성 추론(G05 전용 조합 30개 포함), 의료·채용 판단, 범위 밖, 위기 |
 
-판정별 구성은 `allow` 27개, `restrict` 19개, `out_of_scope` 7개,
-`crisis` 7개다. 각 서비스에 20개씩 배치해 서비스별 정책 편차도 확인한다.
+G01~G06/G08~G10은 규칙당 30개 이상, G07(위기)만 13개로 가장 적다 — 자해·
+학대 신호에 표현 변형(농담 삼아 등)을 씌우는 게 부적절해서 손으로만
+신중하게 늘렸다(이유는 `cases/README.md` 참고). 규칙별 커버리지가 이
+아래로 떨어지면 `app/tests/test_guardrail_policy_coverage.py`가 API 호출
+없이 정적으로 잡아낸다.
 
 ### 3.3 실행 과정
 
@@ -509,3 +539,55 @@ python -m unittest app.tests.test_prompt_injection_eval -v
 4. `--list`가 API 키 없이 동작
 5. 결과에 질문·답변 원문 미포함
 6. 기대 판정·규칙·생성 여부·Canary 판정
+
+## 9. 안전성 효과 측정: `run_guardrail_safety_effect_eval.py`
+
+### 9.1 목적
+
+"가드레일 적용 전/후로 AI가 얼마나 안전해졌는지"를 실측한다. 판정
+정확도(3·4장)와는 다른 질문이다 — 여기서는 **가드레일 자체가 없었다면
+어떤 답이 나왔을지**를 재현해서, 지금 운영과 직접 비교한다.
+
+### 9.2 측정 방식 (그룹 3개)
+
+| 그룹 | 데이터 출처 | 사례 수(기본 파일럿) | 채점 방식 |
+|---|---|---:|---|
+| `content` | `run_guardrail_eval.CASES` 중 `restrict`/`crisis` | `--max-cases`만큼(기본 15) | A(무방비 경로)/B(운영 경로) 판정 비교, A는 `inspect_output()`으로 채점 |
+| `injection` | `prompt_injection.json`의 `direct`/`output`/`combined` 중 `expected=["restrict"]` | `--max-cases`만큼(기본 15) | 위와 동일 |
+| `indirect` | `prompt_injection.json`의 `indirect`(45개) | `--max-cases`만큼(기본 15) | 판정이 아니라 `forbidden_output_tokens`(캐너리) 유출 여부 |
+
+각 그룹의 A/B 경로 모두 DeepSeek을 호출하므로, `content`/`injection`
+그룹은 사례당 최대 4회(A: 생성+검사, B: 입력검사+생성+출력검사),
+`indirect`는 사례당 2회(A/B 각 1회 생성) 호출한다.
+
+### 9.3 실행 방법
+
+```bash
+# 세 그룹 전부, 그룹별 파일럿 15개씩
+python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --max-cases 15
+
+# 간접 인젝션만 10개
+python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --group indirect --max-cases 10
+
+# 콘텐츠 정책 위반만, 사주만
+python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --group content --service saju --max-cases 10
+```
+
+### 9.4 결과에서 확인할 것
+
+- `summary.content`/`summary.injection`: `without_guardrail_violation_rate`(가드레일 없었으면 위반률), `with_guardrail_exposed_rate`(지금 실제 노출률), `guardrail_prevented_count`(가드레일이 막아낸 건수)
+- `summary.indirect`: `leak_rate_without_guardrail`, `leak_rate_with_guardrail`, `guardrail_prevented_leak_count`
+
+### 9.5 한계
+
+`content`/`injection` 그룹의 "가드레일 없었다면 위반이었는지" 판정은
+`inspect_output()`(가드레일 자신의 채점 기준)으로 매긴 것이라, 완전히
+독립적인 제3자 검증이 아니다. `inspect_output()`이 놓치는 위반은 이
+평가에서도 위반으로 안 잡힌다.
+
+### 9.6 안전장치
+
+1. `--confirm-live` 없이는 실제 호출 거부
+2. 기본 `--max-cases`는 그룹별 15(파일럿)
+3. API 키가 없는 서비스가 섞여 있으면 실행 거부
+4. 결과에 질문·답변 원문 미포함(사례 ID만)
