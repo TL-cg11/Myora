@@ -126,6 +126,17 @@ class AuthSession(Base):
     user: Mapped[AppUser] = relationship(lazy="joined")
 
 
+class AuthIpLockout(Base):
+    __tablename__ = "auth_ip_lockout"
+
+    ip_address: Mapped[str] = mapped_column(String(45), primary_key=True)
+    failed_login_attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ChatRole(str, enum.Enum):
     system = "system"
     user = "user"

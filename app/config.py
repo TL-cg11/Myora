@@ -26,10 +26,21 @@ class Settings:
     db_user: str = os.getenv("DB_USER", "luck_user")
     db_password: str = os.getenv("DB_PASSWORD", "Luck1234!")
 
-    # 일반 회원 인증 정책. 운영에서 환경변수로 조정할 수 있다.
+    # 로그인 IP 잠금 정책. 이전 환경변수 이름도 배포 호환을 위해 읽는다.
     auth_session_hours: int = int(os.getenv("AUTH_SESSION_HOURS", "1"))
-    auth_max_failed_attempts: int = int(os.getenv("AUTH_MAX_FAILED_ATTEMPTS", "5"))
-    auth_lockout_minutes: int = int(os.getenv("AUTH_LOCKOUT_MINUTES", "60"))
+    auth_ip_max_failed_attempts: int = int(
+        os.getenv("AUTH_IP_MAX_FAILED_ATTEMPTS", os.getenv("AUTH_MAX_FAILED_ATTEMPTS", "5"))
+    )
+    auth_ip_lockout_minutes: int = int(
+        os.getenv("AUTH_IP_LOCKOUT_MINUTES", os.getenv("AUTH_LOCKOUT_MINUTES", "60"))
+    )
+    auth_trusted_proxy_ips: tuple[str, ...] = tuple(
+        value.strip()
+        for value in os.getenv(
+            "AUTH_TRUSTED_PROXY_IPS", "100.117.253.9,192.168.0.70,127.0.0.1"
+        ).split(",")
+        if value.strip()
+    )
     # nginx auth_request(Grafana iframe 등)는 원래 요청의 Authorization 헤더를
     # 기본적으로 전달하지 않으므로 cookie 세션을 함께 지원한다. Grafana가 같은
     # 오리진(같은 도메인) 아래 프록시되면 lax로 충분하다. 다른 오리진 iframe이면

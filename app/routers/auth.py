@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from ipaddress import ip_address
 from math import ceil
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -25,7 +26,7 @@ from app.auth import (
 )
 from app.config import settings
 from app.db import get_session
-from app.models import AppUser, AppUserRole, AuthSession, Reading, TarotReading
+from app.models import AppUser, AppUserRole, AuthIpLockout, AuthSession, Reading, TarotReading
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -98,11 +99,46 @@ def claim_guest_readings(session: Session, user: AppUser, guest_key: UUID | None
         )
 
 
+def login_client_ip(request: Request) -> str:
+    peer_ip = request.client.host if request.client else "unknown"
+    candidate = peer_ip
+    if peer_ip in settings.auth_trusted_proxy_ips:
+        candidate = request.headers.get("x-real-ip", peer_ip).strip()
+    try:
+        return ip_address(candidate).compressed
+    except ValueError:
+        return candidate[:45] or "unknown"
+
+
+def ip_lockout_for_update(session: Session, source_ip: str) -> AuthIpLockout:
+    lockout = session.scalar(
+        select(AuthIpLockout)
+        .where(AuthIpLockout.ip_address == source_ip)
+        .with_for_update()
+    )
+    if lockout is not None:
+        return lockout
+
+    # 같은 IP의 첫 동시 요청들이 모두 행이 없다고 판단해도 UNIQUE 충돌을
+    # 요청 실패로 만들지 않는다. SAVEPOINT 안에서 한 요청만 행을 만들고 다시 잠근다.
+    try:
+        with session.begin_nested():
+            session.add(AuthIpLockout(ip_address=source_ip, failed_login_attempts=0))
+            session.flush()
+    except IntegrityError:
+        pass
+    return session.scalar(
+        select(AuthIpLockout)
+        .where(AuthIpLockout.ip_address == source_ip)
+        .with_for_update()
+    )
+
+
 def locked_error(locked_until: datetime, now: datetime) -> HTTPException:
     retry_after = max(1, ceil((locked_until - now).total_seconds()))
     return HTTPException(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="로그인에 여러 번 실패해 계정이 1시간 동안 잠겼어요. 잠시 후 다시 시도해 주세요.",
+        detail="로그인에 여러 번 실패해 이 IP 주소가 1시간 동안 잠겼어요. 잠시 후 다시 시도해 주세요.",
         headers={"Retry-After": str(retry_after)},
     )
 
@@ -133,31 +169,40 @@ def register(payload: RegisterIn, response: Response, session: Session = Depends
 
 
 @router.post("/login", response_model=AuthOut)
-def login(payload: LoginIn, response: Response, session: Session = Depends(get_session)) -> AuthOut:
+def login(
+    payload: LoginIn,
+    request: Request,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> AuthOut:
     login_id = payload.login_id.strip().lower()
+    source_ip = login_client_ip(request)
+    ip_lockout = ip_lockout_for_update(session, source_ip)
+    now = utc_now()
+    if ip_lockout.locked_until is not None:
+        if ip_lockout.locked_until > now:
+            raise locked_error(ip_lockout.locked_until, now)
+        ip_lockout.failed_login_attempts = 0
+        ip_lockout.locked_until = None
+
     user = session.scalar(
         select(AppUser)
         .where(or_(AppUser.username == login_id, AppUser.email == login_id))
         .with_for_update()
     )
-    now = utc_now()
-    if user is not None and user.locked_until is not None and user.locked_until > now:
-        raise locked_error(user.locked_until, now)
 
     if user is None or user.status != "active" or not verify_password(payload.password, user.password_hash):
-        if user is not None and user.status == "active":
-            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-            if user.failed_login_attempts >= settings.auth_max_failed_attempts:
-                user.locked_until = now + timedelta(minutes=settings.auth_lockout_minutes)
-                # 잠긴 계정은 이미 발급된 세션으로도 접근하지 못하게 즉시 폐기한다.
-                session.execute(delete(AuthSession).where(AuthSession.user_id == user.id))
-                session.commit()
-                raise locked_error(user.locked_until, now)
+        ip_lockout.failed_login_attempts = (ip_lockout.failed_login_attempts or 0) + 1
+        if ip_lockout.failed_login_attempts >= settings.auth_ip_max_failed_attempts:
+            ip_lockout.locked_until = now + timedelta(
+                minutes=settings.auth_ip_lockout_minutes
+            )
             session.commit()
+            raise locked_error(ip_lockout.locked_until, now)
+        session.commit()
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않아요.")
 
-    user.failed_login_attempts = 0
-    user.locked_until = None
+    session.delete(ip_lockout)
     claim_guest_readings(session, user, payload.guest_key)
     session.commit()
     token, expires_at = create_session(session, user)
