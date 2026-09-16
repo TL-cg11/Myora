@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DASHBOARDS, grafanaDashboardSource } from './dashboardConfig.js';
 
-test('admin dashboard exposes Suricata IDS as the third tab', () => {
-  assert.deepEqual(DASHBOARDS.map(({ key, uid }) => ({ key, uid })), [
-    { key: 'events', uid: 'luck-security-events' },
-    { key: 'consumers', uid: 'luck-security-consumers' },
-    { key: 'suricata', uid: 'luck-suricata-ids' },
+test('admin dashboard exposes tab-specific refresh intervals', () => {
+  assert.deepEqual(DASHBOARDS.map(({ key, uid, refresh }) => ({ key, uid, refresh })), [
+    { key: 'events', uid: 'luck-security-events', refresh: '1m' },
+    { key: 'consumers', uid: 'luck-security-consumers', refresh: '5s' },
+    { key: 'suricata', uid: 'luck-suricata-ids', refresh: '1m' },
   ]);
 });
 

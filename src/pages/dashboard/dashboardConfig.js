@@ -1,7 +1,7 @@
 export const DASHBOARDS = [
-  { key: 'events', label: '보안 이벤트', uid: 'luck-security-events' },
-  { key: 'consumers', label: 'Consumer · 마스킹 로그', uid: 'luck-security-consumers' },
-  { key: 'suricata', label: 'Suricata IDS', uid: 'luck-suricata-ids' },
+  { key: 'events', label: '보안 이벤트', uid: 'luck-security-events', refresh: '1m' },
+  { key: 'consumers', label: 'Consumer · 마스킹 로그', uid: 'luck-security-consumers', refresh: '5s' },
+  { key: 'suricata', label: 'Suricata IDS', uid: 'luck-suricata-ids', refresh: '1m' },
 ];
 
 export const RANGES = [
@@ -11,6 +11,5 @@ export const RANGES = [
 ];
 
 export function grafanaDashboardSource(dashboard, range) {
-  const refresh = dashboard.key === 'consumers' ? '5s' : '1m';
-  return `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=${refresh}`;
+  return `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=${dashboard.refresh}`;
 }
