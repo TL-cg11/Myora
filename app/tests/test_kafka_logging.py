@@ -125,7 +125,7 @@ class WasLoggingTest(unittest.TestCase):
         self.assertNotIn("context", event["input"])
 
     @patch("app.kafka_logging.emit_was_log")
-    def test_chat_payload_and_final_answer_are_logged(self, emit) -> None:
+    def test_chat_payload_and_final_answer_are_logged_separately(self, emit) -> None:
         response = self.client.post(
             "/api/face/chat-test",
             json={"message": "관상 질문"},
@@ -135,17 +135,25 @@ class WasLoggingTest(unittest.TestCase):
         api_event = emit.call_args_list[-1].args[0]
         self.assertEqual(api_event["input"]["question"], "관상 질문")
 
-        event = kafka_logging.build_chat_exchange_log(
+        kafka_logging.emit_chat_exchange_log(
             feature="face",
             question="관상 질문",
             answer="답변에 010-1234-5678이 있습니다.",
             reading_id=7,
             generated=True,
         )
-        self.assertEqual(event["event_type"], "chat_exchange")
-        self.assertEqual(event["input"], {"question": "관상 질문"})
-        self.assertEqual(event["output"], {"answer": "답변에 010-1234-5678이 있습니다."})
-        self.assertEqual(event["metadata"]["answer_length"], len(event["output"]["answer"]))
+        request_event, response_event = (call.args[0] for call in emit.call_args_list[-2:])
+        self.assertEqual(request_event["event_type"], "chat_request")
+        self.assertEqual(request_event["input"], {"question": "관상 질문"})
+        self.assertNotIn("output", request_event)
+        self.assertEqual(response_event["event_type"], "chat_response")
+        self.assertEqual(response_event["output"], {"answer": "답변에 010-1234-5678이 있습니다."})
+        self.assertNotIn("input", response_event)
+        self.assertEqual(request_event["request_id"], response_event["request_id"])
+        self.assertEqual(
+            response_event["metadata"]["answer_length"],
+            len(response_event["output"]["answer"]),
+        )
 
     def test_guardrail_decision_log_has_no_content(self) -> None:
         event = kafka_logging.build_guardrail_decision_log(

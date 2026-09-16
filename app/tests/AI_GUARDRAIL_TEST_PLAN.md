@@ -121,7 +121,7 @@ npm run build
 - 서버가 질문 횟수를 계산하고 동시 요청 자리를 예약하는 흐름
 - 사주·타로·관상 모두 공통 가드레일 경로 사용
 - `ai_request`·`ai_guardrail_decision` 이벤트에 질문 원문을 기록하지 않음
-- `chat_exchange` 이벤트는 질문·답변을 기록하되 유해 판정은 플레이스홀더만 남김
+- `chat_request`와 `chat_response` 이벤트는 질문·답변을 각각 기록하고 모든 질문 원문은 마스킹 어댑터로 전달
 - React가 답변을 텍스트로 렌더링하고 빌드되는지 확인
 
 ### 통과 기준
@@ -464,7 +464,7 @@ TEST_DATABASE_URL='mysql+pymysql://.../luck_test' \
 | 컨텍스트(결과 문구) | — | `redact()` 적용 |
 | DB 저장 | 보존 | 유해 판정과 검사 장애만 플레이스홀더로 대체 |
 | 사용자 화면 | 가림 | `maskForDisplay`로 내 질문 말풍선만 표시용 마스킹 |
-| Kafka `chat_exchange` | 전달됨 | 마스킹 어댑터가 `detect_and_mask` 수행 |
+| Kafka `chat_request` / `chat_response` | 분리 전달됨 | 마스킹 어댑터가 각각 `detect_and_mask` 수행 |
 | 리딩 최초 질문 | 저장 전 반려 | 이후 모든 요청에 반복 전달되고 삭제 수단이 없어 예외 처리 |
 | 거친 표현 | 가림 | 로컬 규칙(`profanity.py`)이 위치를 알아 `■`로 치환. 서버·화면 양쪽 적용 |
 
@@ -520,10 +520,11 @@ LIMIT 20;
 - 미승인 모델 출력은 저장되지 않는다.
 - `ai_request` 로그에는 호출 단계와 길이 등 메타데이터만 있고 질문 원문이 없다.
 - `ai_guardrail_decision` 로그에는 판정, 위험도, 규칙 ID, 정책 버전만 있고 질문·답변 원문이 없다.
-- `chat_exchange` 로그에는 사용자에게 확정해 돌려준 질문·답변이 담긴다. 이 이벤트만 원문을 가지며
-  `schemas/was-log-masking-policy-v1.json`의 `detect_and_mask` 대상이다. 마스킹 어댑터를 거친
-  `myohan.masked-logs` 토픽에서 이름·연락처·주소가 남지 않았는지 확인한다.
-- `restrict`·`crisis` 질문도 `chat_exchange`에 원문으로 전달하며 로그 적재 시 마스킹 어댑터를 거친다.
+- `chat_request`에는 질문만, `chat_response`에는 확정 답변만 담긴다. 두 이벤트는 같은
+  `request_id`로 연결되며 `schemas/was-log-masking-policy-v1.json`의 `detect_and_mask` 대상이다.
+  마스킹 어댑터를 거친 `myohan.masked-logs` 토픽에서 요청·응답이 별도 로그로 저장되고
+  이름·연락처·주소가 남지 않았는지 확인한다.
+- `restrict`·`crisis` 질문도 `chat_request`에 원문으로 전달하며 로그 적재 시 마스킹 어댑터를 거친다.
 - `policy_version IS NULL`이고 오래된 `[검사 중인 질문]` 행의 수와 생성 시각을 점검한다.
 
 ## 11. 결과 보고서 양식
@@ -561,8 +562,8 @@ DB·로그 원문 노출:
 - [ ] 미완료 질문 예약의 복구 정책과 운영 절차 확정
 - [ ] DB 마이그레이션 적용과 정책 버전 저장 확인
 - [ ] `ai_request`·`ai_guardrail_decision`·애플리케이션·APM 로그의 원문 미저장 확인
-- [ ] `chat_exchange` 원문이 마스킹 어댑터를 거쳐 `myohan.masked-logs`에서 가려짐 확인
-- [ ] 차단된 질문이 `chat_exchange`에 플레이스홀더로만 기록됨 확인
+- [ ] `chat_request` / `chat_response` 원문이 마스킹 어댑터를 거쳐 `myohan.masked-logs`에서 별도 로그로 가려짐 확인
+- [ ] 차단된 질문도 `chat_request`에서 마스킹된 뒤 저장됨 확인
 - [ ] 사주·타로·관상 화면 모두 내 질문 말풍선에 `maskForDisplay` 적용 확인
 - [ ] 최초 질문 검사가 리딩당 1회를 넘지 않음
 - [ ] `AI_TOTAL_TIMEOUT` >= `AI_CHECK_TIMEOUT`×2 + `AI_REQUEST_TIMEOUT` 설정 확인

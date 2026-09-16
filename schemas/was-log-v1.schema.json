@@ -34,7 +34,7 @@
     "source": {"const": "was"},
     "service": {"const": "luck-was"},
     "feature": {"type": "string", "enum": ["saju", "tarot", "face"]},
-    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_exchange"]},
+    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_request", "chat_response", "chat_exchange"]},
     "ai_call_id": {"type": "string", "format": "uuid"},
     "user_id": {"type": ["integer", "null"], "minimum": 1},
     "guest_key": {"type": ["string", "null"], "format": "uuid"},
@@ -110,6 +110,30 @@
       },
       "then": {
         "required": ["ai_call_id", "ai", "input", "metadata"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_request"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["input", "metadata"],
+        "properties": {
+          "input": {"required": ["question"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_response"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["output", "metadata"],
+        "properties": {
+          "output": {"required": ["answer"]}
+        }
       }
     },
     {

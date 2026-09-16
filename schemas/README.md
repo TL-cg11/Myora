@@ -12,7 +12,7 @@
 | `source` | string | 예 | `was` | 로그 출처 |
 | `service` | string | 예 | `luck-was` | 로그를 생성한 실행 서비스 |
 | `feature` | string | 예 | `saju`, `tarot`, `face` | WAS 내부 기능 |
-| `event_type` | string | 예 | `api_request`, `ai_request` | 이벤트 종류 |
+| `event_type` | string | 예 | `api_request`, `ai_request`, `chat_request`, `chat_response` | 이벤트 종류 |
 
 ## 공통 필드
 
@@ -28,6 +28,16 @@
 
 한 요청에서 API 요청 로그와 AI 요청 로그가 발생하면 `request_id`는 같고 `event_id`는
 로그마다 다르다.
+
+## chat_request / chat_response
+
+사용자 질문과 확정된 답변은 각각 `chat_request`, `chat_response` 이벤트로 분리한다.
+두 이벤트는 동일한 `request_id`와 Kafka message key를 사용해 서로 연결되며 `event_id`는
+각각 다르다. `chat_request`에는 `input.question`만, `chat_response`에는
+`output.answer`만 들어가므로 마스킹 후 Loki에도 요청과 응답이 별도 로그 줄로 저장된다.
+
+배포 전에 Kafka에 들어간 `chat_exchange`는 backlog 호환을 위해 스키마에서 계속
+허용하지만 새 이벤트로 생성하지 않는다.
 
 ## api_request
 

@@ -236,7 +236,9 @@ CHAT_QUESTION_LIMIT=5
 
 ## Kafka 보안 로그
 
-WAS는 `api_request`, `ai_request` JSON 로그를 `myohan.was.app`으로 직접 전송합니다.
+WAS는 `api_request`, `ai_request`, `chat_request`, `chat_response` JSON 로그를
+`myohan.was.app`으로 직접 전송합니다. 채팅 요청과 응답은 동일한 `request_id`로 연결하되
+서로 다른 이벤트로 전송되어 마스킹 후 Loki에도 두 로그로 구분 저장됩니다.
 Nginx와 WAS 로그는 서로 다른 Consumer 프로세스가 처리합니다.
 
 실행 방법, topic/group, offset 정책, PII 처리 경계, 서버 테스트와 systemd 등록은
