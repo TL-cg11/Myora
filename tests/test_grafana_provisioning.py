@@ -80,12 +80,10 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertIn('source_type=\\"chat_response\\"', json.dumps(masked_panel))
         self.assertIn("REQUEST · 사용자", json.dumps(masked_panel, ensure_ascii=False))
         self.assertIn("RESPONSE · AI", json.dumps(masked_panel, ensure_ascii=False))
-        clock_panel = next(
-            panel for panel in self.consumers["panels"]
-            if panel["title"] == "실시간 모니터링 서버 시각"
+        self.assertNotIn(
+            "실시간 모니터링 서버 시각",
+            {panel["title"] for panel in self.consumers["panels"]},
         )
-        self.assertEqual(clock_panel["targets"][0]["expr"], "time() * 1000")
-        self.assertEqual(clock_panel["fieldConfig"]["defaults"]["unit"], "dateTimeAsLocal")
         detail_panel = next(panel for panel in self.events["panels"] if panel["title"] == "Event details")
         self.assertIn("event_id = ${event_id:sqlstring}", detail_panel["targets"][0]["rawSql"])
         self.assertIn("masked_excerpt", detail_panel["targets"][0]["rawSql"])

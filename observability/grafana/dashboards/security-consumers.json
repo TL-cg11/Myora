@@ -53,22 +53,11 @@
     {
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}, "overrides": []},
-      "gridPos": {"h": 5, "w": 18, "x": 0, "y": 16},
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 16},
       "id": 5,
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
       "targets": [{"editorMode": "code", "expr": "up{job=\"luck-security-sinks\"}", "instant": true, "legendFormat": "{{instance}}", "range": false, "refId": "A"}],
       "title": "Security sink targets",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "description": "Prometheus가 쿼리를 평가한 서버 시각을 브라우저의 로컬 시간대로 표시합니다.",
-      "fieldConfig": {"defaults": {"unit": "dateTimeAsLocal"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 16},
-      "id": 7,
-      "options": {"colorMode": "none", "graphMode": "none", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "valueAndName", "wideLayout": true},
-      "targets": [{"editorMode": "code", "expr": "time() * 1000", "instant": true, "legendFormat": "서버 시각", "range": false, "refId": "A"}],
-      "title": "실시간 모니터링 서버 시각",
       "type": "stat"
     },
     {
