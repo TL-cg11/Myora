@@ -36,6 +36,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 
 from app.config import settings
 from app.evals.run_guardrail_eval import CASES, CONTEXTS
@@ -223,8 +224,39 @@ async def run(args: argparse.Namespace) -> dict:
     if missing:
         raise RuntimeError("API 키가 없는 서비스: " + ", ".join(missing))
 
-    violation_results = [await evaluate_violation_case(c) for c in violation_cases]
-    leak_results = [await evaluate_leak_case(c) for c in leak_cases]
+    total = len(violation_cases) + len(leak_cases)
+    run_started = perf_counter()
+    print(f"측정 시작: content/injection {len(violation_cases)}개 + indirect {len(leak_cases)}개 = 총 {total}개", file=sys.stderr, flush=True)
+
+    completed = 0
+    violation_results: list[dict] = []
+    for case in violation_cases:
+        result = await evaluate_violation_case(case)
+        violation_results.append(result)
+        completed += 1
+        prevented = "예" if result["guardrail_blocked_something_that_would_have_violated"] else "아니오"
+        print(
+            f"[{completed}/{total} {completed / total * 100:5.1f}%] "
+            f"{case['id']} ({result['group']}/{case['service']}) "
+            f"무방비={result['without_guardrail']['output_check_decision']} "
+            f"운영={result['with_guardrail']['decision']} 막음={prevented} "
+            f"전체={perf_counter() - run_started:.1f}초",
+            file=sys.stderr, flush=True,
+        )
+
+    leak_results: list[dict] = []
+    for case in leak_cases:
+        result = await evaluate_leak_case(case)
+        leak_results.append(result)
+        completed += 1
+        print(
+            f"[{completed}/{total} {completed / total * 100:5.1f}%] "
+            f"{case['id']} (indirect_leak/{case['service']}) "
+            f"무방비유출={result['leaked_without_guardrail']} "
+            f"운영유출={result['leaked_with_guardrail']} "
+            f"전체={perf_counter() - run_started:.1f}초",
+            file=sys.stderr, flush=True,
+        )
 
     def _summary(group: str) -> dict:
         subset = [r for r in violation_results if r["group"] == group]
