@@ -10,10 +10,18 @@ GRAFANA = ROOT / "observability" / "grafana"
 class GrafanaProvisioningTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.events = json.loads((GRAFANA / "dashboards" / "security-events.json").read_text())
-        cls.consumers = json.loads((GRAFANA / "dashboards" / "security-consumers.json").read_text())
-        cls.ids = json.loads((GRAFANA / "dashboards" / "suricata-ids.json").read_text())
-        cls.ids_shipper = json.loads((GRAFANA / "dashboards" / "ids-shipper.json").read_text())
+        cls.events = json.loads(
+            (GRAFANA / "dashboards" / "security-events.json").read_text(encoding="utf-8")
+        )
+        cls.consumers = json.loads(
+            (GRAFANA / "dashboards" / "security-consumers.json").read_text(encoding="utf-8")
+        )
+        cls.ids = json.loads(
+            (GRAFANA / "dashboards" / "suricata-ids.json").read_text(encoding="utf-8")
+        )
+        cls.ids_shipper = json.loads(
+            (GRAFANA / "dashboards" / "ids-shipper.json").read_text(encoding="utf-8")
+        )
         cls.datasources = (GRAFANA / "provisioning" / "datasources" / "datasources.yml").read_text()
         cls.alerts = (
             GRAFANA / "provisioning" / "alerting" / "security-consumer-alerts.yml"
@@ -61,12 +69,23 @@ class GrafanaProvisioningTests(unittest.TestCase):
         ):
             self.assertIn(metric, payload)
         self.assertIn('{pipeline=\\"security-masked-logs\\", data_class=\\"masked\\", source_type=\\"chat_request\\"} | json', payload)
-        masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
+        masked_panel = next(
+            panel for panel in self.consumers["panels"]
+            if panel["title"] == "마스킹된 챗봇 요청 · 응답 로그"
+        )
         self.assertNotIn("| limit", json.dumps(masked_panel))
-        self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
+        self.assertEqual([target["maxLines"] for target in masked_panel["targets"]], [100, 100])
         self.assertIn('masked_message != \\"\\"', json.dumps(masked_panel))
-        self.assertIn('line_format \\"{{.masked_message}}\\"', json.dumps(masked_panel))
         self.assertIn('source_type=\\"chat_request\\"', json.dumps(masked_panel))
+        self.assertIn('source_type=\\"chat_response\\"', json.dumps(masked_panel))
+        self.assertIn("REQUEST · 사용자", json.dumps(masked_panel, ensure_ascii=False))
+        self.assertIn("RESPONSE · AI", json.dumps(masked_panel, ensure_ascii=False))
+        clock_panel = next(
+            panel for panel in self.consumers["panels"]
+            if panel["title"] == "실시간 모니터링 서버 시각"
+        )
+        self.assertEqual(clock_panel["targets"][0]["expr"], "time() * 1000")
+        self.assertEqual(clock_panel["fieldConfig"]["defaults"]["unit"], "dateTimeAsLocal")
         detail_panel = next(panel for panel in self.events["panels"] if panel["title"] == "Event details")
         self.assertIn("event_id = ${event_id:sqlstring}", detail_panel["targets"][0]["rawSql"])
         self.assertIn("masked_excerpt", detail_panel["targets"][0]["rawSql"])
@@ -122,6 +141,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertIn("Luck 보안 운영 경고", self.alerts)
         self.assertIn("Luck 보안 운영 복구", self.alerts)
         self.assertIn("보안 로그 격리(DLQ) 발생", self.alerts)
+        self.assertGreaterEqual(self.alerts.count('{{ "\\n" -}}'), 2)
         self.assertNotIn("type: slack", self.alerts)
         self.assertNotIn("type: email", self.alerts)
         self.assertIn("group_wait: 30s", self.alerts)
@@ -172,9 +192,12 @@ class GrafanaProvisioningTests(unittest.TestCase):
 
     def test_dashboard_defaults_limit_log_queries_and_refreshes(self):
         self.assertEqual(self.consumers["time"]["from"], "now-1h")
-        self.assertEqual(self.consumers["refresh"], "1m")
-        masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
-        self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
+        self.assertEqual(self.consumers["refresh"], "5s")
+        masked_panel = next(
+            panel for panel in self.consumers["panels"]
+            if panel["title"] == "마스킹된 챗봇 요청 · 응답 로그"
+        )
+        self.assertEqual(sum(target["maxLines"] for target in masked_panel["targets"]), 200)
         self.assertEqual(self.events["time"]["from"], "now-1h")
         self.assertEqual(self.events["refresh"], "1m")
         for dashboard in (self.events, self.consumers):

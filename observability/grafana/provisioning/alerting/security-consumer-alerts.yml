@@ -348,6 +348,7 @@ templates:
       {{ define "luck.security.operations.message" -}}
       {{- range .Alerts.Firing }}
       🚨 **Luck 보안 운영 경고**
+      {{ "\n" -}}
       상태: 발생
       항목: {{ template "luck.security.alert_name" .Labels.alertname }}
       위험도: {{ template "luck.security.severity_name" .Labels.severity }}
@@ -364,6 +365,7 @@ templates:
       {{ end -}}
       {{- range .Alerts.Resolved }}
       ✅ **Luck 보안 운영 복구**
+      {{ "\n" -}}
       상태: 정상 복구
       항목: {{ template "luck.security.alert_name" .Labels.alertname }}
       {{- if .Labels.consumer_group }}

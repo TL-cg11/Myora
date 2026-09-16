@@ -53,7 +53,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}, "overrides": []},
-      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 16},
+      "gridPos": {"h": 5, "w": 18, "x": 0, "y": 16},
       "id": 5,
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
       "targets": [{"editorMode": "code", "expr": "up{job=\"luck-security-sinks\"}", "instant": true, "legendFormat": "{{instance}}", "range": false, "refId": "A"}],
@@ -61,24 +61,38 @@
       "type": "stat"
     },
     {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Prometheus가 쿼리를 평가한 서버 시각을 브라우저의 로컬 시간대로 표시합니다.",
+      "fieldConfig": {"defaults": {"unit": "dateTimeAsLocal"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 16},
+      "id": 7,
+      "options": {"colorMode": "none", "graphMode": "none", "justifyMode": "center", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "valueAndName", "wideLayout": true},
+      "targets": [{"editorMode": "code", "expr": "time() * 1000", "instant": true, "legendFormat": "서버 시각", "range": false, "refId": "A"}],
+      "title": "실시간 모니터링 서버 시각",
+      "type": "stat"
+    },
+    {
       "datasource": {"type": "loki", "uid": "loki"},
-      "description": "Only detector-masked chatbot requests are included; chatbot responses and other WAS logs are excluded.",
+      "description": "Detector가 마스킹한 챗봇 요청과 응답만 표시하며, 역할 접두어로 사용자 요청과 AI 응답을 구분합니다.",
       "gridPos": {"h": 12, "w": 24, "x": 0, "y": 21},
       "id": 6,
-      "options": {"dedupStrategy": "signature", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
-      "targets": [{"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\", source_type=\"chat_request\"} | json | masked_message != \"\" | line_format \"{{.masked_message}}\"", "maxLines": 200, "queryType": "range", "refId": "A"}],
-      "title": "Masked log search",
+      "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+      "targets": [
+        {"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\", source_type=\"chat_request\"} | json | masked_message != \"\" | line_format \"[REQUEST · 사용자] {{.masked_message}}\"", "maxLines": 100, "queryType": "range", "refId": "A"},
+        {"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\", source_type=\"chat_response\"} | json | masked_message != \"\" | line_format \"[RESPONSE · AI] {{.masked_message}}\"", "maxLines": 100, "queryType": "range", "refId": "B"}
+      ],
+      "title": "마스킹된 챗봇 요청 · 응답 로그",
       "type": "logs"
     }
   ],
-  "refresh": "1m",
+  "refresh": "5s",
   "schemaVersion": 39,
   "tags": ["luck", "security-monitoring", "kafka", "loki"],
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
-  "timepicker": {"refresh_intervals": ["30s", "1m", "5m"], "time_options": ["1h", "6h", "24h"]},
+  "timepicker": {"refresh_intervals": ["5s", "10s", "30s", "1m", "5m"], "time_options": ["1h", "6h", "24h"]},
   "timezone": "browser",
   "title": "Luck Security Consumers",
   "uid": "luck-security-consumers",
-  "version": 1
+  "version": 2
 }
