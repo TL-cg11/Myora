@@ -68,6 +68,23 @@
         "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
       }
     },
+    "guardrail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_version", "phase", "decision", "risk_level", "rules"],
+      "properties": {
+        "policy_version": {"type": "string", "minLength": 1, "maxLength": 16},
+        "phase": {"type": "string", "enum": ["question_screen", "input", "output"]},
+        "decision": {"type": "string", "enum": ["allow", "restrict", "crisis", "out_of_scope", "block"]},
+        "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "rules": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08", "G09", "G10", "G11"]},
+          "uniqueItems": true,
+          "maxItems": 11
+        }
+      }
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
@@ -110,6 +127,15 @@
       },
       "then": {
         "required": ["ai_call_id", "ai", "input", "metadata"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "ai_guardrail_decision"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["guardrail"]
       }
     },
     {

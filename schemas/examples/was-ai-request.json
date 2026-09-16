@@ -17,9 +17,7 @@
     "model": "deepseek-v4-flash",
     "timeout_seconds": 20
   },
-  "input": {
-    "question": "제 연애운이 어떻게 될까요?"
-  },
+  "input": {},
   "metadata": {
     "reading_id": 4821,
     "question_sequence": 2,
