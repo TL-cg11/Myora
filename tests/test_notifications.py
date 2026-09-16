@@ -34,6 +34,12 @@ def fixture() -> dict:
     return json.loads((ROOT / "fixtures" / "luck.security-events.normal.json").read_text(encoding="utf-8"))
 
 
+def chat_request_fixture() -> dict:
+    event = fixture()
+    event["source_type"] = "chat_request"
+    return event
+
+
 def pending(identifier: int, channel: str = "DISCORD", retry_count: int = 0) -> PendingNotification:
     return PendingNotification(
         identifier,
@@ -47,6 +53,8 @@ def pending(identifier: int, channel: str = "DISCORD", retry_count: int = 0) -> 
         "saju.chat.requested",
         datetime(2026, 9, 8, 0, 0),
         "email=[EMAIL] token=[API_KEY]",
+        "chat_request",
+        (("PROMPT_INJECTION", "BEHAVIOR", "MEDIUM"), ("PHONE_NUMBER", "PII", "HIGH")),
     )
 
 
@@ -129,12 +137,14 @@ class FakeConnection:
 
 
 class NotificationPolicyTests(unittest.TestCase):
-    def test_every_event_creates_one_immediate_alert(self):
-        self.assertEqual(initial_alert_types(fixture()), ("SECURITY_EVENT",))
-        event = copy.deepcopy(fixture())
+    def test_only_chat_requests_create_one_immediate_alert(self):
+        self.assertEqual(initial_alert_types(fixture()), ())
+        event = copy.deepcopy(chat_request_fixture())
         event["risk_level"] = "MEDIUM"
         event["detections"][1]["match_count"] = 2
         self.assertEqual(initial_alert_types(event), ("SECURITY_EVENT",))
+        event["source_type"] = "chat_response"
+        self.assertEqual(initial_alert_types(event), ())
 
     def test_thresholds_and_retry_backoff_are_bounded(self):
         policy = NotificationPolicy()
@@ -155,7 +165,7 @@ class NotificationPolicyTests(unittest.TestCase):
             dedup_key("event-1", "SECURITY_EVENT", "DISCORD"),
             "event-1:SECURITY_EVENT:DISCORD",
         )
-        rows = queue_rows(fixture(), configured_channels("DISCORD"))
+        rows = queue_rows(chat_request_fixture(), configured_channels("DISCORD"))
         self.assertEqual(len(rows), 1)
         self.assertEqual(len({row[0] for row in rows}), 1)
         self.assertTrue(all(row[4] <= datetime.utcnow() for row in rows))
@@ -172,21 +182,26 @@ class NotificationPolicyTests(unittest.TestCase):
 
 class NotificationServiceTests(unittest.TestCase):
     def test_notification_is_rendered_as_a_readable_korean_summary(self):
-        subject, body = render_batch([pending(1)])
+        subject, body = render_batch(
+            [pending(1)],
+            grafana_events_url="https://grafana.example.com/grafana/d/luck-security-events",
+        )
 
         self.assertEqual(subject, "Luck 보안 알림 1건")
         self.assertIn("🟠 **위험도 높음**", body)
-        self.assertIn("• 알림: 신규 보안 이벤트", body)
-        self.assertIn("• 탐지 유형: 사주 AI 상담 요청", body)
-        self.assertIn("• 발생 서비스: WAS 애플리케이션", body)
-        self.assertIn("• 처리 상태: 미처리", body)
+        self.assertIn("• 탐지 유형: 개인정보 노출 시도 외 1종", body)
+        self.assertIn("• 처리 상태: 탐지 및 마스킹 완료", body)
         self.assertIn("• 탐지 시각: 2026-09-08 09:00:00 KST", body)
-        self.assertIn("• 내용 요약: email=[EMAIL] token=[API_KEY]", body)
-        self.assertIn("• 이벤트 ID: `event-1`", body)
+        self.assertIn("[Grafana에서 사건 상세 보기]", body)
+        self.assertIn("var-event_id=event-1", body)
+        self.assertNotIn("내용 요약", body)
+        self.assertNotIn("email=[EMAIL]", body)
 
     def test_unknown_metadata_is_bounded_and_kept_on_one_line(self):
         item = replace(
             pending(1),
+            alert_type="LONG_UNRESOLVED_CUSTOM_1H",
+            source_type="other",
             risk_level="CUSTOM\nRISK",
             status="CUSTOM\nSTATUS",
             source_service="custom\nservice",
@@ -199,6 +214,7 @@ class NotificationServiceTests(unittest.TestCase):
         self.assertIn("처리 상태: CUSTOM STATUS", body)
         self.assertIn("발생 서비스: custom service", body)
         self.assertIn("탐지 유형: custom event", body)
+        self.assertNotIn("내용 요약", body)
 
     def test_same_channel_notifications_are_grouped_into_one_delivery(self):
         repository = FakeRepository([pending(1), pending(2)])
@@ -335,7 +351,7 @@ class DeliveryAdapterTests(unittest.TestCase):
         )
         self.assertEqual(
             json.loads(request.data),
-            {"content": "**subject**\nbody", "allowed_mentions": {"parse": []}},
+            {"content": "\u200b\n**subject**\nbody", "allowed_mentions": {"parse": []}},
         )
 
     def test_discord_sender_rejects_non_discord_or_non_https_urls(self):
@@ -431,11 +447,12 @@ class ProvisioningTests(unittest.TestCase):
         for name in (
             "DISCORD_WEBHOOK_URL", "NOTIFICATION_MAX_RETRIES",
             "NOTIFICATION_RETRY_JITTER_SECONDS", "NOTIFICATION_GROUP_WINDOW_SECONDS",
-            "NOTIFICATION_UNRESOLVED_HIGH_HOURS",
+            "NOTIFICATION_UNRESOLVED_HIGH_HOURS", "GRAFANA_SECURITY_EVENTS_URL",
         ):
             self.assertIn(name, environment)
         self.assertNotIn("SLACK_WEBHOOK_URL", environment)
         self.assertNotIn("SMTP_HOST", environment)
+        self.assertIn("NOTIFICATION_POLL_SECONDS=1", environment)
 
     def test_notifier_role_has_only_required_queue_write_access(self):
         migration = (
@@ -457,6 +474,17 @@ class ProvisioningTests(unittest.TestCase):
             line for line in migration.splitlines() if line.endswith("TO security_monitoring_notifier;")
         )
         self.assertNotIn("DELETE", notifier_grants)
+        followup = (
+            ROOT.parent
+            / "luck-mariadb"
+            / "sql"
+            / "migrate"
+            / "2026-09-16_notifier_detection_read.sql"
+        ).read_text()
+        self.assertIn(
+            "GRANT SELECT ON security_monitoring.security_event_detection TO security_monitoring_notifier;",
+            followup,
+        )
 
     def test_discord_channel_migration_preserves_legacy_history_values(self):
         migration = (

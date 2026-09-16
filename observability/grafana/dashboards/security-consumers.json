@@ -62,11 +62,11 @@
     },
     {
       "datasource": {"type": "loki", "uid": "loki"},
-      "description": "Only centrally masked log streams are included.",
+      "description": "Only detector-masked chatbot requests are included; chatbot responses and other WAS logs are excluded.",
       "gridPos": {"h": 12, "w": 24, "x": 0, "y": 21},
       "id": 6,
       "options": {"dedupStrategy": "signature", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
-      "targets": [{"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\"} | json | masked_message != \"\" | line_format \"{{.masked_message}}\"", "maxLines": 200, "queryType": "range", "refId": "A"}],
+      "targets": [{"editorMode": "code", "expr": "{pipeline=\"security-masked-logs\", data_class=\"masked\", source_type=\"chat_request\"} | json | masked_message != \"\" | line_format \"{{.masked_message}}\"", "maxLines": 200, "queryType": "range", "refId": "A"}],
       "title": "Masked log search",
       "type": "logs"
     }

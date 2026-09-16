@@ -39,7 +39,7 @@ LIMIT %s
 SELECT_DUE = """
 SELECT n.id, n.event_id, n.alert_type, n.channel, n.retry_count,
        e.risk_level, e.status, e.source_service, e.event_name,
-       e.detected_at, e.masked_excerpt
+       e.detected_at, e.masked_excerpt, e.source_type
 FROM notification_log n
 JOIN security_event e ON e.event_id = n.event_id
 WHERE (
@@ -52,6 +52,16 @@ WHERE (
 ORDER BY n.scheduled_at ASC, n.id ASC
 LIMIT %s
 FOR UPDATE SKIP LOCKED
+""".strip()
+
+SELECT_DETECTION_RULES = """
+SELECT e.event_id, d.rule_id, d.category, d.risk_level
+FROM security_event e
+JOIN security_event_detection d ON d.security_event_id = e.id
+WHERE e.event_id IN ({placeholders})
+ORDER BY e.event_id ASC,
+         FIELD(d.risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'),
+         d.rule_id ASC
 """.strip()
 
 
@@ -68,6 +78,8 @@ class PendingNotification:
     event_name: str | None
     detected_at: datetime
     masked_excerpt: str | None
+    source_type: str = ""
+    detection_rules: tuple[tuple[str, str, str], ...] = ()
 
 
 class NotificationSender(Protocol):
@@ -139,6 +151,27 @@ class NotificationRepository:
                 )
                 rows = cursor.fetchall()
                 notifications = [PendingNotification(*row) for row in rows]
+                if notifications:
+                    placeholders = ",".join(["%s"] * len(notifications))
+                    cursor.execute(
+                        SELECT_DETECTION_RULES.format(placeholders=placeholders),
+                        tuple(item.event_id for item in notifications),
+                    )
+                    rules_by_event: dict[str, list[tuple[str, str, str]]] = {}
+                    for event_id, rule_id, category, risk_level in cursor.fetchall():
+                        rules_by_event.setdefault(str(event_id), []).append(
+                            (str(rule_id), str(category), str(risk_level))
+                        )
+                    notifications = [
+                        PendingNotification(
+                            item.id, item.event_id, item.alert_type, item.channel,
+                            item.retry_count, item.risk_level, item.status,
+                            item.source_service, item.event_name, item.detected_at,
+                            item.masked_excerpt, item.source_type,
+                            tuple(rules_by_event.get(item.event_id, ())),
+                        )
+                        for item in notifications
+                    ]
                 if notifications:
                     placeholders = ",".join(["%s"] * len(notifications))
                     cursor.execute(
@@ -273,7 +306,9 @@ class DiscordWebhookSender:
             return 1
 
     def send(self, subject: str, body: str) -> None:
-        header = f"**{subject}**"
+        # Discord collapses an empty first line. A zero-width spacer keeps the
+        # requested visual gap without exposing data or creating a mention.
+        header = f"\u200b\n**{subject}**"
         chunks: list[str] = []
         current = header
         for line in body.splitlines():
@@ -339,6 +374,18 @@ EVENT_LABELS = {
     "tarot.chat.requested": "타로 AI 상담 요청",
 }
 
+RULE_TYPE_LABELS = {
+    "PROMPT_INJECTION": "프롬프트 인젝션 공격",
+}
+
+CATEGORY_TYPE_LABELS = {
+    "PII": "개인정보 노출 시도",
+    "SECRET": "비밀정보 노출 시도",
+    "BEHAVIOR": "비정상 행위 탐지",
+}
+
+RISK_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
 
 def _clean_display(value: str | None, *, limit: int) -> str:
     """Keep untrusted event metadata on one bounded Discord line."""
@@ -370,7 +417,55 @@ def _detected_at_kst(value: datetime) -> str:
     return utc_value.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
 
 
-def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
+def _detection_type_summary(
+    rules: Iterable[tuple[str, str, str]],
+) -> str:
+    """Return a Korean, non-sensitive type summary ordered by rule severity."""
+
+    types: dict[str, int] = {}
+    for rule_id, category, risk_level in rules:
+        label = RULE_TYPE_LABELS.get(
+            rule_id,
+            CATEGORY_TYPE_LABELS.get(category, "기타 보안 위협 탐지"),
+        )
+        types[label] = min(
+            types.get(label, len(RISK_ORDER)),
+            RISK_ORDER.get(risk_level, len(RISK_ORDER)),
+        )
+    if not types:
+        return "보안 위협 탐지"
+    ordered = sorted(types, key=lambda label: (types[label], label))
+    return ordered[0] if len(ordered) == 1 else f"{ordered[0]} 외 {len(ordered) - 1}종"
+
+
+def _grafana_detail_url(
+    base_url: str | None,
+    event_id: str,
+    detected_at: datetime,
+) -> str | None:
+    if not base_url:
+        return None
+    parsed = urlsplit(base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return None
+    utc_value = detected_at.replace(tzinfo=timezone.utc) if detected_at.tzinfo is None else detected_at.astimezone(timezone.utc)
+    center = int(utc_value.timestamp() * 1000)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(
+        {
+            "var-event_id": _clean_display(event_id, limit=64),
+            "from": str(center - 300_000),
+            "to": str(center + 300_000),
+        }
+    )
+    return urlunsplit(parsed._replace(query=urlencode(query)))
+
+
+def render_batch(
+    items: Iterable[PendingNotification],
+    *,
+    grafana_events_url: str | None = None,
+) -> tuple[str, str]:
     notifications = tuple(items)
     if not notifications:
         raise ValueError("cannot render an empty notification batch")
@@ -381,14 +476,23 @@ def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
             item.risk_level,
             (_clean_display(item.risk_level, limit=32), "⚪"),
         )
-        status_label = STATUS_LABELS.get(
-            item.status, _clean_display(item.status, limit=32)
-        )
-        service_label = SERVICE_LABELS.get(
-            item.source_service, _clean_display(item.source_service, limit=64)
-        )
-        excerpt = _clean_display(item.masked_excerpt, limit=240)
-        event_id = _clean_display(item.event_id, limit=64)
+        if item.alert_type == "SECURITY_EVENT" and item.source_type == "chat_request":
+            lines = [
+                f"{risk_icon} **위험도 {risk_label}**",
+                f"• 탐지 유형: {_detection_type_summary(item.detection_rules)}",
+                "• 처리 상태: 탐지 및 마스킹 완료",
+                f"• 탐지 시각: {_detected_at_kst(item.detected_at)}",
+            ]
+            detail_url = _grafana_detail_url(
+                grafana_events_url, item.event_id, item.detected_at
+            )
+            if detail_url:
+                lines.append(f"• [Grafana에서 사건 상세 보기]({detail_url})")
+            blocks.append("\n".join(lines))
+            continue
+
+        status_label = STATUS_LABELS.get(item.status, _clean_display(item.status, limit=32))
+        service_label = SERVICE_LABELS.get(item.source_service, _clean_display(item.source_service, limit=64))
         blocks.append(
             "\n".join(
                 (
@@ -398,8 +502,6 @@ def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
                     f"• 발생 서비스: {service_label}",
                     f"• 처리 상태: {status_label}",
                     f"• 탐지 시각: {_detected_at_kst(item.detected_at)}",
-                    f"• 내용 요약: {excerpt}",
-                    f"• 이벤트 ID: `{event_id}`",
                 )
             )
         )
@@ -411,9 +513,11 @@ class NotificationService:
         self,
         repository: NotificationRepository,
         senders: dict[str, NotificationSender],
+        grafana_events_url: str | None = None,
     ) -> None:
         self.repository = repository
         self.senders = senders
+        self.grafana_events_url = grafana_events_url
 
     def run_once(self, now: datetime | None = None) -> dict[str, int]:
         scheduled = self.repository.schedule_unresolved(now=now)
@@ -441,7 +545,9 @@ class NotificationService:
             if not safe_items:
                 continue
             try:
-                subject, body = render_batch(safe_items)
+                subject, body = render_batch(
+                    safe_items, grafana_events_url=self.grafana_events_url
+                )
                 sender.send(subject, body)
                 self.repository.mark_sent(item.id for item in safe_items)
                 sent += len(safe_items)

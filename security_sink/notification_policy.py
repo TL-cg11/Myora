@@ -61,13 +61,16 @@ def configured_channels(raw: str | None = None) -> tuple[str, ...]:
 def initial_alert_types(
     event: dict[str, Any], policy: NotificationPolicy = DEFAULT_POLICY
 ) -> tuple[str, ...]:
-    """Queue one Discord delivery for every persisted security event.
+    """Queue only a masked chatbot-request detection for direct Discord delivery.
 
-    Event severity is included in the notification body; it is deliberately not
-    used as a delivery filter.  A stable alert type preserves one-delivery
-    idempotency through ``event_id:alert_type:channel``.
+    Infrastructure failures remain Grafana Alerting's responsibility. The
+    detector carries the original WAS event type into ``source_type``; using it
+    here prevents a response or another API log from producing a second
+    application notification for the same chat exchange.
     """
-    del event, policy
+    del policy
+    if event.get("source_type") != "chat_request":
+        return ()
     return ("SECURITY_EVENT",)
 
 

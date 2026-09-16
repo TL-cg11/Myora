@@ -16,7 +16,9 @@ def fixture() -> dict:
     with (ROOT / "fixtures" / "luck.security-events.normal.json").open(
         encoding="utf-8"
     ) as handle:
-        return json.load(handle)
+        event = json.load(handle)
+    event["source_type"] = "chat_request"
+    return event
 
 
 def metadata(*, offset: int = 7) -> KafkaMetadata:

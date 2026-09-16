@@ -60,12 +60,16 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "luck_sink_retries_total", "luck_sink_dlq_total",
         ):
             self.assertIn(metric, payload)
-        self.assertIn('{pipeline=\\"security-masked-logs\\", data_class=\\"masked\\"} | json', payload)
+        self.assertIn('{pipeline=\\"security-masked-logs\\", data_class=\\"masked\\", source_type=\\"chat_request\\"} | json', payload)
         masked_panel = next(panel for panel in self.consumers["panels"] if panel["title"] == "Masked log search")
         self.assertNotIn("| limit", json.dumps(masked_panel))
         self.assertEqual(masked_panel["targets"][0]["maxLines"], 200)
         self.assertIn('masked_message != \\"\\"', json.dumps(masked_panel))
         self.assertIn('line_format \\"{{.masked_message}}\\"', json.dumps(masked_panel))
+        self.assertIn('source_type=\\"chat_request\\"', json.dumps(masked_panel))
+        detail_panel = next(panel for panel in self.events["panels"] if panel["title"] == "Event details")
+        self.assertIn("event_id = ${event_id:sqlstring}", detail_panel["targets"][0]["rawSql"])
+        self.assertIn("masked_excerpt", detail_panel["targets"][0]["rawSql"])
 
     def test_ids_dashboards_separate_alert_content_from_shipper_operations(self):
         ids_payload = json.dumps(self.ids)

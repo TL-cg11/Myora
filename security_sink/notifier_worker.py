@@ -53,7 +53,11 @@ def run_once() -> dict[str, int]:
     channels = configured_channels()
     policy = policy_from_environment()
     repository = NotificationRepository(mysql_connection, policy, channels)
-    service = NotificationService(repository, senders_from_environment(channels))
+    service = NotificationService(
+        repository,
+        senders_from_environment(channels),
+        grafana_events_url=os.getenv("GRAFANA_SECURITY_EVENTS_URL"),
+    )
     return service.run_once()
 
 
@@ -73,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    interval = _integer("NOTIFICATION_POLL_SECONDS", 10)
+    interval = _integer("NOTIFICATION_POLL_SECONDS", 1)
     while not stopping:
         try:
             LOGGER.info("notification cycle result=%s", run_once())
