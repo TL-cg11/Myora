@@ -1,7 +1,6 @@
 global:
-  # 발표 시연에서 sink 상태 변화를 빠르게 반영한다.
-  scrape_interval: 5s
-  evaluation_interval: 5s
+  scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
   - job_name: prometheus
