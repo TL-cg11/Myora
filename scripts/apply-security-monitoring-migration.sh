@@ -50,6 +50,7 @@ notifier_host_b64=$(to_base64 "$notifier_host")
 retention_host_b64=$(to_base64 "$retention_host")
 
 sudo mysql -uroot < sql/migrate/2026-09-07_security_monitoring.sql
+sudo mysql -uroot < sql/migrate/2026-09-16_notifier_detection_read.sql
 
 # Base64 keeps input out of a shell-built SQL literal; QUOTE() handles SQL
 # metacharacters in the decoded passwords and host values.
