@@ -99,15 +99,37 @@ def claim_guest_readings(session: Session, user: AppUser, guest_key: UUID | None
         )
 
 
-def login_client_ip(request: Request) -> str:
-    peer_ip = request.client.host if request.client else "unknown"
-    candidate = peer_ip
-    if peer_ip in settings.auth_trusted_proxy_ips:
-        candidate = request.headers.get("x-real-ip", peer_ip).strip()
+def normalized_ip(value: str) -> str | None:
     try:
-        return ip_address(candidate).compressed
+        return ip_address(value.strip()).compressed
     except ValueError:
-        return candidate[:45] or "unknown"
+        return None
+
+
+def login_client_ip(request: Request) -> str:
+    if request.client is None:
+        return "unknown"
+    peer_value = request.client.host.strip()
+    peer_ip = normalized_ip(peer_value) or peer_value[:45] or "unknown"
+    if peer_ip not in settings.auth_trusted_proxy_ips:
+        return peer_ip
+
+    # 신뢰 프록시가 추가한 X-Forwarded-For를 오른쪽부터 읽는다. 알려진 프록시
+    # 홉을 건너뛴 첫 주소가 실제 클라이언트다. 이렇게 해야 클라이언트가 왼쪽에
+    # 임의 주소를 넣어도 Tailscale Serve가 덧붙인 실제 주소를 우회할 수 없다.
+    forwarded = [
+        candidate
+        for raw in request.headers.get("x-forwarded-for", "").split(",")
+        if (candidate := normalized_ip(raw)) is not None
+    ]
+    for candidate in reversed(forwarded):
+        if candidate not in settings.auth_trusted_proxy_ips:
+            return candidate
+
+    real_ip = normalized_ip(request.headers.get("x-real-ip", ""))
+    if real_ip is not None and real_ip not in settings.auth_trusted_proxy_ips:
+        return real_ip
+    return peer_ip
 
 
 def ip_lockout_for_update(session: Session, source_ip: str) -> AuthIpLockout:

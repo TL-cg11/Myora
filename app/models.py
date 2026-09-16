@@ -102,8 +102,6 @@ class AppUser(Base):
     role: Mapped[AppUserRole] = mapped_column(
         _enum(AppUserRole, "app_user_role"), default=AppUserRole.user
     )
-    failed_login_attempts: Mapped[int] = mapped_column(SmallInteger, default=0)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

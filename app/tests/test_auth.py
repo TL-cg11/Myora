@@ -139,13 +139,15 @@ class AuthTests(unittest.TestCase):
         self.register()
         self.register("second_user", "second@example.com")
         policy = SimpleNamespace(
-            auth_trusted_proxy_ips=("testclient",),
+            auth_trusted_proxy_ips=("testclient", "127.0.0.1"),
             auth_ip_max_failed_attempts=5,
             auth_ip_lockout_minutes=60,
         )
 
         with patch.object(auth_router, "settings", policy):
-            blocked_headers = {"X-Real-IP": "203.0.113.10"}
+            blocked_headers = {
+                "X-Forwarded-For": "198.51.100.99, 203.0.113.10, 127.0.0.1"
+            }
             for attempt in range(1, 6):
                 response = self.client.post(
                     "/api/auth/login",
@@ -163,25 +165,16 @@ class AuthTests(unittest.TestCase):
 
             allowed = self.client.post(
                 "/api/auth/login",
-                headers={"X-Real-IP": "203.0.113.11"},
+                headers={"X-Forwarded-For": "203.0.113.11, 127.0.0.1"},
                 json={"login_id": "second_user", "password": "safe-password-123"},
             )
             self.assertEqual(allowed.status_code, 200, allowed.text)
 
-    def test_legacy_account_lock_no_longer_blocks_login(self):
+    def test_account_model_has_no_lockout_fields(self):
         self.register()
-        with Session(self.engine) as session:
-            user = session.scalar(select(AppUser))
-            user.failed_login_attempts = 5
-            user.locked_until = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1)
-            session.commit()
-
-        response = self.client.post(
-            "/api/auth/login",
-            json={"login_id": "myohan_user", "password": "safe-password-123"},
-        )
-
-        self.assertEqual(response.status_code, 200, response.text)
+        columns = set(AppUser.__table__.columns.keys())
+        self.assertNotIn("failed_login_attempts", columns)
+        self.assertNotIn("locked_until", columns)
 
     def test_success_resets_failures_and_session_expires_in_one_hour(self):
         self.register()

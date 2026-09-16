@@ -26,14 +26,10 @@ class Settings:
     db_user: str = os.getenv("DB_USER", "luck_user")
     db_password: str = os.getenv("DB_PASSWORD", "Luck1234!")
 
-    # 로그인 IP 잠금 정책. 이전 환경변수 이름도 배포 호환을 위해 읽는다.
+    # 로그인 IP 잠금 정책.
     auth_session_hours: int = int(os.getenv("AUTH_SESSION_HOURS", "1"))
-    auth_ip_max_failed_attempts: int = int(
-        os.getenv("AUTH_IP_MAX_FAILED_ATTEMPTS", os.getenv("AUTH_MAX_FAILED_ATTEMPTS", "5"))
-    )
-    auth_ip_lockout_minutes: int = int(
-        os.getenv("AUTH_IP_LOCKOUT_MINUTES", os.getenv("AUTH_LOCKOUT_MINUTES", "60"))
-    )
+    auth_ip_max_failed_attempts: int = int(os.getenv("AUTH_IP_MAX_FAILED_ATTEMPTS", "5"))
+    auth_ip_lockout_minutes: int = int(os.getenv("AUTH_IP_LOCKOUT_MINUTES", "60"))
     auth_trusted_proxy_ips: tuple[str, ...] = tuple(
         value.strip()
         for value in os.getenv(

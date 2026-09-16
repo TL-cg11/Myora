@@ -73,12 +73,14 @@ npm run dev
 sudo mysql -uroot luck_db < sql/migrate/2026-09-09_user_auth.sql
 sudo mysql -uroot luck_db < sql/migrate/2026-09-09_auth_lockout.sql
 sudo mysql -uroot luck_db < sql/migrate/2026-09-16_auth_ip_lockout.sql
+sudo mysql -uroot luck_db < sql/migrate/2026-09-16_remove_account_lockout.sql
 ```
 
 기본 인증 정책은 같은 IP에서 연속 5회 로그인 실패 시 해당 IP를 60분 잠그고,
 로그인 세션은 1시간 뒤 만료합니다. `AUTH_IP_MAX_FAILED_ATTEMPTS`,
 `AUTH_IP_LOCKOUT_MINUTES`, `AUTH_SESSION_HOURS` 환경변수로 운영 정책을 조정할 수
-있습니다. 기존 로그인 세션과 개별 계정은 IP 잠금으로 폐기하거나 잠그지 않습니다.
+있습니다. `app_user`에는 계정 잠금 상태를 저장하지 않으며, 기존 로그인 세션도
+IP 잠금으로 폐기하지 않습니다.
 
 ## 사주 한자 뜻 사전
 
