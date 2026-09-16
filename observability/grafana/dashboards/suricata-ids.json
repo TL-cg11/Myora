@@ -7,7 +7,12 @@
       {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"icmp_flood\" [$__interval])) or on() vector(0)","legendFormat":"ICMP Flood","refId":"C"},
       {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=\"web_connection_flood\" [$__interval])) or on() vector(0)","legendFormat":"Web Connection Flood","refId":"D"}
     ],"title":"IDS flood alerts by attack type","type":"timeseries"},
-    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi"}},"targets":[
+    {"datasource":{"type":"loki","uid":"loki"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"id":2,"fieldConfig":{"defaults":{},"overrides":[
+      {"matcher":{"id":"byName","options":"CRITICAL"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"red"}}]},
+      {"matcher":{"id":"byName","options":"HIGH"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"orange"}}]},
+      {"matcher":{"id":"byName","options":"MEDIUM"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"yellow"}}]},
+      {"matcher":{"id":"byName","options":"LOW"},"properties":[{"id":"color","value":{"mode":"fixed","fixedColor":"green"}}]}
+    ]},"options":{"legend":{"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi"}},"targets":[
       {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"critical\" [$__interval])) or on() vector(0)","legendFormat":"CRITICAL","refId":"A"},
       {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"high\" [$__interval])) or on() vector(0)","legendFormat":"HIGH","refId":"B"},
       {"expr":"sum(count_over_time({job=\"luck-suricata-ids\"} | json | attack_type=~\"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood\" | severity=\"medium\" [$__interval])) or on() vector(0)","legendFormat":"MEDIUM","refId":"C"}
@@ -16,5 +21,5 @@
   ],
   "refresh":"1m","schemaVersion":39,"tags":["luck","suricata","ids","security-monitoring"],
   "time":{"from":"now-1h","to":"now"},"timepicker":{"refresh_intervals":["30s","1m","5m"],"time_options":["1h","6h","24h"]},
-  "title":"Luck Suricata IDS","uid":"luck-suricata-ids","version":2
+  "title":"Luck Suricata IDS","uid":"luck-suricata-ids","version":3
 }

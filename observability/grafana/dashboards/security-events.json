@@ -86,7 +86,17 @@
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "description": "OPEN or INVESTIGATING events older than this visibility threshold. Alerts use risk-specific 1/4/24/72-hour thresholds.",
-      "fieldConfig": {"defaults": {}, "overrides": []},
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "risk_level"}, "properties": [
+          {"id": "mappings", "value": [{"type": "value", "options": {
+            "CRITICAL": {"color": "red", "index": 0, "text": "CRITICAL"},
+            "HIGH": {"color": "orange", "index": 1, "text": "HIGH"},
+            "MEDIUM": {"color": "yellow", "index": 2, "text": "MEDIUM"},
+            "LOW": {"color": "green", "index": 3, "text": "LOW"}
+          }}]},
+          {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+        ]}
+      ]},
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
       "id": 7,
       "options": {"cellHeight": "sm", "showHeader": true, "sortBy": [{"desc": true, "displayName": "unresolved_hours"}]},
@@ -97,7 +107,17 @@
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "description": "Opened from a Discord link. The event ID and a five-minute detection window are supplied in the link; no raw input is stored or displayed.",
-      "fieldConfig": {"defaults": {}, "overrides": []},
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "risk_level"}, "properties": [
+          {"id": "mappings", "value": [{"type": "value", "options": {
+            "CRITICAL": {"color": "red", "index": 0, "text": "CRITICAL"},
+            "HIGH": {"color": "orange", "index": 1, "text": "HIGH"},
+            "MEDIUM": {"color": "yellow", "index": 2, "text": "MEDIUM"},
+            "LOW": {"color": "green", "index": 3, "text": "LOW"}
+          }}]},
+          {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+        ]}
+      ]},
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 26},
       "id": 8,
       "options": {"cellHeight": "sm", "showHeader": true},
@@ -115,5 +135,5 @@
   "timezone": "browser",
   "title": "Luck Security Events",
   "uid": "luck-security-events",
-  "version": 7
+  "version": 8
 }

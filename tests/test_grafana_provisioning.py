@@ -92,6 +92,31 @@ class GrafanaProvisioningTests(unittest.TestCase):
             self.assertIn(f"AS {level}", sql)
         self.assertNotIn("risk_level AS metric", sql)
 
+    def test_event_tables_use_semantic_risk_text_colors(self):
+        expected = {
+            "CRITICAL": "red",
+            "HIGH": "orange",
+            "MEDIUM": "yellow",
+            "LOW": "green",
+        }
+        for title in ("Untreated / long-unresolved events", "Event details"):
+            panel = next(
+                panel for panel in self.events["panels"] if panel["title"] == title
+            )
+            override = next(
+                item for item in panel["fieldConfig"]["overrides"]
+                if item["matcher"]["options"] == "risk_level"
+            )
+            properties = {item["id"]: item["value"] for item in override["properties"]}
+            mapping = properties["mappings"][0]["options"]
+            self.assertEqual(
+                {level: value["color"] for level, value in mapping.items()},
+                expected,
+            )
+            self.assertEqual(
+                properties["custom.cellOptions"], {"type": "color-text"}
+            )
+
     def test_consumer_dashboard_covers_metrics_and_masked_logs(self):
         payload = json.dumps(self.consumers)
         for metric in (
@@ -139,6 +164,23 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertEqual(
             [target["legendFormat"] for target in severity_panel["targets"]],
             ["CRITICAL", "HIGH", "MEDIUM"],
+        )
+        severity_colors = {
+            override["matcher"]["options"]: next(
+                item["value"]["fixedColor"]
+                for item in override["properties"]
+                if item["id"] == "color"
+            )
+            for override in severity_panel["fieldConfig"]["overrides"]
+        }
+        self.assertEqual(
+            severity_colors,
+            {
+                "CRITICAL": "red",
+                "HIGH": "orange",
+                "MEDIUM": "yellow",
+                "LOW": "green",
+            },
         )
         for target in attack_panel["targets"] + severity_panel["targets"]:
             self.assertIn("or on() vector(0)", target["expr"])
