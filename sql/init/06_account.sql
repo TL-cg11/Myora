@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS auth_session (
         REFERENCES app_user (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS auth_ip_lockout (
+    ip_address            VARCHAR(45) NOT NULL,
+    failed_login_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    locked_until          DATETIME NULL,
+    updated_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (ip_address),
+    KEY ix_auth_ip_lockout_locked_until (locked_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- tarot_reading은 02번에서 먼저 생성되므로 계정 테이블이 생긴 이 시점에 FK를 건다.
 SET @has_tarot_user_fk = (
     SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
