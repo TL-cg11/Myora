@@ -4,7 +4,8 @@ groups:
   - orgId: 1
     name: luck-security-consumer-health
     folder: Security Monitoring
-    interval: 1m
+    # 발표 시연에서는 장애 발생 직후 알림을 보여 주기 위해 짧게 평가한다.
+    interval: 5s
     rules:
       - uid: luck-security-lag-high
         title: Security consumer lag is high
@@ -239,7 +240,8 @@ groups:
   - orgId: 1
     name: luck-suricata-flood-alerts
     folder: Security Monitoring
-    interval: 1m
+    # Flood는 동일 공격을 묶되, 발표 시연에서 즉시 보이도록 5초 단위로 확인한다.
+    interval: 5s
     rules:
       - uid: luck-ids-flood-detected
         title: IDS Flood attack detected
@@ -410,8 +412,9 @@ policies:
   - orgId: 1
     receiver: Luck Security Operations
     group_by: [grafana_folder, alertname, consumer_group, topic]
-    group_wait: 30s
-    group_interval: 5m
+    # 첫 알림을 의도적으로 지연시키지 않는다. (발표/시연용 설정)
+    group_wait: 0s
+    group_interval: 10s
     repeat_interval: 4h
     routes:
       - receiver: Luck IDS Flood Alerts
@@ -419,5 +422,5 @@ policies:
           - [notification_scope, '=', ids-flood]
         group_by: [alertname, attack_type, severity]
         group_wait: 0s
-        group_interval: 1m
+        group_interval: 20s
         repeat_interval: 10m

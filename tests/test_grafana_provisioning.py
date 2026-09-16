@@ -120,13 +120,14 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertIn("보안 로그 격리(DLQ) 발생", self.alerts)
         self.assertNotIn("type: slack", self.alerts)
         self.assertNotIn("type: email", self.alerts)
-        self.assertIn("group_wait: 30s", self.alerts)
+        self.assertIn("group_wait: 0s", self.alerts)
+        self.assertIn("group_interval: 10s", self.alerts)
         self.assertIn("repeat_interval: 4h", self.alerts)
 
     def test_suricata_flood_alerts_are_grouped_and_routed_to_korean_discord(self):
         for value in (
             "name: luck-suricata-flood-alerts",
-            "interval: 1m",
+            "interval: 5s",
             "uid: luck-ids-flood-detected",
             "count_over_time",
             'attack_type=~"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood" [1m]',
@@ -139,7 +140,7 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "최근 1분간",
             "notification_scope: ids-flood",
             "group_by: [alertname, attack_type, severity]",
-            "group_interval: 1m",
+            "group_interval: 20s",
             "repeat_interval: 10m",
         ):
             self.assertIn(value, self.alerts)
