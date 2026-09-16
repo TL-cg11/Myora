@@ -11,5 +11,6 @@ export const RANGES = [
 ];
 
 export function grafanaDashboardSource(dashboard, range) {
-  return `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=1m`;
+  const refresh = dashboard.key === 'consumers' ? '5s' : '1m';
+  return `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=${refresh}`;
 }

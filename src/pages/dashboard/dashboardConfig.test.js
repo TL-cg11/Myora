@@ -15,4 +15,8 @@ test('Grafana iframe source preserves the selected range', () => {
     grafanaDashboardSource(DASHBOARDS[2], 'now-24h'),
     '/grafana/d/luck-suricata-ids/?kiosk&theme=light&from=now-24h&to=now&refresh=1m',
   );
+  assert.equal(
+    grafanaDashboardSource(DASHBOARDS[1], 'now-1h'),
+    '/grafana/d/luck-security-consumers/?kiosk&theme=light&from=now-1h&to=now&refresh=5s',
+  );
 });
