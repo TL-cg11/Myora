@@ -84,6 +84,11 @@ class GrafanaProvisioningTests(unittest.TestCase):
             "실시간 모니터링 서버 시각",
             {panel["title"] for panel in self.consumers["panels"]},
         )
+        self.assertNotIn(
+            "Security sink targets",
+            {panel["title"] for panel in self.consumers["panels"]},
+        )
+        self.assertEqual(masked_panel["gridPos"], {"h": 17, "w": 24, "x": 0, "y": 16})
         detail_panel = next(panel for panel in self.events["panels"] if panel["title"] == "Event details")
         self.assertIn("event_id = ${event_id:sqlstring}", detail_panel["targets"][0]["rawSql"])
         self.assertIn("masked_excerpt", detail_panel["targets"][0]["rawSql"])
