@@ -9,11 +9,19 @@
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "description": "Selected Grafana time range, grouped by final event risk.",
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "CRITICAL"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "HIGH"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "MEDIUM"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "LOW"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
+        ]
+      },
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
       "id": 1,
       "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right"}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": true}},
-      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY risk_level ORDER BY FIELD(risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW')", "refId": "A"}],
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT SUM(CASE WHEN risk_level = 'CRITICAL' THEN 1 ELSE 0 END) AS CRITICAL, SUM(CASE WHEN risk_level = 'HIGH' THEN 1 ELSE 0 END) AS HIGH, SUM(CASE WHEN risk_level = 'MEDIUM' THEN 1 ELSE 0 END) AS MEDIUM, SUM(CASE WHEN risk_level = 'LOW' THEN 1 ELSE 0 END) AS LOW FROM security_event WHERE $__timeFilter(detected_at)", "refId": "A"}],
       "title": "Events by risk level",
       "type": "piechart"
     },
@@ -59,7 +67,15 @@
     },
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
-      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}}, "overrides": []},
+      "fieldConfig": {
+        "defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "CRITICAL"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "HIGH"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "MEDIUM"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "LOW"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
+        ]
+      },
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "id": 6,
       "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
@@ -99,5 +115,5 @@
   "timezone": "browser",
   "title": "Luck Security Events",
   "uid": "luck-security-events",
-  "version": 6
+  "version": 7
 }

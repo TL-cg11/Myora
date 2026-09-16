@@ -60,6 +60,38 @@ class GrafanaProvisioningTests(unittest.TestCase):
         self.assertNotIn("luck-suricata-ids", event_payload)
         self.assertNotIn("Recent Suricata IDS alerts", titles)
 
+    def test_event_risk_panels_use_semantic_fixed_colors(self):
+        expected = {
+            "CRITICAL": "red",
+            "HIGH": "orange",
+            "MEDIUM": "yellow",
+            "LOW": "green",
+        }
+
+        for title in ("Events by risk level", "Security events over time"):
+            panel = next(
+                panel for panel in self.events["panels"] if panel["title"] == title
+            )
+            actual = {}
+            for override in panel["fieldConfig"]["overrides"]:
+                name = override["matcher"]["options"]
+                color = next(
+                    item["value"]["fixedColor"]
+                    for item in override["properties"]
+                    if item["id"] == "color"
+                )
+                actual[name] = color
+            self.assertEqual(actual, expected)
+
+        risk_panel = next(
+            panel for panel in self.events["panels"]
+            if panel["title"] == "Events by risk level"
+        )
+        sql = risk_panel["targets"][0]["rawSql"]
+        for level in expected:
+            self.assertIn(f"AS {level}", sql)
+        self.assertNotIn("risk_level AS metric", sql)
+
     def test_consumer_dashboard_covers_metrics_and_masked_logs(self):
         payload = json.dumps(self.consumers)
         for metric in (
