@@ -44,6 +44,14 @@ def _feature_from_path(path: str) -> str | None:
     )
 
 
+def _is_chat_message_path(path: str) -> bool:
+    """emit_chat_exchange_log()가 같은 요청을 이미 chat_request/chat_response로
+    남기는 채팅 전송 엔드포인트인지 확인한다. 이 경로는 성공 시 api_request
+    로그를 중복으로 남기지 않는다(question 내용이 동일해 detector가 같은
+    내용으로 보안 이벤트를 두 번 만든다)."""
+    return path.endswith("/chat")
+
+
 def _request_id(request: Request) -> str:
     value = request.headers.get("x-request-id", "").strip()
     return value[:128] if value else uuid4().hex
@@ -419,15 +427,20 @@ async def api_request_log_middleware(request: Request, call_next) -> Response:
     finally:
         _current_request_id.reset(request_id_token)
 
-    emit_was_log(
-        build_api_request_log(
-            request,
-            response,
-            body=body,
-            feature=feature,
-            request_id=request_id,
-            processing_time=time.perf_counter() - started_at,
+    # 채팅 전송 엔드포인트는 성공 시 emit_chat_exchange_log()가 같은 질문을
+    # chat_request로 이미 남기므로, 여기서는 실패했을 때만(위 except 블록)
+    # api_request 로그를 남긴다. 감사 로그가 통째로 사라지지 않도록 실패 경로는
+    # 그대로 둔다.
+    if not _is_chat_message_path(request.url.path):
+        emit_was_log(
+            build_api_request_log(
+                request,
+                response,
+                body=body,
+                feature=feature,
+                request_id=request_id,
+                processing_time=time.perf_counter() - started_at,
+            )
         )
-    )
     response.headers["X-Request-ID"] = request_id
     return response
