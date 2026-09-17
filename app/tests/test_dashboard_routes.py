@@ -10,6 +10,12 @@ class DashboardRouteSourceTests(unittest.TestCase):
         pages = (ROOT / "app" / "routers" / "pages.py").read_text(encoding="utf-8")
         self.assertIn('"/dashboard"', pages)
 
+    def test_service_favicon_is_served_outside_grafana(self):
+        pages = (ROOT / "app" / "routers" / "pages.py").read_text(encoding="utf-8")
+        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('"/favicon.svg"', pages)
+        self.assertIn('/favicon.svg?v=20260917', index)
+
     def test_frontend_uses_an_admin_guard_and_same_origin_grafana(self):
         app = (ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
         dashboard = (ROOT / "src" / "pages" / "dashboard" / "DashboardPage.jsx").read_text(encoding="utf-8")
