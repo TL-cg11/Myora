@@ -29,6 +29,11 @@ control 케이스(정상 질문, 과잉차단 확인용)는 이 안전성 측정
 실행 (실제 API 호출·비용 발생, 명시적 확인 필요):
     .venv/bin/python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --max-cases 15
     .venv/bin/python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --group indirect --max-cases 10
+
+--realistic-context를 추가하면 content/injection 그룹의 짧은 가짜 컨텍스트 대신
+DB에 있는 실제 리딩으로 운영 코드(_reading_context/load_context)가 만드는 것과
+동일한 컨텍스트를 쓴다 — UI 대화창 첫 메시지와 코드 레벨에서 동일한 조건이 된다.
+    .venv/bin/python -m app.evals.run_guardrail_safety_effect_eval --confirm-live --realistic-context --max-cases 15
 """
 
 from __future__ import annotations
@@ -80,6 +85,54 @@ INDIRECT_LEAK_CASES = tuple(
 )
 
 
+def load_realistic_contexts() -> dict[str, str]:
+    """CONTEXTS의 짧은 가짜 문자열 대신, 실제 UI가 쓰는 것과 완전히 같은 함수로
+    만든 진짜 컨텍스트를 서비스별로 하나씩 가져온다.
+
+    각 서비스에서 가장 최근에 완료된 리딩 하나를 DB에서 그대로 가져와,
+    운영 코드가 실제로 호출하는 함수(_reading_context / load_context)를
+    재구현 없이 그대로 써서 컨텍스트 문자열을 만든다 — UI 대화창에 처음
+    메시지를 입력하는 것과 코드 레벨에서 동일한 조건이 된다(대화 이력이
+    없는 첫 메시지라고 가정). DB에 해당 서비스의 리딩이 하나도 없으면
+    그 서비스만 CONTEXTS의 기존 짧은 값으로 남는다.
+    """
+    from fastapi import HTTPException
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import AppUser, Reading, TarotReading
+    from app.routers.tarot_chat import _reading_context
+    from app.services.chat_context import load_context
+
+    contexts = dict(CONTEXTS)
+    with SessionLocal() as session:
+        tarot_reading = session.execute(
+            select(TarotReading).order_by(TarotReading.id.desc())
+        ).scalars().first()
+        if tarot_reading is not None:
+            contexts["tarot"] = _reading_context(tarot_reading)
+
+        for service in ("saju", "face"):
+            readings = session.execute(
+                select(Reading)
+                .where(Reading.service == service)
+                .order_by(Reading.id.desc())
+                .limit(20)
+            ).scalars().all()
+            for reading in readings:
+                # load_context()는 소유자 검증을 하므로, 그 리딩의 실제 소유자
+                # (guest_key 또는 회원)를 그대로 넘겨서 인증 로직을 그대로 통과시킨다.
+                # 상세 결과 행(SajuChart/FaceReading)이 아직 없는 리딩은 건너뛰고
+                # 그다음으로 최근 것을 시도한다.
+                owner = session.get(AppUser, reading.user_id) if reading.user_id else None
+                try:
+                    contexts[service] = load_context(session, service, reading.id, reading.guest_key, owner)
+                    break
+                except HTTPException:
+                    continue
+    return contexts
+
+
 async def raw_generate(service: str, question: str, context: str) -> str:
     """가드레일이 전혀 없는 상태로 생성한다 — 이 평가 전용, 운영 경로 아님.
 
@@ -110,11 +163,11 @@ async def raw_generate(service: str, question: str, context: str) -> str:
     )
 
 
-async def evaluate_violation_case(case: dict) -> dict:
+async def evaluate_violation_case(case: dict, contexts: dict[str, str] = CONTEXTS) -> dict:
     """그룹 1·2 공통: A(무방비)/B(가드레일) 판정 차이를 본다."""
     service = case["service"]
     question = case["question"]
-    context = CONTEXTS[service]
+    context = contexts[service]
     key = getattr(settings, f"deepseek_{service}_api_key")
 
     with capture_ai_calls() as calls_a:
@@ -205,6 +258,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="측정할 그룹만 선택 (기본 all: 셋 다)",
     )
     parser.add_argument("--output", type=Path, help="원문을 제외한 JSON 결과 파일")
+    parser.add_argument(
+        "--realistic-context", action="store_true",
+        help=(
+            "content/injection 그룹에서 짧은 가짜 컨텍스트 대신 DB의 실제 리딩으로 "
+            "운영 코드(_reading_context/load_context)가 만드는 것과 동일한 컨텍스트를 쓴다 "
+            "(UI 대화창 첫 메시지와 코드 레벨에서 동일한 조건). 해당 서비스에 리딩이 "
+            "없으면 그 서비스만 기존 가짜 컨텍스트로 남는다."
+        ),
+    )
     return parser
 
 
@@ -236,6 +298,16 @@ async def run(args: argparse.Namespace) -> dict:
     if missing:
         raise RuntimeError("API 키가 없는 서비스: " + ", ".join(missing))
 
+    contexts = CONTEXTS
+    context_lengths: dict[str, int] = {}
+    if args.realistic_context and violation_cases:
+        print("실제 DB 리딩으로 컨텍스트를 불러오는 중...", file=sys.stderr, flush=True)
+        contexts = load_realistic_contexts()
+        context_lengths = {service: len(text) for service, text in contexts.items()}
+        for service, length in context_lengths.items():
+            source = "실제 리딩" if length != len(CONTEXTS.get(service, "")) else "가짜(기본값, 리딩 없음)"
+            print(f"  {service}: 컨텍스트 길이 {length}자 ({source})", file=sys.stderr, flush=True)
+
     total = (len(violation_cases) + len(leak_cases)) * args.repeat
     run_started = perf_counter()
     print(
@@ -248,7 +320,7 @@ async def run(args: argparse.Namespace) -> dict:
     violation_results: list[dict] = []
     for case in violation_cases:
         for attempt in range(1, args.repeat + 1):
-            result = await evaluate_violation_case(case)
+            result = await evaluate_violation_case(case, contexts)
             result["attempt"] = attempt
             violation_results.append(result)
             completed += 1
@@ -306,6 +378,8 @@ async def run(args: argparse.Namespace) -> dict:
     return {
         "executed_at": datetime.now(UTC).isoformat(),
         "policy_version": POLICY_VERSION,
+        "realistic_context": args.realistic_context,
+        "context_lengths": context_lengths,
         "note": (
             "content/injection 그룹의 without_guardrail 판정은 inspect_output()"
             "(가드레일 자신의 채점 기준)으로 매긴 것이라 완전히 독립적인 제3자 검증이 아니다. "
