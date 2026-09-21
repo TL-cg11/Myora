@@ -7,11 +7,79 @@ from unittest.mock import patch
 
 from security_sink.masked_logs import TOPIC as MASKED_LOG_TOPIC
 from security_sink.resilience import DLQ_TOPICS
-from security_sink.runtime import kafka_config
+from security_sink.runtime import ReusableMySQLConnectionFactory, kafka_config
 from security_sink.security_events import TOPIC as SECURITY_EVENT_TOPIC
 
 
 class SinkRuntimeTests(unittest.TestCase):
+    def test_worker_connection_factory_reuses_and_closes_physical_connection(self) -> None:
+        class Connection:
+            def __init__(self) -> None:
+                self.closed = 0
+                self.autocommit_values: list[bool] = []
+
+            def autocommit(self, value: bool) -> None:
+                self.autocommit_values.append(value)
+
+            def close(self) -> None:
+                self.closed += 1
+
+        physical = Connection()
+        connects: list[Connection] = []
+
+        def connect() -> Connection:
+            connects.append(physical)
+            return physical
+
+        factory = ReusableMySQLConnectionFactory(connect)
+        first = factory()
+        first.close()
+        second = factory()
+        second.close()
+
+        self.assertEqual(connects, [physical])
+        self.assertIs(first._connection, second._connection)
+        self.assertEqual(physical.closed, 0)
+        self.assertEqual(physical.autocommit_values, [True])
+        factory.close()
+        self.assertEqual(physical.closed, 1)
+
+    def test_worker_connection_factory_health_checks_and_reconnects(self) -> None:
+        class Connection:
+            def __init__(self, *, fails_ping: bool = False) -> None:
+                self.fails_ping = fails_ping
+                self.pings = 0
+                self.closed = 0
+
+            def autocommit(self, value: bool) -> None:
+                self.autocommit_value = value
+
+            def ping(self, *, reconnect: bool) -> None:
+                self.pings += 1
+                self.reconnect = reconnect
+                if self.fails_ping:
+                    raise RuntimeError("connection lost")
+
+            def close(self) -> None:
+                self.closed += 1
+
+        first = Connection(fails_ping=True)
+        second = Connection()
+        connections = iter([first, second])
+        now = [0.0]
+        factory = ReusableMySQLConnectionFactory(
+            lambda: next(connections), ping_interval=10, clock=lambda: now[0]
+        )
+
+        factory().close()
+        now[0] = 11.0
+        borrowed = factory()
+
+        self.assertEqual(first.pings, 1)
+        self.assertEqual(first.closed, 1)
+        self.assertIs(borrowed._connection, second)
+        factory.close()
+
     def test_native_installer_uses_remote_was_broker_and_non_root_services(self) -> None:
         root = Path(__file__).resolve().parents[1]
         example = (root / "security_sink.env.example").read_text(encoding="utf-8")

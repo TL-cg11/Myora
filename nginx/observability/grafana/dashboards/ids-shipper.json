@@ -1,0 +1,13 @@
+{
+  "annotations":{"list":[]},"editable":false,"graphTooltip":1,"id":null,"links":[],
+  "panels":[
+    {"datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":8,"x":0,"y":0},"id":1,"targets":[{"expr":"up{job=\"luck-ids-shipper\"}","refId":"A"}],"title":"IDS shipper up","type":"stat"},
+    {"datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":8,"x":8,"y":0},"id":2,"targets":[{"expr":"luck_ids_shipper_buffer_bytes / luck_ids_shipper_buffer_limit_bytes","refId":"A"}],"title":"IDS buffer usage ratio","type":"timeseries"},
+    {"datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":8,"x":16,"y":0},"id":3,"targets":[{"expr":"luck_ids_shipper_last_loki_success_unixtime","refId":"A"}],"title":"Last Loki success","type":"stat"},
+    {"datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":12,"x":0,"y":8},"id":4,"targets":[{"expr":"increase(luck_ids_shipper_retries_total[5m])","refId":"A"},{"expr":"increase(luck_ids_shipper_parse_errors_total[5m])","refId":"B"},{"expr":"increase(luck_ids_shipper_lost_total[5m])","refId":"C"}],"title":"Retries, parse errors, and losses","type":"timeseries"},
+    {"datasource":{"type":"prometheus","uid":"prometheus"},"gridPos":{"h":8,"w":12,"x":12,"y":8},"id":5,"targets":[{"expr":"increase(luck_ids_shipper_buffered_total[5m])","refId":"A"},{"expr":"increase(luck_ids_shipper_sent_total[5m])","refId":"B"}],"title":"Buffered and sent IDS alerts","type":"timeseries"}
+  ],
+  "refresh":"30s","schemaVersion":39,"tags":["luck","suricata","ids","operations","security-monitoring"],
+  "time":{"from":"now-1h","to":"now"},"timepicker":{"refresh_intervals":["30s","1m","5m"],"time_options":["1h","6h","24h"]},
+  "title":"Luck IDS Shipper Operations","uid":"luck-ids-shipper","version":1
+}

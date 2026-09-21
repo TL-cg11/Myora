@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Iterable, Protocol
 from urllib.error import HTTPError
@@ -39,7 +39,7 @@ LIMIT %s
 SELECT_DUE = """
 SELECT n.id, n.event_id, n.alert_type, n.channel, n.retry_count,
        e.risk_level, e.status, e.source_service, e.event_name,
-       e.detected_at, e.masked_excerpt
+       e.detected_at, e.masked_excerpt, e.source_type
 FROM notification_log n
 JOIN security_event e ON e.event_id = n.event_id
 WHERE (
@@ -52,6 +52,16 @@ WHERE (
 ORDER BY n.scheduled_at ASC, n.id ASC
 LIMIT %s
 FOR UPDATE SKIP LOCKED
+""".strip()
+
+SELECT_DETECTION_RULES = """
+SELECT e.event_id, d.rule_id, d.category, d.risk_level
+FROM security_event e
+JOIN security_event_detection d ON d.security_event_id = e.id
+WHERE e.event_id IN ({placeholders})
+ORDER BY e.event_id ASC,
+         FIELD(d.risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'),
+         d.rule_id ASC
 """.strip()
 
 
@@ -68,6 +78,8 @@ class PendingNotification:
     event_name: str | None
     detected_at: datetime
     masked_excerpt: str | None
+    source_type: str = ""
+    detection_rules: tuple[tuple[str, str, str], ...] = ()
 
 
 class NotificationSender(Protocol):
@@ -139,6 +151,27 @@ class NotificationRepository:
                 )
                 rows = cursor.fetchall()
                 notifications = [PendingNotification(*row) for row in rows]
+                if notifications:
+                    placeholders = ",".join(["%s"] * len(notifications))
+                    cursor.execute(
+                        SELECT_DETECTION_RULES.format(placeholders=placeholders),
+                        tuple(item.event_id for item in notifications),
+                    )
+                    rules_by_event: dict[str, list[tuple[str, str, str]]] = {}
+                    for event_id, rule_id, category, risk_level in cursor.fetchall():
+                        rules_by_event.setdefault(str(event_id), []).append(
+                            (str(rule_id), str(category), str(risk_level))
+                        )
+                    notifications = [
+                        PendingNotification(
+                            item.id, item.event_id, item.alert_type, item.channel,
+                            item.retry_count, item.risk_level, item.status,
+                            item.source_service, item.event_name, item.detected_at,
+                            item.masked_excerpt, item.source_type,
+                            tuple(rules_by_event.get(item.event_id, ())),
+                        )
+                        for item in notifications
+                    ]
                 if notifications:
                     placeholders = ",".join(["%s"] * len(notifications))
                     cursor.execute(
@@ -273,7 +306,9 @@ class DiscordWebhookSender:
             return 1
 
     def send(self, subject: str, body: str) -> None:
-        header = f"**{subject}**"
+        # Discord collapses an empty first line. A zero-width spacer keeps the
+        # requested visual gap without exposing data or creating a mention.
+        header = f"\u200b\n**{subject}**"
         chunks: list[str] = []
         current = header
         for line in body.splitlines():
@@ -312,20 +347,165 @@ class DiscordWebhookSender:
                 raise
 
 
-def render_batch(items: Iterable[PendingNotification]) -> tuple[str, str]:
+KST = timezone(timedelta(hours=9))
+
+RISK_LABELS = {
+    "LOW": ("낮음", "🟢"),
+    "MEDIUM": ("주의", "🟡"),
+    "HIGH": ("높음", "🟠"),
+    "CRITICAL": ("긴급", "🔴"),
+}
+
+STATUS_LABELS = {
+    "OPEN": "미처리",
+    "INVESTIGATING": "조사 중",
+    "RESOLVED": "처리 완료",
+    "FALSE_POSITIVE": "오탐",
+}
+
+SERVICE_LABELS = {
+    "luck-was": "WAS 애플리케이션",
+    "luck-nginx": "Nginx",
+}
+
+EVENT_LABELS = {
+    "saju.chat.requested": "사주 AI 상담 요청",
+    "face.chat.requested": "관상 AI 상담 요청",
+    "tarot.chat.requested": "타로 AI 상담 요청",
+}
+
+RULE_TYPE_LABELS = {
+    "PROMPT_INJECTION": "프롬프트 인젝션 공격",
+}
+
+CATEGORY_TYPE_LABELS = {
+    "PII": "개인정보 노출 시도",
+    "SECRET": "비밀정보 노출 시도",
+    "BEHAVIOR": "비정상 행위 탐지",
+}
+
+RISK_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+
+def _clean_display(value: str | None, *, limit: int) -> str:
+    """Keep untrusted event metadata on one bounded Discord line."""
+
+    normalized = " ".join((value or "-").split())
+    return normalized[:limit] or "-"
+
+
+def _alert_label(alert_type: str) -> str:
+    if alert_type == "SECURITY_EVENT":
+        return "신규 보안 이벤트"
+    if alert_type.startswith("LONG_UNRESOLVED_"):
+        parts = alert_type.rsplit("_", 2)
+        if len(parts) == 3:
+            risk = RISK_LABELS.get(parts[1], (parts[1], ""))[0]
+            hours = parts[2].removesuffix("H")
+            return f"장기 미처리 이벤트 ({risk}, {hours}시간 이상)"
+    return _clean_display(alert_type, limit=80)
+
+
+def _event_label(event_name: str | None) -> str:
+    if not event_name:
+        return "분류되지 않은 보안 이벤트"
+    return EVENT_LABELS.get(event_name, _clean_display(event_name, limit=128))
+
+
+def _detected_at_kst(value: datetime) -> str:
+    utc_value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return utc_value.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
+def _detection_type_summary(
+    rules: Iterable[tuple[str, str, str]],
+) -> str:
+    """Return a Korean, non-sensitive type summary ordered by rule severity."""
+
+    types: dict[str, int] = {}
+    for rule_id, category, risk_level in rules:
+        label = RULE_TYPE_LABELS.get(
+            rule_id,
+            CATEGORY_TYPE_LABELS.get(category, "기타 보안 위협 탐지"),
+        )
+        types[label] = min(
+            types.get(label, len(RISK_ORDER)),
+            RISK_ORDER.get(risk_level, len(RISK_ORDER)),
+        )
+    if not types:
+        return "보안 위협 탐지"
+    ordered = sorted(types, key=lambda label: (types[label], label))
+    return ordered[0] if len(ordered) == 1 else f"{ordered[0]} 외 {len(ordered) - 1}종"
+
+
+def _grafana_detail_url(
+    base_url: str | None,
+    event_id: str,
+    detected_at: datetime,
+) -> str | None:
+    if not base_url:
+        return None
+    parsed = urlsplit(base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return None
+    utc_value = detected_at.replace(tzinfo=timezone.utc) if detected_at.tzinfo is None else detected_at.astimezone(timezone.utc)
+    center = int(utc_value.timestamp() * 1000)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(
+        {
+            "var-event_id": _clean_display(event_id, limit=64),
+            "from": str(center - 300_000),
+            "to": str(center + 300_000),
+        }
+    )
+    return urlunsplit(parsed._replace(query=urlencode(query)))
+
+
+def render_batch(
+    items: Iterable[PendingNotification],
+    *,
+    grafana_events_url: str | None = None,
+) -> tuple[str, str]:
     notifications = tuple(items)
     if not notifications:
         raise ValueError("cannot render an empty notification batch")
-    lines = []
+    blocks = []
     for item in notifications:
         validate_masking_safety(item.masked_excerpt)
-        excerpt = (item.masked_excerpt or "-").replace("\n", " ")[:240]
-        lines.append(
-            f"[{item.risk_level}] event_id={item.event_id} alert={item.alert_type} "
-            f"service={item.source_service} status={item.status} "
-            f"detected_at={item.detected_at.isoformat()}Z excerpt={excerpt}"
+        risk_label, risk_icon = RISK_LABELS.get(
+            item.risk_level,
+            (_clean_display(item.risk_level, limit=32), "⚪"),
         )
-    return f"Luck security alerts ({len(notifications)})", "\n".join(lines)
+        if item.alert_type == "SECURITY_EVENT" and item.source_type == "chat_request":
+            lines = [
+                f"{risk_icon} **위험도 {risk_label}**",
+                f"• 탐지 유형: {_detection_type_summary(item.detection_rules)}",
+                "• 처리 상태: 탐지 및 마스킹 완료",
+                f"• 탐지 시각: {_detected_at_kst(item.detected_at)}",
+            ]
+            detail_url = _grafana_detail_url(
+                grafana_events_url, item.event_id, item.detected_at
+            )
+            if detail_url:
+                lines.append(f"• [Grafana에서 사건 상세 보기]({detail_url})")
+            blocks.append("\n".join(lines))
+            continue
+
+        status_label = STATUS_LABELS.get(item.status, _clean_display(item.status, limit=32))
+        service_label = SERVICE_LABELS.get(item.source_service, _clean_display(item.source_service, limit=64))
+        blocks.append(
+            "\n".join(
+                (
+                    f"{risk_icon} **위험도 {risk_label}**",
+                    f"• 알림: {_alert_label(item.alert_type)}",
+                    f"• 탐지 유형: {_event_label(item.event_name)}",
+                    f"• 발생 서비스: {service_label}",
+                    f"• 처리 상태: {status_label}",
+                    f"• 탐지 시각: {_detected_at_kst(item.detected_at)}",
+                )
+            )
+        )
+    return f"Luck 보안 알림 {len(notifications)}건", "\n\n".join(blocks)
 
 
 class NotificationService:
@@ -333,9 +513,11 @@ class NotificationService:
         self,
         repository: NotificationRepository,
         senders: dict[str, NotificationSender],
+        grafana_events_url: str | None = None,
     ) -> None:
         self.repository = repository
         self.senders = senders
+        self.grafana_events_url = grafana_events_url
 
     def run_once(self, now: datetime | None = None) -> dict[str, int]:
         scheduled = self.repository.schedule_unresolved(now=now)
@@ -363,7 +545,9 @@ class NotificationService:
             if not safe_items:
                 continue
             try:
-                subject, body = render_batch(safe_items)
+                subject, body = render_batch(
+                    safe_items, grafana_events_url=self.grafana_events_url
+                )
                 sender.send(subject, body)
                 self.repository.mark_sent(item.id for item in safe_items)
                 sent += len(safe_items)

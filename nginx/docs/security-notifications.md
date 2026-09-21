@@ -2,11 +2,16 @@
 
 ## Thresholds and ownership
 
-Application notifications are created for HIGH and CRITICAL events, behavior
-detections whose `match_count` is at least 3, and unresolved events. Unresolved
-thresholds are CRITICAL 1 hour, HIGH 4 hours, MEDIUM 24 hours, and LOW 72 hours.
-The security-event sink queues immediate alerts in the event DB transaction;
-the notifier polls unresolved events once per minute.
+Application notifications are created only when a newly persisted, detector-
+masked `source_type=chat_request` security event is received. `chat_response`,
+general API, and AI-internal logs do not create a direct Discord notification.
+Each eligible event uses the `SECURITY_EVENT` alert type and the deterministic
+`event_id:alert_type:channel` key. Unresolved thresholds remain CRITICAL 1 hour,
+HIGH 4 hours, MEDIUM 24 hours, and LOW 72 hours.
+
+Grafana owns metric-based infrastructure alerts. The notifier owns only the
+masked chatbot-request detection notice, so DLQ, consumer lag/stale, target-down
+and IDS Flood incidents cannot be sent twice by this worker.
 
 Grafana owns metric-based infrastructure alerts. Lag warning is 1,000 messages
 for 5 minutes; critical is 5,000 messages immediately or oldest-message age over
@@ -24,16 +29,18 @@ rows are claimed with `FOR UPDATE SKIP LOCKED`, so multiple workers do not send
 the same row concurrently; stale `SENDING` rows become eligible again after 10
 minutes.
 
-The worker claims no more than 20 rows per cycle and sends one grouped message
-per channel. A failed delivery becomes `FAILED`, increments `retry_count`, and
+Each event is eligible for delivery immediately; the worker polls every second
+for the demonstration target and may group rows claimed in the same cycle into one message per
+channel. A failed delivery becomes `FAILED`, increments `retry_count`, and
 uses 1, 2, 4, 8 minute exponential backoff plus bounded jitter for at most 5
 attempts. Discord HTTP 429 responses honor a numeric or HTTP-date `Retry-After`
 value (or the JSON `retry_after` fallback) without scheduling earlier than the
 normal backoff. Success is `SENT`; disabled channels and unsafe message content
 become `SUPPRESSED`.
-Provider exception text is not persisted, and notifications contain only event
-identifiers, safe classification fields, and `masked_excerpt` after a second
-sensitive-data check.
+Provider exception text is not persisted. Chat-request notifications contain
+only a Korean detection-type summary, final masking status, risk level, detected
+time, and an optional Grafana event-detail link. They never contain a raw prompt,
+masked excerpt, rule evidence, or request body.
 
 ## Discord
 
@@ -43,7 +50,9 @@ confirms that Discord accepted each message before marking rows `SENT`. Mentions
 are disabled and messages longer than Discord's 2,000-character content limit
 are split. The webhook is loaded from `/etc/luck-security-notifier.env`, mode
 `0600`, and is never committed. `SECURITY_NOTIFICATION_CHANNELS` accepts only
-`DISCORD`; Slack and email are disabled.
+`DISCORD`; Slack and email are disabled. Set `GRAFANA_SECURITY_EVENTS_URL` to
+the HTTPS `luck-security-events` dashboard URL to include a link constrained to
+the event ID and a five-minute detection window.
 
 Grafana uses its own provisioned `Luck Security Operations` contact point with
 a Discord receiver. Its notification policy is appropriate because this is a
@@ -62,7 +71,10 @@ set +a
 ```
 
 For the Ubuntu server, install the environment and service after the MariaDB
-migration has been reapplied with the notifier INSERT grant:
+migration has been reapplied with the notifier detection-read grant. The
+repository migration wrapper includes this follow-up grant; if only the Nginx
+repository is deployed, the MariaDB owner must apply
+`2026-09-16_notifier_detection_read.sql` before restarting the notifier:
 
 ```bash
 sudo install -o root -g root -m 0600 security_notifier.env /etc/luck-security-notifier.env

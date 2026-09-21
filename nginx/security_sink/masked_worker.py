@@ -10,8 +10,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from security_sink.common import KafkaMetadata
-from security_sink.kafka_loop import KafkaSinkLoop
+from security_sink.common import KafkaMetadata, payload_age_seconds
+from security_sink.fault_injection import crash_once
+from security_sink.kafka_batch_loop import BatchItem, KafkaBatchSinkLoop
 from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.masked_logs import TOPIC, ConsumptionRepository, LokiClient, MaskedLogSink
 from security_sink.resilience import (
@@ -22,6 +23,7 @@ from security_sink.resilience import (
     TerminalConsumptionRepository,
 )
 from security_sink.runtime import (
+    ReusableMySQLConnectionFactory,
     kafka_config,
     kafka_producer_config,
     mysql_connection,
@@ -39,25 +41,35 @@ def main() -> int:
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    db_connections = ReusableMySQLConnectionFactory(
+        mysql_connection,
+        ping_interval=float(os.getenv("SECURITY_DB_PING_INTERVAL_SECONDS", "1")),
+    )
     config = kafka_config("masked-log-sink", "MASKED_LOG_CONSUMER_GROUP")
     consumer_group = str(config["group.id"])
     sink = MaskedLogSink(
-        ConsumptionRepository(mysql_connection),
+        ConsumptionRepository(db_connections),
         LokiClient(
             required("LOKI_URL"),
             timeout=float(os.getenv("LOKI_PUSH_TIMEOUT_SECONDS", "5")),
+        ),
+        after_loki_push=lambda metadata: crash_once(
+            "MASKED_LOG_TEST_CRASH_AFTER_LOKI_MARKER",
+            "loki_pushed_before_consumption_and_kafka_commit",
+            metadata,
         ),
     )
     consumer = Consumer(config)
     producer = Producer(kafka_producer_config(config))
     metrics = SinkMetrics(consumer_group)
+    metrics.initialize_dlq(TOPIC)
     metrics_server = MetricsServer(
         metrics,
         os.getenv("METRICS_HOST", "127.0.0.1"),
         int(os.getenv("MASKED_LOG_METRICS_PORT", "9109")),
     )
     metrics_server.start()
-    failures = FailureRepository(mysql_connection)
+    failures = FailureRepository(db_connections)
     buffer = FilesystemBuffer(
         Path(
             os.getenv(
@@ -82,7 +94,7 @@ def main() -> int:
 
     processor = ResilientProcessor(
         failures,
-        TerminalConsumptionRepository(mysql_connection),
+        TerminalConsumptionRepository(db_connections),
         DlqPublisher(send_dlq),
         buffer=buffer,
         on_retry=lambda metadata, details: (
@@ -127,46 +139,85 @@ def main() -> int:
                 break
         next_replay = time.monotonic() + replay_interval
 
-    def process(raw_value: bytes, metadata: KafkaMetadata):
+    pending_observations: list[tuple[float, bytes]] = []
+
+    def process_batch(items: list[BatchItem]):
+        nonlocal pending_observations
         started = time.monotonic()
-        result = processor.execute(
-            lambda: sink.handle(raw_value, metadata), raw_value, metadata
-        )
-        metrics.record_message(
-            metadata.topic, result.duplicate or "processed", time.monotonic() - started
-        )
-        return result
+        values = [(raw_value, metadata) for _message, raw_value, metadata in items]
+        try:
+            results = sink.handle_batch(values)
+            per_message = (time.monotonic() - started) / len(items)
+            pending_observations = [(per_message, raw_value) for _message, raw_value, _ in items]
+            return results
+        except Exception:
+            results = []
+            pending_observations = []
+            for _message, raw_value, metadata in items:
+                item_started = time.monotonic()
+                results.append(
+                    processor.execute(
+                        lambda raw_value=raw_value, metadata=metadata: sink.handle(
+                            raw_value, metadata
+                        ),
+                        raw_value,
+                        metadata,
+                    )
+                )
+                pending_observations.append((time.monotonic() - item_started, raw_value))
+            return results
 
     def processed(message: Any, result: Any) -> None:
+        nonlocal pending_observations
+        if not pending_observations:
+            raise RuntimeError("message observation is missing after Kafka commit")
+        processing_duration, raw_value = pending_observations.pop(0)
+        metrics.record_message(
+            message.topic(), result.duplicate or "processed", processing_duration,
+            payload_age_seconds(raw_value),
+        )
+
+    def batch_processed(messages: list[Any], results: list[Any]) -> None:
+        last = messages[-1]
         try:
-            observe_kafka_position(metrics, consumer, message, TopicPartition)
+            observe_kafka_position(metrics, consumer, last, TopicPartition)
         except Exception as exc:
-            metrics.record_failure(message.topic(), "lag_collection")
+            metrics.record_failure(last.topic(), "lag_collection")
             LOGGER.warning("Kafka lag collection failed: %s", type(exc).__name__)
         LOGGER.info(
-            "processed masked log duplicate=%s topic=%s partition=%s offset=%s",
-            result.duplicate or "no",
-            message.topic(),
-            message.partition(),
-            message.offset(),
+            "processed masked log batch count=%s duplicates=%s topic=%s "
+            "partition=%s offsets=%s-%s",
+            len(messages),
+            sum(result.duplicate is not None for result in results),
+            last.topic(),
+            last.partition(),
+            messages[0].offset(),
+            last.offset(),
         )
 
     try:
-        KafkaSinkLoop(
+        KafkaBatchSinkLoop(
             consumer,
             consumer_group=consumer_group,
-            process=process,
+            process_batch=process_batch,
             should_stop=lambda: stopping,
             is_partition_eof=lambda error: error.code() == KafkaError._PARTITION_EOF,
             before_poll=replay_buffer,
+            on_committed=lambda messages, duration: metrics.record_commit(
+                messages[-1].topic(), duration
+            ),
             on_processed=processed,
+            on_batch_processed=batch_processed,
             on_broker_error=lambda error, count: LOGGER.warning(
                 "Kafka unavailable attempt=%s error=%s", count, type(error).__name__
             ) or metrics.record_failure(TOPIC, "broker_poll"),
+            batch_size=int(os.getenv("MASKED_LOG_SINK_BATCH_SIZE", "100")),
+            consume_timeout=float(os.getenv("MASKED_LOG_SINK_BATCH_WAIT_SECONDS", "0.1")),
         ).run()
     finally:
         consumer.close()
         metrics_server.close()
+        db_connections.close()
     return 0
 
 

@@ -26,9 +26,11 @@ into `/var/lib/suricata/rules/suricata.rules`, which is the runtime rules file.
 The ET Open feed and local rules are rebuilt daily by
 `luck-suricata-update.timer`, followed by a live Suricata rule reload.
 
-The classified file is the live source of record until the repository's shared Kafka
-and Grafana services are ready. It can later be connected to the existing
-`observability/` pipeline without changing Suricata or Nginx.
+The classified file is the live source of record. The IDS shipper sends one
+normalized alert record per Suricata detection to Loki and does not publish Kafka
+events. Grafana separately aggregates the four local Flood types over one minute
+and sends one Discord notification per attack type and severity group instead of
+notifying for every IDS entry.
 
 ## Install
 
@@ -50,9 +52,10 @@ sudo journalctl -u luck-ids-classifier -n 100 --no-pager
 sudo tail -f /var/log/luck-security/ids-events.jsonl
 ```
 
-`ids-events.jsonl` is rotated daily, keeps 30 compressed rotations, and is suitable
-as a future Kafka file-source input. `suricata_event` preserves the complete original
-EVE alert while the top-level fields provide the normalized DDoS classification.
+`ids-events.jsonl` is rotated daily and keeps 30 compressed rotations. It contains
+only the normalized IDS fields: source and destination addresses are reduced to a
+network prefix, and the original EVE payload is not copied into this file. Raw EVE
+alerts remain in Suricata's protected `/var/log/suricata/eve.json`.
 
 ## EveBox web console
 

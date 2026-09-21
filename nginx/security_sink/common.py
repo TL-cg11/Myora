@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -77,6 +78,20 @@ def decode_message_key(value: bytes | str | None) -> str | None:
     if len(value) > 128:
         return "sha256:" + sha256_hex(value.encode("utf-8"))
     return value
+
+
+def payload_age_seconds(raw_value: bytes | str, *, now: datetime | None = None) -> float | None:
+    """Return source occurred_at age without failing terminal message handling."""
+    try:
+        rendered = raw_value.decode("utf-8") if isinstance(raw_value, bytes) else raw_value
+        value = json.loads(rendered).get("occurred_at")
+        if not isinstance(value, str) or not value.endswith("Z"):
+            return None
+        occurred = datetime.fromisoformat(value[:-1] + "+00:00")
+        current = now or datetime.now(timezone.utc)
+        return max(0.0, (current - occurred).total_seconds())
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, AttributeError):
+        return None
 
 
 _SENSITIVE_PATTERNS = (

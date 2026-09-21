@@ -9,11 +9,19 @@
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "description": "Selected Grafana time range, grouped by final event risk.",
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}, "overrides": []},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "CRITICAL"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "HIGH"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "MEDIUM"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "LOW"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
+        ]
+      },
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
       "id": 1,
       "options": {"displayLabels": ["name", "percent"], "legend": {"displayMode": "table", "placement": "right"}, "pieType": "donut", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": true}},
-      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT risk_level AS metric, COUNT(*) AS value FROM security_event WHERE $__timeFilter(detected_at) GROUP BY risk_level ORDER BY FIELD(risk_level, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW')", "refId": "A"}],
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT SUM(CASE WHEN risk_level = 'CRITICAL' THEN 1 ELSE 0 END) AS CRITICAL, SUM(CASE WHEN risk_level = 'HIGH' THEN 1 ELSE 0 END) AS HIGH, SUM(CASE WHEN risk_level = 'MEDIUM' THEN 1 ELSE 0 END) AS MEDIUM, SUM(CASE WHEN risk_level = 'LOW' THEN 1 ELSE 0 END) AS LOW FROM security_event WHERE $__timeFilter(detected_at)", "refId": "A"}],
       "title": "Events by risk level",
       "type": "piechart"
     },
@@ -59,7 +67,15 @@
     },
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
-      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}}, "overrides": []},
+      "fieldConfig": {
+        "defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "stacking": {"group": "A", "mode": "normal"}}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "CRITICAL"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+          {"matcher": {"id": "byName", "options": "HIGH"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "MEDIUM"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "LOW"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
+        ]
+      },
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "id": 6,
       "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
@@ -70,23 +86,54 @@
     {
       "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
       "description": "OPEN or INVESTIGATING events older than this visibility threshold. Alerts use risk-specific 1/4/24/72-hour thresholds.",
-      "fieldConfig": {"defaults": {}, "overrides": []},
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "risk_level"}, "properties": [
+          {"id": "mappings", "value": [{"type": "value", "options": {
+            "CRITICAL": {"color": "red", "index": 0, "text": "CRITICAL"},
+            "HIGH": {"color": "orange", "index": 1, "text": "HIGH"},
+            "MEDIUM": {"color": "yellow", "index": 2, "text": "MEDIUM"},
+            "LOW": {"color": "green", "index": 3, "text": "LOW"}
+          }}]},
+          {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+        ]}
+      ]},
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
       "id": 7,
       "options": {"cellHeight": "sm", "showHeader": true, "sortBy": [{"desc": true, "displayName": "unresolved_hours"}]},
       "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT event_id, detected_at, TIMESTAMPDIFF(HOUR, detected_at, UTC_TIMESTAMP()) AS unresolved_hours, risk_level, status, source_service, event_name, assigned_to, masked_excerpt FROM security_event WHERE status IN ('OPEN', 'INVESTIGATING') AND detected_at <= UTC_TIMESTAMP() - INTERVAL ${unresolved_hours:raw} HOUR ORDER BY detected_at ASC LIMIT 200", "refId": "A"}],
       "title": "Untreated / long-unresolved events",
       "type": "table"
+    },
+    {
+      "datasource": {"type": "mysql", "uid": "security-monitoring-mysql"},
+      "description": "Opened from a Discord link. The event ID and a five-minute detection window are supplied in the link; no raw input is stored or displayed.",
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "risk_level"}, "properties": [
+          {"id": "mappings", "value": [{"type": "value", "options": {
+            "CRITICAL": {"color": "red", "index": 0, "text": "CRITICAL"},
+            "HIGH": {"color": "orange", "index": 1, "text": "HIGH"},
+            "MEDIUM": {"color": "yellow", "index": 2, "text": "MEDIUM"},
+            "LOW": {"color": "green", "index": 3, "text": "LOW"}
+          }}]},
+          {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+        ]}
+      ]},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 26},
+      "id": 8,
+      "options": {"cellHeight": "sm", "showHeader": true},
+      "targets": [{"format": "table", "rawQuery": true, "rawSql": "SELECT event_id, detected_at, risk_level, status, source_service, source_type, event_name, masked_excerpt FROM security_event WHERE ${event_id:sqlstring} <> '' AND event_id = ${event_id:sqlstring} AND $__timeFilter(detected_at) LIMIT 1", "refId": "A"}],
+      "title": "Event details",
+      "type": "table"
     }
   ],
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 39,
   "tags": ["luck", "security-monitoring", "events"],
-  "templating": {"list": [{"current": {"selected": true, "text": "24", "value": "24"}, "description": "Provisional visibility threshold; finalize alert value in Part 10.", "hide": 0, "label": "Unresolved hours", "name": "unresolved_hours", "options": [{"selected": false, "text": "1", "value": "1"}, {"selected": false, "text": "6", "value": "6"}, {"selected": true, "text": "24", "value": "24"}, {"selected": false, "text": "72", "value": "72"}], "query": "1,6,24,72", "type": "custom"}]},
-  "time": {"from": "now-24h", "to": "now"},
-  "timepicker": {},
+  "templating": {"list": [{"current": {"selected": true, "text": "24", "value": "24"}, "description": "Provisional visibility threshold; finalize alert value in Part 10.", "hide": 0, "label": "Unresolved hours", "name": "unresolved_hours", "options": [{"selected": false, "text": "1", "value": "1"}, {"selected": false, "text": "6", "value": "6"}, {"selected": true, "text": "24", "value": "24"}, {"selected": false, "text": "72", "value": "72"}], "query": "1,6,24,72", "type": "custom"}, {"current": {"selected": true, "text": "", "value": ""}, "description": "Discord event detail link parameter.", "hide": 2, "label": "Event ID", "name": "event_id", "options": [], "query": "", "type": "textbox"}]},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {"refresh_intervals": ["30s", "1m", "5m"], "time_options": ["1h", "6h", "24h"]},
   "timezone": "browser",
   "title": "Luck Security Events",
   "uid": "luck-security-events",
-  "version": 1
+  "version": 8
 }

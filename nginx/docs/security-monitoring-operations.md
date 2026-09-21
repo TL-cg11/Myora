@@ -34,6 +34,18 @@
 
 측정값은 메시지 수신 시각부터 DB/Loki 저장 성공 시각까지 계산한다. 실제 운영 수치가 목표를 초과하면 partition 수, consumer 수, DB batch size, Loki buffer를 조정하고 기준을 개정한다.
 
+Sink worker는 메시지별 TCP 연결 비용을 제거하기 위해 worker당 MariaDB 연결 하나를
+재사용한다. 각 write는 기존과 동일하게 명시적 transaction으로 처리하고 read는 autocommit을
+사용하며, `SECURITY_DB_PING_INTERVAL_SECONDS` 주기로 연결 상태를 확인해 끊긴 연결을
+재생성한다. worker 종료 시에는 물리 연결을 닫는다.
+
+각 worker는 기본적으로 최대 100건 또는 0.1초 동안 모은 동일 partition 메시지를 순서대로
+micro-batch 처리한다. security event는 한 DB transaction의 bulk write로, masked log는 한
+Loki push와 한 consumption transaction으로 묶고 마지막 offset만 동기 commit한다. batch가
+실패하면 기존 메시지별 retry·DLQ 경로로 순서대로 fallback하므로 실패 격리 정책은 유지된다.
+크기는 `SECURITY_SINK_BATCH_SIZE`, `MASKED_LOG_SINK_BATCH_SIZE`, 대기 시간은 각
+`*_BATCH_WAIT_SECONDS` 환경 변수로 조정한다.
+
 ### Verification commands
 
 외부 I/O를 제외한 계약 검증·메시지 처리 core의 회귀 성능은 아래 명령으로 60초씩 측정한다. 이 결과는 코드 자체의 병목을 찾는 기준이며 실제 DB·Loki latency 또는 Kafka lag 측정값으로 대체할 수 없다.
@@ -124,8 +136,10 @@ bind한다.
 | `luck_sink_retries_total` | 단계별 재시도 수 |
 | `luck_sink_dlq_total` | 단계별 DLQ 수 |
 | `luck_sink_processing_duration_seconds` | 처리 지연 histogram |
+| `luck_sink_commit_duration_seconds` | 동기 Kafka offset commit 지연 histogram |
+| `luck_sink_end_to_end_duration_seconds` | source 발생부터 sink 완료까지 지연 histogram |
 | `luck_consumer_lag_messages` | group/topic/partition별 high watermark lag |
-| `luck_consumer_oldest_message_age_seconds` | 처리 중인 가장 오래된 메시지 나이 |
+| `luck_consumer_oldest_message_age_seconds` | backlog 처리 중인 가장 오래된 메시지 나이; lag 0이면 0 |
 
 Prometheus는 `kafka-consumer-targets.yml`의 file discovery로 두 sink를 수집한다. 현재
 책임 범위는 `security-event-sink`, `masked-log-sink` 두 consumer 전체다. 다른 팀 consumer도
@@ -152,3 +166,40 @@ python3 scripts/verify_security_metrics.py \
 - retention 대상 DB 행 정리
 
 초기 구현은 1분 주기 worker polling을 기본으로 한다. 알림 대기 행은 이벤트 저장 transaction과 함께 `notification_log`에 `PENDING`으로 기록하고, worker가 발송 성공 후 `SENT`로 변경한다. 발송 실패 시 `retry_count`, `next_retry_at`, 마스킹된 `last_error`를 갱신한다.
+
+## Deployment, rollback, and recovery runbook
+
+배포 전에는 저장소 revision, 설치된 systemd unit·Loki·Prometheus·Grafana provisioning
+설정, `/etc/luck-*.env`의 존재 여부와 권한을 기록한다. secret 파일은 내용이 아니라 경로,
+소유자, mode만 기록하며 백업본도 mode 0600을 유지한다. 배포 순서는 MariaDB migration →
+Kafka·detector → sink·notifier·retention → Loki·Prometheus·Grafana → read-only health check다.
+
+코드 rollback은 강제 reset이나 DB down migration 대신 검증된 이전 release commit을 새
+revert commit으로 반영한 뒤 설치 스크립트를 재실행한다. 설정 rollback은 배포 직전 백업한
+명시적 파일만 원래 경로로 복원하고 `systemctl daemon-reload` 후 의존 순서대로 재시작한다.
+MariaDB migration은 운영 데이터가 존재하면 table을 drop하지 않는다. schema-only dump를
+임시 database에 복원해 복구 가능성을 검증하고, 실제 장애 때는 승인된 전체 backup을 새
+database에 복원·검증한 뒤 접속 대상을 전환한다.
+
+rollback 중단 기준은 backup checksum 불일치, secret mode 0600 위반, schema/table 수
+불일치, 서비스 inactive, Kafka lag 증가 지속, DB·Loki health 실패다. 복구 후에는 Kafka
+lag 0, buffer 0, sink와 notifier active, MariaDB 정합성, Loki ready, Prometheus targets,
+Grafana datasource·alert 상태를 순서대로 확인한다.
+
+Part 13의 남은 운영 검증은 서버별 한 번의 진입점으로 수행한다. 두 명령 모두 기본값은
+dry-run이며 `--execute`를 명시해야만 낮은 부하 시험 또는 임시 database 복원을 수행한다.
+
+```bash
+# Nginx/observability server
+sudo bash scripts/run-part13-remaining.sh --execute
+
+# MariaDB server: production data를 복사하거나 변경하지 않는 schema-only 임시 복원
+sudo bash scripts/run-part13-rollback-rehearsal.sh --execute --cleanup-performance
+```
+
+Nginx 서버 명령의 성능 결과를 먼저 저장한 후 MariaDB 서버 명령을 실행한다. MariaDB 명령은
+schema-only 복원 리허설이 성공한 경우에만 `p13perf-` 성능 fixture를 정리한다.
+
+성능 시험이 목표에 미달해도 대량 본 시험은 실행되지 않는다. 최종 JSON과 MariaDB 복원
+JSON을 함께 보존하고, 성능 목표·rollback 기준·서비스 상태가 모두 확인된 뒤에만 실제
+서버 적용 결과를 완료로 기록한다.

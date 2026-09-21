@@ -8,15 +8,14 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 
-RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
 VALID_CHANNELS = ("DISCORD",)
 
 
 @dataclass(frozen=True)
 class NotificationPolicy:
-    immediate_risk_level: str = "HIGH"
-    repeated_behavior_matches: int = 3
-    group_window_seconds: int = 60
+    # Every security event is actionable; make it eligible immediately. Events
+    # claimed in the same notifier cycle can still share one Discord message.
+    group_window_seconds: int = 0
     max_batch_size: int = 20
     max_retries: int = 5
     retry_base_seconds: int = 60
@@ -62,18 +61,17 @@ def configured_channels(raw: str | None = None) -> tuple[str, ...]:
 def initial_alert_types(
     event: dict[str, Any], policy: NotificationPolicy = DEFAULT_POLICY
 ) -> tuple[str, ...]:
-    alerts: list[str] = []
-    risk_level = str(event["risk_level"])
-    if RISK_ORDER[risk_level] >= RISK_ORDER[policy.immediate_risk_level]:
-        alerts.append(f"RISK_{risk_level}")
-    repeated = any(
-        detection.get("category") == "BEHAVIOR"
-        and int(detection.get("match_count", 0)) >= policy.repeated_behavior_matches
-        for detection in event.get("detections", ())
-    )
-    if repeated:
-        alerts.append("REPEATED_BEHAVIOR")
-    return tuple(alerts)
+    """Queue only a masked chatbot-request detection for direct Discord delivery.
+
+    Infrastructure failures remain Grafana Alerting's responsibility. The
+    detector carries the original WAS event type into ``source_type``; using it
+    here prevents a response or another API log from producing a second
+    application notification for the same chat exchange.
+    """
+    del policy
+    if event.get("source_type") != "chat_request":
+        return ()
+    return ("SECURITY_EVENT",)
 
 
 def dedup_key(event_id: str, alert_type: str, channel: str) -> str:

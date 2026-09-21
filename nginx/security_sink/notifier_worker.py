@@ -10,7 +10,7 @@ import signal
 import time
 from typing import Any
 
-from security_sink.notification_policy import RISK_ORDER, NotificationPolicy, configured_channels
+from security_sink.notification_policy import NotificationPolicy, configured_channels
 from security_sink.notifications import DiscordWebhookSender, NotificationRepository, NotificationService
 from security_sink.runtime import mysql_connection, required
 
@@ -26,13 +26,8 @@ def _integer(name: str, default: int, minimum: int = 1) -> int:
 
 
 def policy_from_environment() -> NotificationPolicy:
-    immediate = os.getenv("NOTIFICATION_IMMEDIATE_RISK_LEVEL", "HIGH").upper()
-    if immediate not in RISK_ORDER:
-        raise ValueError("NOTIFICATION_IMMEDIATE_RISK_LEVEL is invalid")
     return NotificationPolicy(
-        immediate_risk_level=immediate,
-        repeated_behavior_matches=_integer("NOTIFICATION_REPEATED_BEHAVIOR_MATCHES", 3),
-        group_window_seconds=_integer("NOTIFICATION_GROUP_WINDOW_SECONDS", 60, 0),
+        group_window_seconds=_integer("NOTIFICATION_GROUP_WINDOW_SECONDS", 0, 0),
         max_batch_size=_integer("NOTIFICATION_MAX_BATCH_SIZE", 20),
         max_retries=_integer("NOTIFICATION_MAX_RETRIES", 5),
         retry_base_seconds=_integer("NOTIFICATION_RETRY_BASE_SECONDS", 60),
@@ -58,7 +53,11 @@ def run_once() -> dict[str, int]:
     channels = configured_channels()
     policy = policy_from_environment()
     repository = NotificationRepository(mysql_connection, policy, channels)
-    service = NotificationService(repository, senders_from_environment(channels))
+    service = NotificationService(
+        repository,
+        senders_from_environment(channels),
+        grafana_events_url=os.getenv("GRAFANA_SECURITY_EVENTS_URL"),
+    )
     return service.run_once()
 
 
@@ -78,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    interval = _integer("NOTIFICATION_POLL_SECONDS", 60)
+    interval = _integer("NOTIFICATION_POLL_SECONDS", 1)
     while not stopping:
         try:
             LOGGER.info("notification cycle result=%s", run_once())

@@ -62,7 +62,7 @@ groups:
             model:
               datasource: {type: prometheus, uid: prometheus}
               editorMode: code
-              expr: sum by (consumer_group, topic, stage) (increase(luck_sink_dlq_total[5m]))
+              expr: sum by (consumer_group, topic, stage) (increase(luck_sink_dlq_total[5m]) or (luck_sink_dlq_total unless luck_sink_dlq_total offset 5m))
               instant: true
               intervalMs: 15000
               maxDataPoints: 43200
@@ -236,6 +236,61 @@ groups:
           runbook_url: docs/security-monitoring-operations.md
         labels: {component: kafka-consumer, severity: critical, owner: security-monitoring}
 
+  - orgId: 1
+    name: luck-suricata-flood-alerts
+    folder: Security Monitoring
+    interval: 1m
+    rules:
+      - uid: luck-ids-flood-detected
+        title: IDS Flood attack detected
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange: {from: 120, to: 0}
+            model:
+              datasource: {type: loki, uid: loki}
+              editorMode: code
+              expr: 'sum by (attack_type, severity) (count_over_time({job="luck-suricata-ids"} | json | attack_type=~"tcp_syn_flood|udp_flood|icmp_flood|web_connection_flood" [1m])) or on() vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              reducer: max
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  query: {params: [C]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: B
+              refId: C
+              type: threshold
+        dashboardUid: luck-suricata-ids
+        panelId: 1
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        keepFiringFor: 2m
+        annotations:
+          flood_count: '{{ printf "%.0f" $values.B.Value }}'
+          summary: '최근 1분간 {{ $labels.attack_type }} 공격 {{ printf "%.0f" $values.B.Value }}건 탐지'
+          runbook_url: docs/security-monitoring-operations.md
+        labels: {component: suricata-ids, notification_scope: ids-flood, owner: security-monitoring}
+
 deleteContactPoints:
   - orgId: 1
     uid: luck-security-slack
@@ -252,6 +307,106 @@ contactPoints:
         settings:
           url: $GRAFANA_DISCORD_WEBHOOK_URL
           use_discord_username: true
+          message: '{{ template "luck.security.operations.message" . }}'
+  - orgId: 1
+    name: Luck IDS Flood Alerts
+    receivers:
+      - uid: luck-ids-flood-discord
+        type: discord
+        disableResolveMessage: false
+        settings:
+          url: $GRAFANA_DISCORD_WEBHOOK_URL
+          use_discord_username: true
+          message: '{{ template "luck.ids.flood.message" . }}'
+
+templates:
+  - orgId: 1
+    name: luck-security-operations-message
+    template: |
+      {{ define "luck.security.alert_name" -}}
+      {{- if eq . "Security sink DLQ message detected" -}}보안 로그 격리(DLQ) 발생
+      {{- else if eq . "Security sink metrics target is down" -}}보안 로그 처리 서비스 연결 끊김
+      {{- else if eq . "Security consumer lag is critical" -}}보안 로그 처리 지연 심각
+      {{- else if eq . "Security consumer lag is high" -}}보안 로그 처리 지연 경고
+      {{- else if eq . "Security consumer oldest message is stale" -}}보안 로그 처리 지연 시간 초과
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.security.severity_name" -}}
+      {{- if eq . "critical" -}}긴급
+      {{- else if eq . "warning" -}}경고
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.security.alert_detail" -}}
+      {{- if eq . "Security sink DLQ message detected" -}}최근 5분 내 처리 실패 메시지가 격리 큐로 이동했습니다.
+      {{- else if eq . "Security sink metrics target is down" -}}보안 로그 처리 서비스의 상태 수집이 2분 이상 실패했습니다.
+      {{- else if eq . "Security consumer lag is critical" -}}대기 중인 보안 로그가 5,000건을 초과했습니다.
+      {{- else if eq . "Security consumer lag is high" -}}대기 중인 보안 로그가 1,000건을 초과한 상태가 5분간 지속됐습니다.
+      {{- else if eq . "Security consumer oldest message is stale" -}}가장 오래된 대기 로그가 60초를 초과했습니다.
+      {{- else -}}상세 상태는 Grafana에서 확인하세요.
+      {{- end -}}
+      {{- end }}
+      {{ define "luck.security.operations.message" -}}
+      {{- range .Alerts.Firing }}
+      🚨 **Luck 보안 운영 경고**
+      {{ "\n" -}}
+      상태: 발생
+      항목: {{ template "luck.security.alert_name" .Labels.alertname }}
+      위험도: {{ template "luck.security.severity_name" .Labels.severity }}
+      {{- if .Labels.consumer_group }}
+      Consumer: {{ .Labels.consumer_group }}
+      {{- end }}
+      {{- if .Labels.topic }}
+      토픽: {{ .Labels.topic }}
+      {{- end }}
+      {{- if .Labels.stage }}
+      실패 단계: {{ .Labels.stage }}
+      {{- end }}
+      내용: {{ template "luck.security.alert_detail" .Labels.alertname }}
+      {{ end -}}
+      {{- range .Alerts.Resolved }}
+      ✅ **Luck 보안 운영 복구**
+      {{ "\n" -}}
+      상태: 정상 복구
+      항목: {{ template "luck.security.alert_name" .Labels.alertname }}
+      {{- if .Labels.consumer_group }}
+      Consumer: {{ .Labels.consumer_group }}
+      {{- end }}
+      {{- if .Labels.topic }}
+      토픽: {{ .Labels.topic }}
+      {{- end }}
+      내용: 해당 경고 조건이 해소되었습니다. Grafana에서 최근 처리 상태를 확인하세요.
+      {{ end -}}
+      {{- end }}
+  - orgId: 1
+    name: luck-ids-flood-message
+    template: |
+      {{ define "luck.ids.attack_name" -}}
+      {{- if eq . "tcp_syn_flood" -}}TCP SYN Flood
+      {{- else if eq . "udp_flood" -}}UDP Flood
+      {{- else if eq . "icmp_flood" -}}ICMP Flood
+      {{- else if eq . "web_connection_flood" -}}Web Connection Flood
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.ids.severity_name" -}}
+      {{- if eq . "critical" -}}긴급
+      {{- else if eq . "high" -}}높음
+      {{- else if eq . "medium" -}}주의
+      {{- else -}}{{ . }}{{- end -}}
+      {{- end }}
+      {{ define "luck.ids.flood.message" -}}
+      {{- range .Alerts.Firing }}
+      🔴 **Luck IDS Flood 공격 알림**
+      • 공격 유형: {{ template "luck.ids.attack_name" .Labels.attack_type }}
+      • 위험도: {{ template "luck.ids.severity_name" .Labels.severity }}
+      • 탐지 건수: 최근 1분간 {{ .Annotations.flood_count }}건
+      • 대상 서비스: Nginx / Suricata IDS
+      {{ end -}}
+      {{- range .Alerts.Resolved }}
+      ✅ **Luck IDS Flood 공격 종료**
+      • 공격 유형: {{ template "luck.ids.attack_name" .Labels.attack_type }}
+      • 상태: 최근 1분간 추가 탐지 없음
+      {{ end -}}
+      {{- end }}
 
 policies:
   - orgId: 1
@@ -260,3 +415,11 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
+    routes:
+      - receiver: Luck IDS Flood Alerts
+        object_matchers:
+          - [notification_scope, '=', ids-flood]
+        group_by: [alertname, attack_type, severity]
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 10m

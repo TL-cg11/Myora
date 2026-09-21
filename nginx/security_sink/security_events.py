@@ -141,6 +141,108 @@ class SecurityEventRepository:
         finally:
             connection.close()
 
+    def save_batch(
+        self,
+        items: list[tuple[dict[str, Any], KafkaMetadata, str]],
+    ) -> list[ProcessResult]:
+        """Persist an ordered micro-batch in one MariaDB transaction."""
+        if not items:
+            return []
+        connection = self._connection_factory()
+        try:
+            connection.begin()
+            with connection.cursor() as cursor:
+                offset_conditions: list[str] = []
+                offset_values: list[Any] = []
+                for event, metadata, _payload_hash in items:
+                    offset_conditions.append(
+                        "(consumer_group=%s AND topic_name=%s AND "
+                        "partition_number=%s AND message_offset=%s)"
+                    )
+                    offset_values.extend(metadata.identity_values())
+                cursor.execute(
+                    "SELECT consumer_group,topic_name,partition_number,message_offset "
+                    "FROM kafka_consumption WHERE " + " OR ".join(offset_conditions),
+                    tuple(offset_values),
+                )
+                consumed = {tuple(row) for row in cursor.fetchall()}
+
+                event_ids = list(dict.fromkeys(event["event_id"] for event, _, _ in items))
+                placeholders = ",".join(["%s"] * len(event_ids))
+                cursor.execute(
+                    f"SELECT event_id,id FROM security_event WHERE event_id IN ({placeholders}) FOR UPDATE",
+                    tuple(event_ids),
+                )
+                database_ids = {str(event_id): int(row_id) for event_id, row_id in cursor.fetchall()}
+
+                new_events: list[dict[str, Any]] = []
+                seen_new: set[str] = set()
+                for event, metadata, _payload_hash in items:
+                    if metadata.identity_values() in consumed:
+                        continue
+                    event_id = event["event_id"]
+                    if event_id not in database_ids and event_id not in seen_new:
+                        seen_new.add(event_id)
+                        new_events.append(event)
+                if new_events:
+                    cursor.executemany(INSERT_EVENT, [self._event_values(event) for event in new_events])
+                    new_ids = [event["event_id"] for event in new_events]
+                    new_placeholders = ",".join(["%s"] * len(new_ids))
+                    cursor.execute(
+                        f"SELECT event_id,id FROM security_event WHERE event_id IN ({new_placeholders})",
+                        tuple(new_ids),
+                    )
+                    database_ids.update(
+                        {str(event_id): int(row_id) for event_id, row_id in cursor.fetchall()}
+                    )
+
+                    detections = []
+                    actions = []
+                    notifications = []
+                    for event in new_events:
+                        row_id = database_ids[event["event_id"]]
+                        detections.extend(
+                            self._detection_values(row_id, detection)
+                            for detection in event["detections"]
+                        )
+                        actions.append((row_id, CREATED_ACTOR_TYPE, CREATED_ACTOR_ID))
+                        notifications.extend(
+                            queue_rows(event, self._notification_channels, self._notification_policy)
+                        )
+                    if detections:
+                        cursor.executemany(INSERT_DETECTION, detections)
+                    cursor.executemany(INSERT_CREATED_ACTION, actions)
+                    if notifications:
+                        cursor.executemany(INSERT_NOTIFICATION, notifications)
+
+                consumption_values = [
+                    metadata.consumption_values(payload_hash, event["event_id"])
+                    for event, metadata, payload_hash in items
+                    if metadata.identity_values() not in consumed
+                ]
+                if consumption_values:
+                    cursor.executemany(INSERT_CONSUMPTION, consumption_values)
+            connection.commit()
+
+            first_new: set[str] = set()
+            results: list[ProcessResult] = []
+            for event, metadata, _payload_hash in items:
+                if metadata.identity_values() in consumed:
+                    results.append(ProcessResult(event_db_id=None, duplicate="offset"))
+                elif event["event_id"] in first_new or event["event_id"] not in seen_new:
+                    results.append(
+                        ProcessResult(database_ids[event["event_id"]], duplicate="event_id")
+                    )
+                else:
+                    first_new.add(event["event_id"])
+                    results.append(ProcessResult(database_ids[event["event_id"]]))
+            return results
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
     @staticmethod
     def _event_values(event: dict[str, Any]) -> tuple[Any, ...]:
         return (
@@ -208,3 +310,18 @@ class SecurityEventSink:
         validate(TOPIC, event)
         validate_masking_safety(event)
         return self._repository.save(event, metadata, sha256_hex(raw_bytes))
+
+    def handle_batch(
+        self, items: list[tuple[bytes, KafkaMetadata]]
+    ) -> list[ProcessResult]:
+        prepared: list[tuple[dict[str, Any], KafkaMetadata, str]] = []
+        for raw_value, metadata in items:
+            if metadata.topic != TOPIC:
+                raise ValueError(f"unexpected topic for security event sink: {metadata.topic}")
+            event = json.loads(raw_value.decode("utf-8"))
+            if not isinstance(event, dict):
+                raise ValueError("security event payload must be a JSON object")
+            validate(TOPIC, event)
+            validate_masking_safety(event)
+            prepared.append((event, metadata, sha256_hex(raw_value)))
+        return self._repository.save_batch(prepared)

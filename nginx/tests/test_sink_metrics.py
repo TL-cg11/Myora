@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 from urllib.request import urlopen
 
-from security_sink.metrics import MetricsServer, SinkMetrics, observe_kafka_position
+from security_sink.common import payload_age_seconds
+from security_sink.metrics import DLQ_STAGES, MetricsServer, SinkMetrics, observe_kafka_position
 from security_sink.metrics_verification import REQUIRED_METRICS, verify_metrics_runtime
 from security_sink.retention import RETENTION_QUERIES, RetentionVerification
 
@@ -24,9 +25,23 @@ class FakeConsumer:
 
 
 class SinkMetricsTests(unittest.TestCase):
+    def test_dlq_counters_are_exposed_at_zero_before_the_first_failure(self) -> None:
+        metrics = SinkMetrics("masked-log-sink")
+        metrics.initialize_dlq("myohan.masked-logs")
+
+        rendered = metrics.render().decode()
+
+        for stage in DLQ_STAGES:
+            self.assertIn(
+                'luck_sink_dlq_total{consumer_group="masked-log-sink",'
+                f'topic="myohan.masked-logs",stage="{stage}"}} 0',
+                rendered,
+            )
+
     def test_render_contains_result_failure_retry_dlq_latency_and_lag(self) -> None:
         metrics = SinkMetrics("security-event-sink")
-        metrics.record_message("myohan.security-events", "processed", 0.2)
+        metrics.record_message("myohan.security-events", "processed", 0.2, 0.4)
+        metrics.record_commit("myohan.security-events", 0.03)
         metrics.record_failure("myohan.security-events", "database")
         metrics.record_retry("myohan.security-events", "database")
         metrics.record_dlq("myohan.security-events", "schema_validation")
@@ -40,12 +55,24 @@ class SinkMetricsTests(unittest.TestCase):
             "luck_sink_retries_total",
             "luck_sink_dlq_total",
             "luck_sink_processing_duration_seconds_bucket",
+            "luck_sink_commit_duration_seconds_bucket",
+            "luck_sink_end_to_end_duration_seconds_bucket",
             "luck_consumer_lag_messages",
             "luck_consumer_oldest_message_age_seconds",
         ):
             self.assertIn(name, rendered)
         self.assertIn('consumer_group="security-event-sink"', rendered)
         self.assertIn('partition="2"} 9', rendered)
+
+    def test_payload_age_uses_source_utc_timestamp_and_invalid_input_is_ignored(self) -> None:
+        from datetime import datetime, timezone
+
+        now = datetime(2026, 9, 13, 0, 0, 10, tzinfo=timezone.utc)
+        self.assertEqual(
+            payload_age_seconds(b'{"occurred_at":"2026-09-13T00:00:08.000Z"}', now=now),
+            2.0,
+        )
+        self.assertIsNone(payload_age_seconds(b"invalid", now=now))
 
     def test_metrics_http_server_exposes_only_metrics(self) -> None:
         metrics = SinkMetrics("masked-log-sink")
@@ -72,6 +99,19 @@ class SinkMetricsTests(unittest.TestCase):
         rendered = metrics.render().decode()
         self.assertIn('partition="2"} 9', rendered)
         self.assertFalse(consumer.cached)
+
+    def test_zero_lag_resets_oldest_message_age(self) -> None:
+        class CaughtUpConsumer:
+            def get_watermark_offsets(self, _partition, cached=False):
+                return (0, 91)
+
+        metrics = SinkMetrics("security-event-sink")
+        observe_kafka_position(
+            metrics, CaughtUpConsumer(), FakeMessage(),
+            lambda topic, partition: (topic, partition),
+        )
+        rendered = metrics.render().decode()
+        self.assertIn('luck_consumer_oldest_message_age_seconds{consumer_group="security-event-sink",topic="myohan.security-events",partition="2"} 0', rendered)
 
 
 class RetentionPolicyTests(unittest.TestCase):

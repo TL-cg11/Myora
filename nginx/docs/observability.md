@@ -37,10 +37,37 @@ is stored only in `/etc/luck-observability.env` with mode `0600`.
 | Grafana | `http://127.0.0.1:3000/api/health` |
 
 Grafana provisions Prometheus, Loki, and the read-only security MariaDB
-datasource automatically. It also provisions the security-event and consumer
-dashboards plus lag, DLQ, and scrape-target alert rules. The provisioned Discord
-contact point groups matching alerts for 30 seconds and repeats an unchanged
-firing alert after four hours. Slack and SMTP are disabled.
+datasource automatically. It also provisions the security-event, consumer,
+Suricata IDS, and IDS shipper operation dashboards plus lag, DLQ, and
+scrape-target alert rules. The provisioned Discord contact point groups matching
+Grafana infrastructure alerts for 30 seconds and repeats an unchanged firing
+alert after four hours. Slack and SMTP are disabled.
+
+## Suricata IDS log shipper
+
+The IDS classifier's normalized `/var/log/luck-security/ids-events.jsonl` is sent
+to Loki by `luck-ids-loki-shipper`; it does not write Kafka. One
+Suricata-confirmed alert becomes one Loki log entry. Grafana aggregates the four
+local Flood types over a one-minute window and sends grouped Korean Discord
+notifications, while individual log entries are never delivered directly. The
+shipper saves records to a bounded filesystem buffer before Loki submission;
+after a Loki outage it retries those records in order. Records arriving after
+the configured buffer limit are counted as loss.
+
+Install it on the Nginx/Suricata host only after the main observability stack is
+ready:
+
+```bash
+cd ~/luck-nginx
+sudo bash scripts/ids-loki-shipper-install.sh
+sudo systemctl status luck-ids-loki-shipper --no-pager
+curl --fail http://127.0.0.1:9110/metrics
+```
+
+Prometheus scrapes its loopback metrics through
+`/etc/prometheus/ids-shipper-targets.yml`. The `Luck IDS Shipper Operations`
+dashboard displays availability, last successful Loki send, buffer bytes and
+ratio, retries, parse isolation, sent records, and unavoidable buffer-limit loss.
 
 ## Service operations
 

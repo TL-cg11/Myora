@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import sys
@@ -16,6 +17,18 @@ from typing import Any, TextIO
 DEFAULT_INPUT = Path("/var/log/suricata/eve.json")
 DEFAULT_OUTPUT = Path("/var/log/luck-security/ids-events.jsonl")
 DEFAULT_STATE = Path("/var/lib/luck-security/ids-classifier.offset")
+
+
+def mask_ip(value: Any) -> str | None:
+    """Keep a useful network prefix without emitting an individual address."""
+    if value in (None, ""):
+        return None
+    try:
+        address = ipaddress.ip_address(str(value))
+    except ValueError:
+        return "[REDACTED_IP]"
+    prefix = 24 if address.version == 4 else 48
+    return str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
 
 
 def classify(event: dict[str, Any]) -> dict[str, Any] | None:
@@ -60,13 +73,12 @@ def classify(event: dict[str, Any]) -> dict[str, Any] | None:
         "signature_id": alert.get("signature_id"),
         "category": category,
         "action": alert.get("action", "allowed"),
-        "src_ip": event.get("src_ip"),
+        "src_ip": mask_ip(event.get("src_ip")),
         "src_port": event.get("src_port"),
-        "dest_ip": event.get("dest_ip"),
+        "dest_ip": mask_ip(event.get("dest_ip")),
         "dest_port": event.get("dest_port"),
         "proto": event.get("proto"),
         "flow_id": event.get("flow_id"),
-        "suricata_event": event,
     }
 
 
