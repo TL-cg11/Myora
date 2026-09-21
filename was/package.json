@@ -10,7 +10,7 @@
     "dev": "vite",
     "prebuild": "npm run face:prepare",
     "build": "vite build",
-    "test": "node --test src/features/face-reading/__tests__/faceReadingRules.test.js src/pages/saju/sajuChatContext.test.js src/lib/privacy.test.js",
+    "test": "node --test src/features/face-reading/__tests__/faceReadingRules.test.js src/pages/saju/sajuChatContext.test.js src/pages/mypage/conversationView.test.js src/pages/dashboard/dashboardConfig.test.js src/lib/privacy.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

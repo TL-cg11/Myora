@@ -175,6 +175,15 @@ export const loginAccount = ({ loginId, password }) =>
 export const getMe = () => request('/api/auth', '/me');
 export const logoutAccount = () => request('/api/auth', '/logout', { method: 'POST' });
 
+export const listMyConversations = ({ service = 'all', limit = 20, cursor } = {}) => {
+  const params = new URLSearchParams({ service, limit: String(limit) });
+  if (cursor) params.set('cursor', cursor);
+  return request('/api/conversations', `?${params.toString()}`);
+};
+
+export const getMyConversation = (service, readingId) =>
+  request('/api/conversations', `/${encodeURIComponent(service)}/${encodeURIComponent(readingId)}`);
+
 
 export const sendReadingChat = (service, readingId, message) =>
   request(`/api/${service}`, '/chat', {

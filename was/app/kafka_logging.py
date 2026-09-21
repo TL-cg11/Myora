@@ -44,6 +44,14 @@ def _feature_from_path(path: str) -> str | None:
     )
 
 
+def _is_chat_message_path(path: str) -> bool:
+    """emit_chat_exchange_log()가 같은 요청을 이미 chat_request/chat_response로
+    남기는 채팅 전송 엔드포인트인지 확인한다. 이 경로는 성공 시 api_request
+    로그를 중복으로 남기지 않는다(question 내용이 동일해 detector가 같은
+    내용으로 보안 이벤트를 두 번 만든다)."""
+    return path.endswith("/chat")
+
+
 def _request_id(request: Request) -> str:
     value = request.headers.get("x-request-id", "").strip()
     return value[:128] if value else uuid4().hex
@@ -241,31 +249,61 @@ def build_guardrail_decision_log(
     return event
 
 
-def build_chat_exchange_log(
+def build_chat_request_log(
     *,
     feature: str,
     question: str,
-    answer: str,
     guest_key: Any = None,
     reading_id: int | None = None,
     generated: bool | None = None,
 ) -> dict[str, Any]:
-    """사용자에게 확정해서 돌려준 질문·답변 한 쌍을 기록한다."""
+    """확정된 채팅 요청을 응답과 분리된 이벤트로 기록한다."""
     event = _common_log(
         feature=feature,
-        event_type="chat_exchange",
+        event_type="chat_request",
         request_id=_current_request_id.get() or uuid4().hex,
         guest_key=guest_key,
     )
     event.update(
         {
             "input": {"question": question},
-            "output": {"answer": answer},
             "metadata": {
                 key: value
                 for key, value in {
                     "reading_id": reading_id,
                     "prompt_length": len(question),
+                    "generated": generated,
+                }.items()
+                if value is not None
+            },
+        }
+    )
+    return event
+
+
+def build_chat_response_log(
+    *,
+    feature: str,
+    answer: str,
+    request_id: str,
+    guest_key: Any = None,
+    reading_id: int | None = None,
+    generated: bool | None = None,
+) -> dict[str, Any]:
+    """확정된 채팅 응답을 요청과 분리하고 같은 request_id로 기록한다."""
+    event = _common_log(
+        feature=feature,
+        event_type="chat_response",
+        request_id=request_id,
+        guest_key=guest_key,
+    )
+    event.update(
+        {
+            "output": {"answer": answer},
+            "metadata": {
+                key: value
+                for key, value in {
+                    "reading_id": reading_id,
                     "answer_length": len(answer),
                     "generated": generated,
                 }.items()
@@ -325,8 +363,33 @@ def emit_guardrail_decision_log(**kwargs: Any) -> None:
     emit_was_log(build_guardrail_decision_log(**kwargs))
 
 
-def emit_chat_exchange_log(**kwargs: Any) -> None:
-    emit_was_log(build_chat_exchange_log(**kwargs))
+def emit_chat_exchange_log(
+    *,
+    feature: str,
+    question: str,
+    answer: str,
+    guest_key: Any = None,
+    reading_id: int | None = None,
+    generated: bool | None = None,
+) -> None:
+    """한 대화를 요청·응답 두 이벤트로 보내되 동일 request_id로 연결한다."""
+    request_event = build_chat_request_log(
+        feature=feature,
+        question=question,
+        guest_key=guest_key,
+        reading_id=reading_id,
+        generated=generated,
+    )
+    response_event = build_chat_response_log(
+        feature=feature,
+        answer=answer,
+        request_id=request_event["request_id"],
+        guest_key=guest_key,
+        reading_id=reading_id,
+        generated=generated,
+    )
+    emit_was_log(request_event)
+    emit_was_log(response_event)
 
 
 def flush_was_logs(timeout: float = 10.0) -> None:
@@ -364,15 +427,20 @@ async def api_request_log_middleware(request: Request, call_next) -> Response:
     finally:
         _current_request_id.reset(request_id_token)
 
-    emit_was_log(
-        build_api_request_log(
-            request,
-            response,
-            body=body,
-            feature=feature,
-            request_id=request_id,
-            processing_time=time.perf_counter() - started_at,
+    # 채팅 전송 엔드포인트는 성공 시 emit_chat_exchange_log()가 같은 질문을
+    # chat_request로 이미 남기므로, 여기서는 실패했을 때만(위 except 블록)
+    # api_request 로그를 남긴다. 감사 로그가 통째로 사라지지 않도록 실패 경로는
+    # 그대로 둔다.
+    if not _is_chat_message_path(request.url.path):
+        emit_was_log(
+            build_api_request_log(
+                request,
+                response,
+                body=body,
+                feature=feature,
+                request_id=request_id,
+                processing_time=time.perf_counter() - started_at,
+            )
         )
-    )
     response.headers["X-Request-ID"] = request_id
     return response

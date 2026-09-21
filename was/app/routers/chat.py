@@ -39,7 +39,7 @@ async def reading_chat(service, persona, request, session, user):
         reading_id=request.reading_id,
         seq=seq + 1,
         role='user',
-        content='[검사 중인 질문]',
+        content=request.message,
         policy_version=None,
     )
     session.add(pending)
@@ -47,7 +47,7 @@ async def reading_chat(service, persona, request, session, user):
     session.commit()
 
     result = await safe_answer(service, persona, context, request.message, history)
-    pending.content = result.question
+    pending.content = request.message
     pending.policy_version = POLICY_VERSION
     session.add(
         ReadingChatMessage(
@@ -62,7 +62,7 @@ async def reading_chat(service, persona, request, session, user):
     session.commit()
     emit_chat_exchange_log(
         feature=service,
-        question=result.question,
+        question=request.message,
         answer=result.answer,
         guest_key=request.guest_key,
         reading_id=request.reading_id,

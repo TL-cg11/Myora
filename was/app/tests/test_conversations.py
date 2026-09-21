@@ -286,5 +286,63 @@ class ConversationSurvivesPolicyVersionBumpTests(unittest.TestCase):
         self.assertEqual(item["message_count"], 2)
 
 
+class ConversationTimestampsAreUnambiguouslyUtcTests(unittest.TestCase):
+    """DB의 naive datetime은 이 서비스 관례상 전부 UTC다(app/auth.py의 utc_now()).
+    JSON에 시간대 표기가 없으면 브라우저의 Date 파서가 '내 로컬 시간'으로
+    해석해 실제보다 몇 시간 어긋나 보인다(new Date('...T12:00:00')이 KST에서는
+    UTC 03:00으로 해석됨을 직접 확인했다). ConversationDetailPage가 이
+    created_at을 화면에 보여주는 첫 화면이라 실제로 드러난다."""
+
+    def setUp(self):
+        self.engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        Base.metadata.create_all(self.engine)
+        with Session(self.engine) as session:
+            session.add_all([
+                AppUser(
+                    id=1, username="owner", name="소유자", email="owner@example.com",
+                    password_hash="x", role=AppUserRole.user,
+                ),
+                Reading(
+                    id=90, service="saju", user_id=1, summary_title="시각 확인용",
+                    status="interpreted", created_at=datetime(2026, 9, 11, 12, 0, 0),
+                ),
+                ReadingChatMessage(
+                    id=901, reading_id=90, seq=1, role="user", content="질문",
+                    policy_version="1.1", created_at=datetime(2026, 9, 11, 12, 0, 1),
+                ),
+            ])
+            session.commit()
+
+        def session_override():
+            with Session(self.engine, expire_on_commit=False) as session:
+                yield session
+
+        app.dependency_overrides[get_session] = session_override
+        app.dependency_overrides[current_user] = lambda: AppUser(id=1, role=AppUserRole.user)
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+        self.engine.dispose()
+
+    def test_detail_timestamps_carry_an_explicit_utc_marker(self):
+        response = self.client.get("/api/conversations/saju/90")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        for value in (body["created_at"], body["messages"][0]["created_at"]):
+            self.assertTrue(
+                value.endswith("Z") or "+00:00" in value,
+                f"시간대 표기가 없어 브라우저가 로컬 시간으로 잘못 해석한다: {value}",
+            )
+
+    def test_list_timestamps_carry_an_explicit_utc_marker(self):
+        response = self.client.get("/api/conversations", params={"service": "saju"})
+        self.assertEqual(response.status_code, 200, response.text)
+        value = response.json()["items"][0]["created_at"]
+        self.assertTrue(value.endswith("Z") or "+00:00" in value, value)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,7 @@
 | `source` | string | 예 | `was` | 로그 출처 |
 | `service` | string | 예 | `luck-was` | 로그를 생성한 실행 서비스 |
 | `feature` | string | 예 | `saju`, `tarot`, `face` | WAS 내부 기능 |
-| `event_type` | string | 예 | `api_request`, `ai_request` | 이벤트 종류 |
+| `event_type` | string | 예 | `api_request`, `ai_request`, `ai_guardrail_decision`, `chat_request`, `chat_response` | 이벤트 종류 |
 
 ## 공통 필드
 
@@ -28,6 +28,16 @@
 
 한 요청에서 API 요청 로그와 AI 요청 로그가 발생하면 `request_id`는 같고 `event_id`는
 로그마다 다르다.
+
+## chat_request / chat_response
+
+사용자 질문과 확정된 답변은 각각 `chat_request`, `chat_response` 이벤트로 분리한다.
+두 이벤트는 동일한 `request_id`와 Kafka message key를 사용해 서로 연결되며 `event_id`는
+각각 다르다. `chat_request`에는 `input.question`만, `chat_response`에는
+`output.answer`만 들어가므로 마스킹 후 Loki에도 요청과 응답이 별도 로그 줄로 저장된다.
+
+배포 전에 Kafka에 들어간 `chat_exchange`는 backlog 호환을 위해 스키마에서 계속
+허용하지만 새 이벤트로 생성하지 않는다.
 
 ## api_request
 
@@ -57,16 +67,29 @@
 | `ai.provider` | string | `deepseek` 고정 |
 | `ai.model` | string | 실제 요청 모델 |
 | `ai.timeout_seconds` | number | 해당 호출에 적용한 timeout |
-| `input.question` | string | 사용자가 이번에 직접 입력한 질문 |
+| `input` | object | 원문을 포함하지 않는 빈 객체 `{}` |
 | `metadata.reading_id` | integer | 연결된 리딩이 있을 때 포함 |
 | `metadata.question_sequence` | integer | 현재 사용자 질문 순번 |
 | `metadata.message_count` | integer | AI 요청 메시지 개수 |
 | `metadata.context_length` | integer | 상담 context 문자 수 |
 | `metadata.prompt_length` | integer | 사용자 질문 문자 수 |
 
-전체 system prompt, 상담 context 원문, 이전 대화 전문과 Authorization/API key는 로그에
-넣지 않는다. `input.question`은 PII 마스킹 및 Prompt Injection 탐지를 위해 원문으로
-Consumer에 전달한다.
+사용자 질문 원문, 전체 system prompt, 상담 context 원문, 이전 대화 전문과
+Authorization/API key는 `ai_request`에 넣지 않는다. 질문 길이는
+`metadata.prompt_length`로만 기록하며, 확정된 채팅 질문 원문은 별도의
+`chat_request.input.question` 이벤트가 마스킹 어댑터로 전달한다.
+
+## ai_guardrail_decision
+
+가드레일 판정은 질문·답변 원문 없이 `guardrail` 객체로 기록한다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `guardrail.policy_version` | string | 판정에 적용한 정책 버전 |
+| `guardrail.phase` | string | `question_screen`, `input`, `output` 중 하나 |
+| `guardrail.decision` | string | `allow`, `restrict`, `crisis`, `out_of_scope`, `block` 중 하나 |
+| `guardrail.risk_level` | string | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` 중 하나 |
+| `guardrail.rules` | string array | 적용된 `G01`~`G11` 규칙 목록 |
 
 ## 마스킹 정책
 

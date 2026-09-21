@@ -16,6 +16,25 @@ _captured_calls: ContextVar[list[dict] | None] = ContextVar(
     "captured_ai_calls", default=None
 )
 
+# 요청마다 새로 만들지 않고 앱 생명주기 동안 하나만 재사용해 TLS 핸드셰이크를
+# 반복하지 않는다. timeout은 클라이언트가 아니라 요청 단위로 준다(check 여부에
+# 따라 값이 다르므로). main.py의 startup/shutdown 훅이 열고 닫는다.
+_client: httpx.AsyncClient | None = None
+
+
+def get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient()
+    return _client
+
+
+async def close_client() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
+
 
 @contextmanager
 def capture_ai_calls() -> Iterator[list[dict]]:
@@ -67,13 +86,14 @@ async def completion(
         connect=settings.ai_connect_timeout,
     )
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {key}"},
-                json=payload,
-            )
-            response.raise_for_status()
+        client = get_client()
+        response = await client.post(
+            f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {key}"},
+            json=payload,
+            timeout=timeout,
+        )
+        response.raise_for_status()
 
         body = response.json()
         usage = body.get("usage") if isinstance(body.get("usage"), dict) else {}

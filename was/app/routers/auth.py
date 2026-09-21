@@ -1,19 +1,32 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from ipaddress import ip_address
 from math import ceil
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import bearer_token, create_session, current_user, hash_password, token_digest, utc_now, verify_password
+from app.auth import (
+    SESSION_COOKIE_NAME,
+    bearer_token,
+    clear_session_cookie,
+    create_session,
+    current_user,
+    hash_password,
+    require_admin,
+    set_session_cookie,
+    token_digest,
+    utc_now,
+    verify_password,
+)
 from app.config import settings
 from app.db import get_session
-from app.models import AppUser, AppUserRole, AuthSession, Reading, TarotReading
+from app.models import AppUser, AppUserRole, AuthIpLockout, AuthSession, Reading, TarotReading
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -86,17 +99,74 @@ def claim_guest_readings(session: Session, user: AppUser, guest_key: UUID | None
         )
 
 
+def normalized_ip(value: str) -> str | None:
+    try:
+        return ip_address(value.strip()).compressed
+    except ValueError:
+        return None
+
+
+def login_client_ip(request: Request) -> str:
+    if request.client is None:
+        return "unknown"
+    peer_value = request.client.host.strip()
+    peer_ip = normalized_ip(peer_value) or peer_value[:45] or "unknown"
+    if peer_ip not in settings.auth_trusted_proxy_ips:
+        return peer_ip
+
+    # 신뢰 프록시가 추가한 X-Forwarded-For를 오른쪽부터 읽는다. 알려진 프록시
+    # 홉을 건너뛴 첫 주소가 실제 클라이언트다. 이렇게 해야 클라이언트가 왼쪽에
+    # 임의 주소를 넣어도 Tailscale Serve가 덧붙인 실제 주소를 우회할 수 없다.
+    forwarded = [
+        candidate
+        for raw in request.headers.get("x-forwarded-for", "").split(",")
+        if (candidate := normalized_ip(raw)) is not None
+    ]
+    for candidate in reversed(forwarded):
+        if candidate not in settings.auth_trusted_proxy_ips:
+            return candidate
+
+    real_ip = normalized_ip(request.headers.get("x-real-ip", ""))
+    if real_ip is not None and real_ip not in settings.auth_trusted_proxy_ips:
+        return real_ip
+    return peer_ip
+
+
+def ip_lockout_for_update(session: Session, source_ip: str) -> AuthIpLockout:
+    lockout = session.scalar(
+        select(AuthIpLockout)
+        .where(AuthIpLockout.ip_address == source_ip)
+        .with_for_update()
+    )
+    if lockout is not None:
+        return lockout
+
+    # 같은 IP의 첫 동시 요청들이 모두 행이 없다고 판단해도 UNIQUE 충돌을
+    # 요청 실패로 만들지 않는다. SAVEPOINT 안에서 한 요청만 행을 만들고 다시 잠근다.
+    try:
+        with session.begin_nested():
+            session.add(AuthIpLockout(ip_address=source_ip, failed_login_attempts=0))
+            session.flush()
+    except IntegrityError:
+        pass
+    return session.scalar(
+        select(AuthIpLockout)
+        .where(AuthIpLockout.ip_address == source_ip)
+        .with_for_update()
+    )
+
+
 def locked_error(locked_until: datetime, now: datetime) -> HTTPException:
     retry_after = max(1, ceil((locked_until - now).total_seconds()))
     return HTTPException(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="로그인에 여러 번 실패해 계정이 1시간 동안 잠겼어요. 잠시 후 다시 시도해 주세요.",
+        detail="로그인에 여러 번 실패해 이 IP 주소가 1시간 동안 잠겼어요. 잠시 후 다시 시도해 주세요.",
         headers={"Retry-After": str(retry_after)},
     )
 
 
 @router.post("/register", response_model=AuthOut, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterIn, session: Session = Depends(get_session)) -> AuthOut:
+def register(payload: RegisterIn, response: Response, session: Session = Depends(get_session)) -> AuthOut:
     email = payload.email
     if session.scalar(select(AppUser.id).where(or_(AppUser.username == payload.username, AppUser.email == email))):
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일이에요.")
@@ -116,38 +186,49 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)) -> Au
         session.rollback()
         raise HTTPException(status_code=409, detail="이미 사용 중인 아이디 또는 이메일이에요.") from exc
     token, expires_at = create_session(session, user)
+    set_session_cookie(response, token, expires_at)
     return AuthOut(access_token=token, expires_at=expires_at, user=user_out(user))
 
 
 @router.post("/login", response_model=AuthOut)
-def login(payload: LoginIn, session: Session = Depends(get_session)) -> AuthOut:
+def login(
+    payload: LoginIn,
+    request: Request,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> AuthOut:
     login_id = payload.login_id.strip().lower()
+    source_ip = login_client_ip(request)
+    ip_lockout = ip_lockout_for_update(session, source_ip)
+    now = utc_now()
+    if ip_lockout.locked_until is not None:
+        if ip_lockout.locked_until > now:
+            raise locked_error(ip_lockout.locked_until, now)
+        ip_lockout.failed_login_attempts = 0
+        ip_lockout.locked_until = None
+
     user = session.scalar(
         select(AppUser)
         .where(or_(AppUser.username == login_id, AppUser.email == login_id))
         .with_for_update()
     )
-    now = utc_now()
-    if user is not None and user.locked_until is not None and user.locked_until > now:
-        raise locked_error(user.locked_until, now)
 
     if user is None or user.status != "active" or not verify_password(payload.password, user.password_hash):
-        if user is not None and user.status == "active":
-            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-            if user.failed_login_attempts >= settings.auth_max_failed_attempts:
-                user.locked_until = now + timedelta(minutes=settings.auth_lockout_minutes)
-                # 잠긴 계정은 이미 발급된 세션으로도 접근하지 못하게 즉시 폐기한다.
-                session.execute(delete(AuthSession).where(AuthSession.user_id == user.id))
-                session.commit()
-                raise locked_error(user.locked_until, now)
+        ip_lockout.failed_login_attempts = (ip_lockout.failed_login_attempts or 0) + 1
+        if ip_lockout.failed_login_attempts >= settings.auth_ip_max_failed_attempts:
+            ip_lockout.locked_until = now + timedelta(
+                minutes=settings.auth_ip_lockout_minutes
+            )
             session.commit()
+            raise locked_error(ip_lockout.locked_until, now)
+        session.commit()
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않아요.")
 
-    user.failed_login_attempts = 0
-    user.locked_until = None
+    session.delete(ip_lockout)
     claim_guest_readings(session, user, payload.guest_key)
     session.commit()
     token, expires_at = create_session(session, user)
+    set_session_cookie(response, token, expires_at)
     return AuthOut(access_token=token, expires_at=expires_at, user=user_out(user))
 
 
@@ -157,11 +238,40 @@ def me(user: AppUser = Depends(current_user)) -> UserOut:
 
 
 @router.post("/logout")
-def logout(authorization: str | None = Header(default=None), session: Session = Depends(get_session)) -> dict:
-    token = bearer_token(authorization)
+def logout(
+    response: Response,
+    authorization: str | None = Header(default=None),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    session: Session = Depends(get_session),
+) -> dict:
+    token = bearer_token(authorization) or session_cookie
     if token:
         auth_session = session.scalar(select(AuthSession).where(AuthSession.token_hash == token_digest(token)))
         if auth_session:
             session.delete(auth_session)
             session.commit()
+    # DB 세션이 이미 없었더라도(만료 등) 브라우저에 남은 cookie는 그대로면 다음
+    # 요청에도 계속 실려 나간다. 항상 지운다.
+    clear_session_cookie(response)
     return {"status": "ok"}
+
+
+@router.get("/admin-check", status_code=status.HTTP_204_NO_CONTENT)
+def admin_check(user: AppUser = Depends(require_admin)) -> Response:
+    """nginx auth_request가 그대로 호출하는 관리자 검증 endpoint.
+
+    Grafana iframe 같은 auth_request 경로는 원래 요청의 Authorization 헤더를
+    기본적으로 전달하지 않으므로, 실제로는 SESSION_COOKIE_NAME cookie로만
+    인증된다(require_admin -> current_user -> optional_user가 Authorization을
+    먼저 보고 없으면 cookie를 본다). 응답 본문은 nginx가 보지 않으므로 비운다.
+
+    - 관리자: 204
+    - 미인증: 401 (current_user에서)
+    - 일반 계정: 403 (require_admin에서)
+    """
+    # nginx copies this response-only value into Grafana's auth-proxy header.
+    # Client-provided identity headers are discarded by the Nginx location.
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"X-Auth-Request-User": user.username},
+    )

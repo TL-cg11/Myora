@@ -41,6 +41,14 @@ class WasLoggingTest(unittest.TestCase):
         def failure() -> None:
             raise RuntimeError("test failure")
 
+        @app.post("/api/tarot/readings/{reading_id}/chat")
+        def tarot_chat(reading_id: int) -> dict:
+            return {"answer": "ok"}
+
+        @app.post("/api/saju/chat")
+        def saju_chat_failure() -> None:
+            raise RuntimeError("chat failure")
+
         @app.post("/api/face/chat-test")
         def ai_request() -> dict:
             kafka_logging.emit_ai_request_log(
@@ -78,6 +86,26 @@ class WasLoggingTest(unittest.TestCase):
         self.assertEqual(event["client_ip"], "203.0.113.10")
         self.assertEqual(event["input"], {"topic": "love", "question": "제 연애운이 어떻게 될까요?"})
         self.assertNotIn("password", json.dumps(event, ensure_ascii=False))
+
+    @patch("app.kafka_logging.emit_was_log")
+    def test_skips_api_request_log_on_success_for_chat_path(self, emit) -> None:
+        """chat_request/chat_response가 같은 질문을 이미 남기므로, 성공한
+        채팅 전송 요청은 api_request 로그를 중복으로 남기지 않는다."""
+        response = self.client.post("/api/tarot/readings/1/chat", json={"message": "안녕"})
+
+        self.assertEqual(response.status_code, 200)
+        emit.assert_not_called()
+
+    @patch("app.kafka_logging.emit_was_log")
+    def test_still_emits_api_request_log_on_chat_failure(self, emit) -> None:
+        """채팅 처리 중 예외가 나면 chat_request가 아예 안 남을 수 있으므로,
+        실패한 요청은 그대로 api_request 로그를 남겨 감사 기록을 보존한다."""
+        with self.assertRaises(RuntimeError):
+            self.client.post("/api/saju/chat", json={"message": "안녕"})
+
+        event = emit.call_args.args[0]
+        self.assertEqual(event["event_type"], "api_request")
+        self.assertEqual(event["status"], 500)
 
     @patch("app.kafka_logging.emit_was_log")
     def test_ignores_non_feature_endpoint(self, emit) -> None:
@@ -125,7 +153,7 @@ class WasLoggingTest(unittest.TestCase):
         self.assertNotIn("context", event["input"])
 
     @patch("app.kafka_logging.emit_was_log")
-    def test_chat_payload_and_final_answer_are_logged(self, emit) -> None:
+    def test_chat_payload_and_final_answer_are_logged_separately(self, emit) -> None:
         response = self.client.post(
             "/api/face/chat-test",
             json={"message": "관상 질문"},
@@ -135,17 +163,25 @@ class WasLoggingTest(unittest.TestCase):
         api_event = emit.call_args_list[-1].args[0]
         self.assertEqual(api_event["input"]["question"], "관상 질문")
 
-        event = kafka_logging.build_chat_exchange_log(
+        kafka_logging.emit_chat_exchange_log(
             feature="face",
             question="관상 질문",
             answer="답변에 010-1234-5678이 있습니다.",
             reading_id=7,
             generated=True,
         )
-        self.assertEqual(event["event_type"], "chat_exchange")
-        self.assertEqual(event["input"], {"question": "관상 질문"})
-        self.assertEqual(event["output"], {"answer": "답변에 010-1234-5678이 있습니다."})
-        self.assertEqual(event["metadata"]["answer_length"], len(event["output"]["answer"]))
+        request_event, response_event = (call.args[0] for call in emit.call_args_list[-2:])
+        self.assertEqual(request_event["event_type"], "chat_request")
+        self.assertEqual(request_event["input"], {"question": "관상 질문"})
+        self.assertNotIn("output", request_event)
+        self.assertEqual(response_event["event_type"], "chat_response")
+        self.assertEqual(response_event["output"], {"answer": "답변에 010-1234-5678이 있습니다."})
+        self.assertNotIn("input", response_event)
+        self.assertEqual(request_event["request_id"], response_event["request_id"])
+        self.assertEqual(
+            response_event["metadata"]["answer_length"],
+            len(response_event["output"]["answer"]),
+        )
 
     def test_guardrail_decision_log_has_no_content(self) -> None:
         event = kafka_logging.build_guardrail_decision_log(

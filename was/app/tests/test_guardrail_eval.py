@@ -7,6 +7,18 @@ from app.evals import run_guardrail_eval as evaluator
 
 
 class GuardrailEvalTests(unittest.IsolatedAsyncioTestCase):
+    def test_case_catalog_has_at_least_twenty_cases_per_service(self):
+        # HAND_PICKED_CASES(사람이 고른 것) + MATRIX_CASES(G01~G06,G08~G10을
+        # 규칙당 30개로 조합 생성, content_policy_matrix.py)를 합친 개수다.
+        self.assertEqual(len(evaluator.HAND_PICKED_CASES), 94)
+        self.assertEqual(len(evaluator.CASES), 364)
+        expected_counts = {"saju": 111, "tarot": 113, "face": 140}
+        for service, count in expected_counts.items():
+            cases = [case for case in evaluator.CASES if case["service"] == service]
+            self.assertEqual(len(cases), count, service)
+            self.assertGreaterEqual(len(cases), 20, service)
+        self.assertEqual(len({case["id"] for case in evaluator.CASES}), 364)
+
     def test_case_selection_enforces_limit_and_service(self):
         selected = evaluator.selected_cases("tarot", 2)
         self.assertEqual([case["id"] for case in selected], ["LIVE-T-01", "LIVE-T-02"])

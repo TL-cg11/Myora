@@ -1,82 +1,47 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listFaceReadings, listReadings as listTarotReadings, listSajuReadings } from '../../lib/api.js';
+import { listMyConversations } from '../../lib/api.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import { conversationServiceMeta as typeMeta, toHistoryItem } from './conversationView.js';
 import './mypage.css';
-
-const typeMeta = {
-  saju: { icon: '☯', path: '/saju', color: 'lilac' },
-  tarot: { icon: '✦', path: '/tarot', color: 'pink' },
-  face: { icon: '☾', path: '/face', color: 'blue' },
-};
-
-// app/routers/tarot.py 의 _TOPIC_LABEL 과 같은 문구.
-const TOPIC_LABEL = {
-  general: '오늘의 흐름', love: '연애운', career: '직업운', money: '금전운', health: '건강운',
-};
-
-function fromServer(reading) {
-  return {
-    id: `tarot-${reading.id}`,          // 로컬 기록의 Date.now() id 와 겹치지 않게
-    type: 'tarot',
-    title: `${reading.spread_name} · ${TOPIC_LABEL[reading.topic] ?? '오늘의 흐름'}`,
-    resultTitle: reading.summary_title,
-    result: reading.card_names.join(' · '),
-    date: reading.created_at,
-    stored: 'server',
-  };
-}
-
-function fromSajuServer(reading) {
-  return {
-    id: `saju-${reading.id}`,
-    type: 'saju',
-    title: '사주 상담',
-    resultTitle: reading.summary_title,
-    result: reading.summary_text,
-    date: reading.created_at,
-    stored: 'server',
-  };
-}
-
-function fromFaceServer(reading) {
-  return {
-    id: `face-${reading.id}`,
-    type: 'face',
-    title: `관상 · ${reading.mood || '첫인상'}`,
-    resultTitle: reading.summary_title,
-    result: reading.summary_text,
-    date: reading.created_at,
-    stored: 'server',
-  };
-}
 
 export default function MyPage() {
   const { user } = useAuth();
   const [server, setServer] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
-    Promise.allSettled([listTarotReadings(), listFaceReadings(), listSajuReadings()])
-      .then(([tarotResult, faceResult, sajuResult]) => {
+    listMyConversations()
+      .then((page) => {
         if (!alive) return;
-        const tarot = tarotResult.status === 'fulfilled' ? tarotResult.value.map(fromServer) : [];
-        const face = faceResult.status === 'fulfilled' ? faceResult.value.map(fromFaceServer) : [];
-        const saju = sajuResult.status === 'fulfilled' ? sajuResult.value.map(fromSajuServer) : [];
-        setServer([...tarot, ...face, ...saju]);
-        const failures = [tarotResult, faceResult, sajuResult]
-          .filter((result) => result.status === 'rejected')
-          .map((result) => result.reason?.message)
-          .filter(Boolean);
-        setError(failures.join(' '));
+        setServer(page.items.map(toHistoryItem));
+        setNextCursor(page.next_cursor);
       })
+      .catch((failure) => alive && setError(failure.message))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
 
-  const history = [...server].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    setError('');
+    try {
+      const page = await listMyConversations({ cursor: nextCursor });
+      setServer((current) => [...current, ...page.items.map(toHistoryItem)]);
+      setNextCursor(page.next_cursor);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const history = server;
 
   return <main className="mypage">
     <section className="mypage-hero">
@@ -105,10 +70,11 @@ export default function MyPage() {
                     <h3>{item.resultTitle}</h3>
                     <p>{item.result}</p>
                   </div>
-                  <Link to={meta.path}>다시 보기 →</Link>
+                  <Link to={item.detailPath}>대화 보기 →</Link>
                 </article>;
               })}</div>
-              {error && <p className="history-notice warn">일부 서버 기록을 불러오지 못했어요. {error}</p>}
+              {nextCursor && <button className="history-more" type="button" onClick={loadMore} disabled={loadingMore}>{loadingMore ? '불러오는 중…' : '더 보기'}</button>}
+              {error && <p className="history-notice warn">기록을 더 불러오지 못했어요. {error}</p>}
               </>
             : <div className="empty-history"><span>☾</span><h3>아직 만난 운세가 없어요</h3><p>{error || '오늘의 마음과 가장 가까운 방법으로 첫 이야기를 만나보세요.'}</p><Link to="/tarot">운세 보러 가기 →</Link></div>}
       </div>

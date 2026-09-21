@@ -34,7 +34,7 @@
     "source": {"const": "was"},
     "service": {"const": "luck-was"},
     "feature": {"type": "string", "enum": ["saju", "tarot", "face"]},
-    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_exchange"]},
+    "event_type": {"type": "string", "enum": ["api_request", "ai_request", "ai_guardrail_decision", "chat_request", "chat_response", "chat_exchange"]},
     "ai_call_id": {"type": "string", "format": "uuid"},
     "user_id": {"type": ["integer", "null"], "minimum": 1},
     "guest_key": {"type": ["string", "null"], "format": "uuid"},
@@ -66,6 +66,23 @@
         "provider": {"const": "deepseek"},
         "model": {"type": "string", "minLength": 1, "maxLength": 100},
         "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "guardrail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_version", "phase", "decision", "risk_level", "rules"],
+      "properties": {
+        "policy_version": {"type": "string", "minLength": 1, "maxLength": 16},
+        "phase": {"type": "string", "enum": ["question_screen", "input", "output"]},
+        "decision": {"type": "string", "enum": ["allow", "restrict", "crisis", "out_of_scope", "block"]},
+        "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "rules": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08", "G09", "G10", "G11"]},
+          "uniqueItems": true,
+          "maxItems": 11
+        }
       }
     },
     "metadata": {
@@ -110,6 +127,39 @@
       },
       "then": {
         "required": ["ai_call_id", "ai", "input", "metadata"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "ai_guardrail_decision"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["guardrail"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_request"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["input", "metadata"],
+        "properties": {
+          "input": {"required": ["question"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"event_type": {"const": "chat_response"}},
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["output", "metadata"],
+        "properties": {
+          "output": {"required": ["answer"]}
+        }
       }
     },
     {

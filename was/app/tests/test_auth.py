@@ -1,5 +1,7 @@
 import unittest
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -10,7 +12,8 @@ from sqlalchemy.pool import StaticPool
 from app.db import get_session
 from app.local_db import initialize
 from app.main import app
-from app.models import AppUser, AppUserRole, AuthSession, Reading
+from app.models import AppUser, AppUserRole, AuthIpLockout, AuthSession, Reading
+from app.routers import auth as auth_router
 
 
 class AuthTests(unittest.TestCase):
@@ -107,7 +110,7 @@ class AuthTests(unittest.TestCase):
         )
         self.assertEqual(wrong.status_code, 401)
 
-    def test_five_consecutive_failures_lock_account_for_one_hour(self):
+    def test_five_consecutive_failures_lock_ip_for_one_hour(self):
         registered = self.register()
         for attempt in range(1, 6):
             response = self.client.post(
@@ -125,9 +128,53 @@ class AuthTests(unittest.TestCase):
             "/api/auth/me",
             headers={"Authorization": f"Bearer {registered['access_token']}"},
         )
-        self.assertEqual(existing_session.status_code, 401)
+        self.assertEqual(existing_session.status_code, 200)
         with Session(self.engine) as session:
-            self.assertEqual(session.query(AuthSession).count(), 0)
+            self.assertEqual(session.query(AuthSession).count(), 1)
+            lockout = session.scalar(select(AuthIpLockout))
+            self.assertEqual(lockout.failed_login_attempts, 5)
+            self.assertIsNotNone(lockout.locked_until)
+
+    def test_ip_lock_applies_across_accounts_without_locking_other_ip(self):
+        self.register()
+        self.register("second_user", "second@example.com")
+        policy = SimpleNamespace(
+            auth_trusted_proxy_ips=("testclient", "127.0.0.1"),
+            auth_ip_max_failed_attempts=5,
+            auth_ip_lockout_minutes=60,
+        )
+
+        with patch.object(auth_router, "settings", policy):
+            blocked_headers = {
+                "X-Forwarded-For": "198.51.100.99, 203.0.113.10, 127.0.0.1"
+            }
+            for attempt in range(1, 6):
+                response = self.client.post(
+                    "/api/auth/login",
+                    headers=blocked_headers,
+                    json={"login_id": f"unknown-{attempt}", "password": "wrong"},
+                )
+                self.assertEqual(response.status_code, 429 if attempt == 5 else 401)
+
+            blocked = self.client.post(
+                "/api/auth/login",
+                headers=blocked_headers,
+                json={"login_id": "second_user", "password": "safe-password-123"},
+            )
+            self.assertEqual(blocked.status_code, 429)
+
+            allowed = self.client.post(
+                "/api/auth/login",
+                headers={"X-Forwarded-For": "203.0.113.11, 127.0.0.1"},
+                json={"login_id": "second_user", "password": "safe-password-123"},
+            )
+            self.assertEqual(allowed.status_code, 200, allowed.text)
+
+    def test_account_model_has_no_lockout_fields(self):
+        self.register()
+        columns = set(AppUser.__table__.columns.keys())
+        self.assertNotIn("failed_login_attempts", columns)
+        self.assertNotIn("locked_until", columns)
 
     def test_success_resets_failures_and_session_expires_in_one_hour(self):
         self.register()
@@ -145,9 +192,7 @@ class AuthTests(unittest.TestCase):
         expires_at = datetime.fromisoformat(response.json()["expires_at"])
         self.assertTrue(before + timedelta(minutes=59) <= expires_at <= before + timedelta(minutes=61))
         with Session(self.engine) as session:
-            user = session.scalar(select(AppUser))
-            self.assertEqual(user.failed_login_attempts, 0)
-            self.assertIsNone(user.locked_until)
+            self.assertEqual(session.query(AuthIpLockout).count(), 0)
 
     def test_server_rejects_session_older_than_one_hour(self):
         result = self.register()

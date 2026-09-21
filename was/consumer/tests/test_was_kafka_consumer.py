@@ -1,7 +1,14 @@
 import json
 import unittest
 
-from consumer.was_kafka_consumer import InvalidWasLog, handle_was_log, parse_was_log
+from app.kafka_logging import build_guardrail_decision_log
+from consumer.was_kafka_consumer import (
+    BASE_DIR,
+    InvalidWasLog,
+    handle_was_log,
+    load_schema_validator,
+    parse_was_log,
+)
 
 
 class FakeValidator:
@@ -34,6 +41,44 @@ class WasKafkaConsumerTest(unittest.TestCase):
                 }
             )
         )
+
+    def test_real_schema_accepts_guardrail_decision_event(self) -> None:
+        event = build_guardrail_decision_log(
+            feature="face",
+            decision="restrict",
+            risk_level="HIGH",
+            rules=["G04"],
+            policy_version="1.1",
+            phase="input",
+        )
+
+        parsed = parse_was_log(
+            json.dumps(event).encode("utf-8"), load_schema_validator()
+        )
+
+        self.assertEqual(parsed["guardrail"], event["guardrail"])
+
+    def test_real_schema_rejects_incomplete_guardrail_decision(self) -> None:
+        event = build_guardrail_decision_log(
+            feature="face",
+            decision="restrict",
+            risk_level="HIGH",
+            rules=["G04"],
+            policy_version="1.1",
+            phase="input",
+        )
+        del event["guardrail"]["phase"]
+
+        with self.assertRaises(InvalidWasLog):
+            parse_was_log(json.dumps(event).encode("utf-8"), load_schema_validator())
+
+    def test_ai_request_example_matches_empty_input_contract(self) -> None:
+        payload = (BASE_DIR / "schemas" / "examples" / "was-ai-request.json").read_bytes()
+
+        event = parse_was_log(payload, load_schema_validator())
+
+        self.assertEqual(event["event_type"], "ai_request")
+        self.assertEqual(event["input"], {})
 
 
 if __name__ == "__main__":

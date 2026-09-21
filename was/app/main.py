@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.auth import optional_user, question_limit_for
+from app.auth import SESSION_COOKIE_NAME, clear_session_cookie, optional_user, question_limit_for
 from app.models import AppUser
 from app.db import check_db
 from app.security_auth import SecurityAuthMiddleware, TokenAuthenticator, parse_token_hashes
@@ -21,6 +21,7 @@ from app.routers.security_events import router as security_events_router
 from app.routers.tarot import router as tarot_router
 from app.routers.tarot_chat import router as tarot_chat_router
 from app.kafka_logging import api_request_log_middleware, flush_was_logs
+from app.services.ai_client import close_client as close_ai_client
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 app.add_middleware(
@@ -32,9 +33,27 @@ app.add_middleware(
 app.middleware("http")(api_request_log_middleware)
 
 
+@app.middleware("http")
+async def expire_stale_session_cookie(request, call_next):
+    """세션이 만료·무효화된 순간 cookie도 같이 폐기한다.
+
+    optional_user()는 만료된 세션에 401을 던지는데, 의존성 안에서 Response에
+    delete_cookie를 걸어도 예외로 빠지면 그 헤더 변경은 버려진다(직접 확인함).
+    그래서 dependency가 아니라 미들웨어에서, cookie를 실어 온 요청이 401로
+    끝났을 때 여기서 한 번 더 지운다. 로그아웃은 /api/auth/logout이 별도로
+    항상 지운다.
+    """
+    had_cookie = SESSION_COOKIE_NAME in request.cookies
+    response = await call_next(request)
+    if had_cookie and response.status_code == status.HTTP_401_UNAUTHORIZED:
+        clear_session_cookie(response)
+    return response
+
+
 @app.on_event("shutdown")
-def shutdown_was_log_producer() -> None:
+async def shutdown_was_log_producer() -> None:
     flush_was_logs()
+    await close_ai_client()
 
 
 @app.get("/health")

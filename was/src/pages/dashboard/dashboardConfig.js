@@ -1,0 +1,15 @@
+export const DASHBOARDS = [
+  { key: 'events', label: '보안 이벤트', uid: 'luck-security-events', refresh: '1m' },
+  { key: 'consumers', label: 'Consumer · 마스킹 로그', uid: 'luck-security-consumers', refresh: '5s' },
+  { key: 'suricata', label: 'Suricata IDS', uid: 'luck-suricata-ids', refresh: '1m' },
+];
+
+export const RANGES = [
+  { label: '최근 1시간', value: 'now-1h' },
+  { label: '최근 6시간', value: 'now-6h' },
+  { label: '최근 24시간', value: 'now-24h' },
+];
+
+export function grafanaDashboardSource(dashboard, range) {
+  return `/grafana/d/${dashboard.uid}/?kiosk&theme=light&from=${encodeURIComponent(range)}&to=now&refresh=${dashboard.refresh}`;
+}

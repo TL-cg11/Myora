@@ -26,10 +26,22 @@ class Settings:
     db_user: str = os.getenv("DB_USER", "luck_user")
     db_password: str = os.getenv("DB_PASSWORD", "Luck1234!")
 
-    # 일반 회원 인증 정책. 운영에서 환경변수로 조정할 수 있다.
+    # 로그인 IP 잠금 정책.
     auth_session_hours: int = int(os.getenv("AUTH_SESSION_HOURS", "1"))
-    auth_max_failed_attempts: int = int(os.getenv("AUTH_MAX_FAILED_ATTEMPTS", "5"))
-    auth_lockout_minutes: int = int(os.getenv("AUTH_LOCKOUT_MINUTES", "60"))
+    auth_ip_max_failed_attempts: int = int(os.getenv("AUTH_IP_MAX_FAILED_ATTEMPTS", "5"))
+    auth_ip_lockout_minutes: int = int(os.getenv("AUTH_IP_LOCKOUT_MINUTES", "60"))
+    auth_trusted_proxy_ips: tuple[str, ...] = tuple(
+        value.strip()
+        for value in os.getenv(
+            "AUTH_TRUSTED_PROXY_IPS", "100.117.253.9,192.168.0.70,127.0.0.1"
+        ).split(",")
+        if value.strip()
+    )
+    # nginx auth_request(Grafana iframe 등)는 원래 요청의 Authorization 헤더를
+    # 기본적으로 전달하지 않으므로 cookie 세션을 함께 지원한다. Grafana가 같은
+    # 오리진(같은 도메인) 아래 프록시되면 lax로 충분하다. 다른 오리진 iframe이면
+    # SESSION_COOKIE_SAMESITE=none 으로 바꾸되 Secure는 항상 켜져 있어야 한다.
+    session_cookie_samesite: str = os.getenv("SESSION_COOKIE_SAMESITE", "lax")
 
     # 보안 관제 API는 일반 서비스 데이터와 분리된 DB/계정을 사용한다.
     security_database_url: str = os.getenv("SECURITY_DATABASE_URL", "")
@@ -94,6 +106,8 @@ class Settings:
             raise ValueError("ADAPTER_DISPLAY_API_HOST must be a loopback address")
         if not 1 <= self.display_masking_port <= 65535:
             raise ValueError("ADAPTER_DISPLAY_API_PORT must be between 1 and 65535")
+        if self.session_cookie_samesite not in ("lax", "strict", "none"):
+            raise ValueError("SESSION_COOKIE_SAMESITE must be lax, strict, or none")
 
     @property
     def tarot_llm_enabled(self) -> bool:
