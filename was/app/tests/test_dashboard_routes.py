@@ -18,14 +18,21 @@ class DashboardRouteSourceTests(unittest.TestCase):
 
     def test_frontend_uses_an_admin_guard_and_same_origin_grafana(self):
         app = (ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
-        dashboard = (ROOT / "src" / "pages" / "dashboard" / "DashboardPage.jsx").read_text(encoding="utf-8")
+        dashboard_dir = ROOT / "src" / "pages" / "dashboard"
+        # Grafana URL 조립은 dashboardConfig.js 로 분리됐다. 페이지와 설정을 함께 검사한다.
+        dashboard = "\n".join(
+            (dashboard_dir / name).read_text(encoding="utf-8")
+            for name in ("DashboardPage.jsx", "dashboardConfig.js")
+        )
         self.assertIn("function AdminRoute", app)
         self.assertIn("user.role === 'admin'", app)
         self.assertIn('path="/dashboard"', app)
         self.assertIn("/grafana/d/", dashboard)
         self.assertNotIn("http://127.0.0.1:3000", dashboard)
         self.assertNotIn("Authorization", dashboard)
-        self.assertIn("refresh=1m", dashboard)
+        # 새로고침 주기는 대시보드별 설정값으로 URL 에 들어간다 (기본 1m).
+        self.assertIn("refresh=${dashboard.refresh}", dashboard)
+        self.assertIn("refresh: '1m'", dashboard)
 
 
 if __name__ == "__main__":

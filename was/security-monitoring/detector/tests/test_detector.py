@@ -262,6 +262,19 @@ class EngineTests(unittest.TestCase):
         data["body"] = '{"password":"synthetic-only","password":"other"}'
         self.assertEqual(process_log(data).failure.error_code, "INVALID_EMBEDDED_JSON")
 
+    # "[" 로 시작하는 일반 문장은 JSON 이 아니므로 실패시키지 않고 텍스트로 마스킹한다.
+    def test_bracket_prefixed_plain_text_is_not_embedded_json(self):
+        data = sample()
+        data["body"] = "[질문] 연락처 010-1234-5678 로 전화 주세요"
+        result = process_log(data)
+        self.assertIsNone(result.failure)
+        self.assertNotIn("010-1234-5678", json.dumps(result.to_dict(), ensure_ascii=False))
+        data = sample()
+        data["attributes"] = {"input": {"question": "[문의] 제 이메일은 abc@example.com 이에요"}}
+        result = process_log(data)
+        self.assertIsNone(result.failure)
+        self.assertNotIn("abc@example.com", json.dumps(result.to_dict(), ensure_ascii=False))
+
     # 너무 긴 본문이나 깊은 중첩 객체가 제한에 걸리는지 확인한다.
     def test_size_and_depth_limits(self):
         data = sample()

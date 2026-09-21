@@ -66,6 +66,24 @@ def detect(text: str, ner_recognizer: NERRecognizer | None = None,
 
 
 # 한 건의 입력을 끝까지 처리한다. 어느 단계든 실패하면 원문/부분 성공 결과를 반환하지 않는다.
+# "{" 또는 "[" 로 시작하는 문자열 가운데 실제 JSON 문서로 볼 수 있는 것만 고른다.
+# 여는 괄호 다음 토큰이 JSON 값(문자열·객체·배열·숫자·true/false/null)이나 닫는 괄호가 아니면
+# "[질문] ..." 같은 일반 문장이다. 괄호만 있는 잘린 문자열은 JSON 으로 보고 fail closed 한다.
+_JSON_VALUE_START = re.compile(r'^(?:"|\{|\[|\]|\}|-?\d|true\b|false\b|null\b)')
+
+
+def _looks_like_json(value: str) -> bool:
+    stripped = value.lstrip()
+    if not stripped.startswith(("{", "[")):
+        return False
+    rest = stripped[1:].lstrip()
+    if not rest:
+        return True
+    if stripped[0] == "{":
+        return rest[0] in '"}'
+    return _JSON_VALUE_START.match(rest) is not None
+
+
 def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = None,
                 detected_at: datetime | None = None,
                 ner_recognizer: NERRecognizer | None = None,
@@ -145,7 +163,9 @@ def process_log(data: dict | NormalizedLog, *, fingerprint_key: bytes | None = N
             if isinstance(value, str):
                 # Parse embedded JSON so escaped sensitive values and name/date
                 # fields are covered. Malformed object-like strings fail closed.
-                if value.lstrip().startswith(("{", "[")) and not value.startswith("[REDACTED"):
+                # Plain text that merely starts with a bracket ("[질문] ...") is not JSON
+                # and takes the regular text path; see _looks_like_json.
+                if _looks_like_json(value) and not value.startswith("[REDACTED"):
                     try:
                         embedded = jsonio.loads(value)
                     except (ValueError, RecursionError):
