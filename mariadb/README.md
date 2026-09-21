@@ -97,6 +97,8 @@ sudo systemctl status mariadb --no-pager
 ```sql
 sudo mysql -uroot luck_db < sql/migrate/2026-09-09_user_auth.sql
 sudo mysql -uroot luck_db < sql/migrate/2026-09-09_auth_lockout.sql
+sudo mysql -uroot luck_db < sql/migrate/2026-09-16_auth_ip_lockout.sql
+sudo mysql -uroot luck_db < sql/migrate/2026-09-16_remove_account_lockout.sql
 ```
 
 ### 사주 / 관상 / 리딩 공용 스키마

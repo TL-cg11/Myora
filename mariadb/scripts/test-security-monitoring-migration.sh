@@ -34,8 +34,9 @@ if [[ "$role_mappings" -lt '6' ]]; then
 fi
 
 notifier_update=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_notifier;" | grep -Ec 'INSERT.*UPDATE.*notification_log' || true)
+notifier_detection_read=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_notifier;" | grep -Ec 'SELECT.*security_event_detection' || true)
 retention_delete=$(sudo mysql -N -B -uroot -e "SHOW GRANTS FOR security_monitoring_retention;" | grep -c 'DELETE.*security_event' || true)
-if [[ "$notifier_update" -lt '1' || "$retention_delete" -lt '1' ]]; then
+if [[ "$notifier_update" -lt '1' || "$notifier_detection_read" -lt '1' || "$retention_delete" -lt '1' ]]; then
   echo 'Notifier or retention privileges are incomplete.' >&2
   exit 1
 fi

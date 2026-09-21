@@ -43,3 +43,25 @@ intentionally absent so audit history remains append-only even if an API bug is 
 The notifier role can `SELECT`, `INSERT`, and `UPDATE` only `notification_log`
 and can only `SELECT` `security_event`; this permits unresolved-event scheduling
 without allowing event or audit-history mutation.
+
+## Rollback rehearsal
+
+운영 데이터가 존재하는 `security_monitoring` database에는 destructive down migration을
+실행하지 않는다. 아래 검증은 schema-only dump를 임시 database에 복원하고 필수 table과
+전체 table 수를 비교한 뒤 임시 database를 제거한다. 원본 schema와 데이터는 변경하지 않는다.
+
+```bash
+sudo bash scripts/run-part13-rollback-rehearsal.sh
+sudo bash scripts/run-part13-rollback-rehearsal.sh --execute
+```
+
+성능 검증 결과를 먼저 보관한 뒤 생성된 `p13perf-` 테스트 데이터까지 한 번에 정리하려면
+두 번째 명령에 `--cleanup-performance`를 추가한다. 이 옵션은 정확히 `p13perf-` 접두사의
+fixture만 삭제하며, 기본 dry-run에서는 삭제하지 않는다.
+
+```bash
+sudo bash scripts/run-part13-rollback-rehearsal.sh --execute --cleanup-performance
+```
+
+실제 복구는 배포 전 생성해 별도 보관한 전체 backup을 새 database에 먼저 복원하고 무결성
+검증 후 접속 대상을 전환한다. backup 또는 복원 검증이 실패하면 기존 database를 유지한다.
