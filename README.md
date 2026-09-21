@@ -42,7 +42,8 @@ bash scripts/import-team-bundle.sh ~/Downloads/myora-team-bundle-20260912.zip
 | 주소 | 내용 |
 |---|---|
 | http://localhost | 묘한운세 (운영 서버와 같은 회원·기록·AI 채팅·NER 마스킹 상태) |
-| http://localhost:3000 | Grafana — `admin` / `.env` 의 `GRAFANA_ADMIN_PASSWORD` |
+| http://localhost/dashboard | 보안 모니터링 (관리자 계정으로 로그인해야 열림, Grafana 대시보드 임베드) |
+| http://localhost/grafana/ | Grafana 원본 화면 (같은 관리자 로그인으로 자동 인증) |
 
 번들 없이 코드만 돌려 보고 싶으면 아래 "빠른 시작"처럼 `.env.example` 만 복사해도 뜬다
 (그 경우 AI 채팅은 고정 안내만 나오고 회원·기록 데이터는 비어 있다).
@@ -73,7 +74,7 @@ docker compose up -d --build
 |---|---|
 | http://localhost | 묘한운세 사이트 (`/saju`, `/tarot`, `/face`, `/login`, `/mypage`) |
 | http://localhost/health | Nginx → WAS → MariaDB 전체 상태 |
-| http://localhost:3000 | Grafana (`admin` / `.env` 의 `GRAFANA_ADMIN_PASSWORD`) — Security Monitoring 폴더에 대시보드 2개 |
+| http://localhost/dashboard | 보안 모니터링 페이지 (role=admin 회원만). Grafana 는 http://localhost/grafana/ (같은 로그인) |
 | http://127.0.0.1:8000 | WAS 직접 접속 (디버깅용, 로컬에서만) |
 | 127.0.0.1:3306 | MariaDB (`luck_user` / `.env` 의 `LUCK_DB_PASSWORD`) |
 | 127.0.0.1:9092 | Kafka (호스트에서 `kafka-console-consumer` 등으로 topic 확인) |
@@ -89,8 +90,13 @@ AI 채팅(DeepSeek)을 쓰려면 `.env` 의 `DEEPSEEK_API_KEY` 를 채우고 `do
 
 - 타로 카드 그림(`/assets/tarot/major-XX.png`)은 원래 저장소에도 없어서 404 가 찍히고, 화면은
   설계대로 번호·이름 카드로 대체 표시한다.
-- 로그인은 5회 연속 실패하면 60분 잠긴다(`AUTH_*` 로 조정). 로컬에서 잠겼으면
-  `docker compose exec mariadb mariadb -uroot -p$MARIADB_ROOT_PASSWORD luck_db -e "UPDATE app_user SET failed_login_attempts=0, locked_until=NULL"` 로 푼다.
+- 로그인은 **같은 IP 에서** 5회 연속 실패하면 60분 잠긴다(`AUTH_IP_*` 로 조정). 로컬에서 잠겼으면
+  `docker compose exec mariadb mariadb -uroot -p$MARIADB_ROOT_PASSWORD luck_db -e "DELETE FROM auth_ip_lockout"` 로 푼다.
+- 로그인 세션 cookie 는 `Secure` 라 **`http://localhost`** 또는 HTTPS 에서만 저장된다. `127.0.0.1` 이나 LAN IP 로 열면
+  로그인이 유지되지 않는다 (사주·타로·관상 자체는 비회원으로 동작).
+- 관리자 페이지(`/dashboard`, `/grafana/`)는 `role=admin` 회원만 들어간다. 승격: `bash scripts/make-admin.sh <username>`
+  (운영 덤프를 넣었다면 `admin` 계정이 이미 관리자다). Grafana 는 별도 로그인 없이 그 계정으로 자동 인증되며,
+  직접 3000 포트로는 열리지 않는다(서버 구성과 동일).
 
 ### 자주 쓰는 명령
 
@@ -100,7 +106,8 @@ docker compose logs -f was                # 특정 서비스 로그 (was 로그�
 docker compose up -d --build was          # 코드 수정 후 WAS(+마스킹 어댑터) 다시 빌드
 docker compose down                       # 중지 (데이터 유지)
 docker compose down -v                    # 중지 + DB·Loki·Grafana 데이터 삭제 (DB 초기화 다시 실행됨)
-docker compose --profile notify up -d     # Discord 알림 워커 추가 (DISCORD_WEBHOOK_URL 필요)
+docker compose --profile notify up -d     # Discord 알림 워커 추가 (DISCORD_WEBHOOK_URL 필요, 알림에 /grafana/ 링크 포함)
+bash scripts/make-admin.sh <username>     # 회원을 관리자로 (대시보드·Grafana 접근)
 docker compose --profile retention up -d  # 보존 기간 정리 워커 추가
 ```
 
@@ -197,7 +204,8 @@ cd was && npm test
 | 서버 간 주소 | `100.x.x.x` Tailscale IP | compose 서비스 이름 (`was`, `mariadb`, `kafka`) |
 | HTTPS | Tailscale Serve `*.ts.net` | 없음. `http://localhost` 가 보안 컨텍스트라 카메라 동작 |
 | DB 계정 허용 호스트 | WAS IP 고정 | `%` (compose 네트워크 밖으로 3306 을 열지 않음) |
-| Suricata IDS / EveBox | Nginx 서버에 설치 | 미포함 (호스트 NIC 필요). `nginx/security-monitoring/README.md` 참고 |
+| Suricata IDS / EveBox / IDS→Loki 배송기 | Nginx 서버에 설치 | 미포함 (호스트 NIC 필요). `Suricata IDS`·`IDS Shipper` 대시보드는 비어 있음 |
+| Grafana | 127.0.0.1:3000 + nginx `/grafana/` auth_request | 동일 구조. nginx 고정 IP(172.28.0.10)만 auth.proxy 헤더 허용 |
 | Discord 알림 / 보존 정리 | systemd 서비스·타이머 | `--profile notify`, `--profile retention` |
 | Kafka | WAS 서버에 설치 | `apache/kafka` KRaft 단일 노드 (데이터는 컨테이너 재생성 시 초기화) |
 

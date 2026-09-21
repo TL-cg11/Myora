@@ -55,9 +55,11 @@ if [ -n "$SEC_DUMP" ]; then
 fi
 
 echo "[3/4] 이후 마이그레이션 재적용"
+sql "$LUCK_DB" < mariadb/sql/init/06_account.sql          # auth_ip_lockout 생성, 옛 계정 잠금 컬럼 제거 (재실행 안전)
 sql "$LUCK_DB" < mariadb/sql/init/16_ai_guardrail.sql
 sql "$LUCK_DB" < mariadb/sql/migrate/2026-09-11_app_user_role.sql
 sql < mariadb/sql/migrate/2026-09-10_notification_discord.sql
+sql < mariadb/sql/migrate/2026-09-16_notifier_detection_read.sql
 # 서버 덤프에 없을 수 있는 로컬 관제 계정(.env 의 SECURITY_LOCAL_ACTOR_ID)을 보장한다.
 ACTOR=$(grep -E '^SECURITY_LOCAL_ACTOR_ID=' .env | cut -d= -f2- | tr -d '\r'); ACTOR=${ACTOR:-local-admin}
 sql security_monitoring <<SQL

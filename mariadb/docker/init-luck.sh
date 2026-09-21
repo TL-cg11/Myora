@@ -57,6 +57,7 @@ done
 echo "[init-luck] 3/4 security_monitoring 스키마·역할·계정"
 luck_sql < "$luck_sql_dir/migrate/2026-09-07_security_monitoring.sql"
 luck_sql < "$luck_sql_dir/migrate/2026-09-10_notification_discord.sql"
+luck_sql < "$luck_sql_dir/migrate/2026-09-16_notifier_detection_read.sql"
 
 luck_account() {
   # $1 계정명, $2 역할, $3 비밀번호. 호스트는 '%'.

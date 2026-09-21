@@ -8,6 +8,8 @@ FROM node:22-alpine AS frontend
 WORKDIR /build
 COPY package.json package-lock.json vite.config.js index.html ./
 COPY scripts/prepare-face-assets.mjs scripts/
+# public/ 의 정적 파일(favicon.svg 등). public/mediapipe 는 .dockerignore 로 제외되고 아래에서 채운다.
+COPY public public
 # 저장소에 이미 들어 있는 얼굴 모델(3.6MB)을 재사용해 빌드 중 외부 다운로드를 피한다.
 # prepare-face-assets.mjs 는 1MB 이상 파일이 있으면 다운로드를 건너뛴다.
 COPY dist/mediapipe/models/face_landmarker.task public/mediapipe/models/face_landmarker.task
